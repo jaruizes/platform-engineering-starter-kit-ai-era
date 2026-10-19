@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Platform Console</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #181f2c; --muted: #5b6474; --line: #e3e6ec;
+    --accent: #ff4543; --agent: #6d4aff; --agent-bg: #efeaff; --human: #0f7a5c; --human-bg: #e3f5ee;
+    --warn: #b45309; --warn-bg: #fdf1e1; --bad: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10141c; --panel: #181f2c; --text: #eef1f6; --muted: #9aa4b5; --line: #2a3344;
+      --agent: #b5a3ff; --agent-bg: #2c2550; --human: #5fd3ad; --human-bg: #173a31;
+      --warn: #f5b25c; --warn-bg: #3a2c17; --bad: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 20px 24px 8px; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  main { padding: 8px 24px 32px; display: grid; gap: 16px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .tile, section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .tile { padding: 14px 16px; }
+  .tile .value { font-size: 26px; font-weight: 600; }
+  .tile .label { color: var(--muted); font-size: 12px; }
+  section { padding: 16px; overflow-x: auto; }
+  section h2 { margin: 0 0 12px; font-size: 15px; }
+  .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td .muted { white-space: normal; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+  .agent { background: var(--agent-bg); color: var(--agent); }
+  .human { background: var(--human-bg); color: var(--human); }
+  .pending { background: var(--warn-bg); color: var(--warn); }
+  .muted { color: var(--muted); }
+  .empty { color: var(--muted); padding: 8px 0; }
+  .approval { border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: 8px;
+              padding: 12px 14px; margin-bottom: 10px; }
+  .approval .why { color: var(--muted); margin: 4px 0 10px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  input { padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
+  button { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel);
+           color: var(--text); cursor: pointer; font-weight: 500; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .bar { height: 8px; border-radius: 4px; background: var(--accent); }
+  .feed { list-style: none; margin: 0; padding: 0; }
+  .feed li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .feed .time { color: var(--muted); font-size: 12px; }
+  .feed .warning { color: var(--warn); }
+  footer { color: var(--muted); font-size: 12px; text-align: center; padding-bottom: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Platform Console</h1>
+  <p>Same Golden Paths for developers and AI agents, inside the same guardrails.</p>
+</header>
+<main>
+  <div class="tiles" id="tiles"></div>
+  <section id="approvals-section">
+    <h2>Waiting for a human decision</h2>
+    <div id="approvals"></div>
+  </section>
+  <section>
+    <h2>Environments</h2>
+    <div id="environments"></div>
+  </section>
+  <div class="grid2">
+    <section>
+      <h2>Services</h2>
+      <div id="apps"></div>
+    </section>
+    <section>
+      <h2>Estimated cost per team (EUR/day)</h2>
+      <div id="costs"></div>
+    </section>
+  </div>
+  <section>
+    <h2>Activity</h2>
+    <ul class="feed" id="activity"></ul>
+  </section>
+</main>
+<footer>Refreshes every few seconds · Metrics also at <a href="/metrics">/metrics</a></footer>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ago = (iso) => {
+  const s = Math.round((Date.now() - new Date(iso)) / 1000);
+  if (s < 60) return `${s}s ago`; if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  return `${Math.round(s / 3600)}h ago`;
+};
+const until = (iso) => {
+  const m = Math.round((new Date(iso) - Date.now()) / 60000);
+  return m <= 0 ? "expiring" : m < 60 ? `in ${m}m` : `in ${Math.round(m / 60)}h`;
+};
+const who = (type, name) => type
+  ? `<span class="badge ${type === "agent" ? "agent" : "human"}">${type}</span> <span class="muted">${esc(name)}</span>`
+  : `<span class="muted">${esc(name || "-")}</span>`;
+const table = (cols, rows) => rows.length
+  ? `<table><thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`
+  : `<div class="empty">Nothing yet.</div>`;
+
+function approverName() {
+  try { return localStorage.getItem("approver") || ""; } catch { return ""; }
+}
+
+function renderTiles(m) {
+  const pass = m.agent_first_time_pass_rate === null ? "-" : `${m.agent_first_time_pass_rate}%`;
+  const tiles = [
+    [m.active_environments, "Active environments"],
+    [`${m.agent_share}%`, "Environments requested by agents"],
+    [pass, "Agent requests passing guardrails first time"],
+    [m.denied_by_policy, "Agent requests caught by policy"],
+    [m.pending_approvals, "Waiting for human approval"],
+    [`€${m.daily_cost_eur.toFixed(2)}`, `Estimated cost per day (€${m.agent_daily_cost_eur.toFixed(2)} from agents)`],
+  ];
+  $("tiles").innerHTML = tiles.map(([v, l]) => `<div class="tile"><div class="value">${esc(v)}</div><div class="label">${esc(l)}</div></div>`).join("");
+}
+
+function renderApprovals(approvals) {
+  const pending = approvals.filter((a) => a.status === "pending");
+  const decided = approvals.filter((a) => a.status !== "pending").slice(0, 5);
+  let html = pending.map((a) => `
+    <div class="approval">
+      <div><span class="badge agent">agent</span> <b>${esc(a.agent)}</b> asks for a <b>${esc(a.request.size)}</b>
+        environment <b>${esc(a.request.name)}</b> for team <b>${esc(a.request.team)}</b>, ${esc(a.request.ttlHours)}h</div>
+      <div class="why">Purpose: ${esc(a.request.purpose)}<br>Guardrail: ${esc(a.reason)}</div>
+      <div class="actions">
+        <input placeholder="Your name" value="${esc(approverName())}" data-approver="${esc(a.id)}">
+        <button class="primary" onclick="decide('${esc(a.id)}', 'approve')">Approve</button>
+        <button onclick="decide('${esc(a.id)}', 'reject')">Reject</button>
+      </div>
+    </div>`).join("");
+  if (!pending.length) html = `<div class="empty">No requests waiting. Agents stay inside the guardrails.</div>`;
+  if (decided.length) {
+    html += `<div class="muted" style="margin-top:8px">Recent decisions: ` + decided.map((a) =>
+      `${esc(a.request.name)} <span class="badge ${a.status === "approved" ? "human" : "pending"}">${esc(a.status)}</span> by ${esc(a.decided_by)}`
+    ).join(" · ") + `</div>`;
+  }
+  $("approvals").innerHTML = html;
+}
+
+async function decide(id, decision) {
+  const input = document.querySelector(`[data-approver="${CSS.escape(id)}"]`);
+  const approver = input.value.trim();
+  if (!approver) { input.focus(); return; }
+  try { localStorage.setItem("approver", approver); } catch {}
+  const res = await fetch(`/api/approvals/${encodeURIComponent(id)}`, {
+    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({decision, approver}),
+  });
+  if (!res.ok) alert((await res.json()).error || "Something went wrong.");
+  refresh();
+}
+
+function render(state) {
+  renderTiles(state.metrics);
+  renderApprovals(state.approvals);
+  $("environments").innerHTML = table(
+    ["Name", "Team", "Size", "Requested by", "Approved by", "€/day", "Expires", "Status"],
+    state.environments.map((e) => `<tr>
+      <td><b>${esc(e.name)}</b><div class="muted">${esc(e.purpose)}</div></td><td>${esc(e.team)}</td><td>${esc(e.size)}</td>
+      <td>${who(e.requester_type, e.requested_by)}</td><td>${esc(e.approved_by || "-")}</td>
+      <td>${e.estimated_daily_cost_eur.toFixed(2)}</td><td>${until(e.expires_at)}</td>
+      <td>${e.ready ? "Ready" : '<span class="badge pending">Creating</span>'}</td></tr>`));
+  $("apps").innerHTML = table(
+    ["Service", "Environment", "Requested by", "Status"],
+    state.apps.map((a) => `<tr><td><b>${esc(a.name)}</b><div class="muted">${esc(a.image)}</div></td>
+      <td>${esc(a.namespace)}</td><td>${who(a.requester_type, a.requested_by)}</td>
+      <td>${a.ready ? "Running" : '<span class="badge pending">Starting</span>'}</td></tr>`));
+  const costs = Object.entries(state.metrics.cost_by_team);
+  const max = Math.max(1, ...costs.map(([, c]) => c));
+  $("costs").innerHTML = costs.length ? costs.map(([t, c]) => `
+    <div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between"><span>${esc(t)}</span><b>€${c.toFixed(2)}</b></div>
+    <div class="bar" style="width:${Math.max(4, 100 * c / max)}%"></div></div>`).join("") : `<div class="empty">Nothing yet.</div>`;
+  $("activity").innerHTML = state.activity.length ? state.activity.slice(0, 15).map((a) => `
+    <li><div class="time">${ago(a.time)} · ${esc(a.component.replace("platform-", ""))}</div>
+    <div class="${a.warning ? "warning" : ""}">${esc(a.message)}</div></li>`).join("") : `<li class="empty">Nothing yet.</li>`;
+}
+
+async function refresh() {
+  try {
+    const res = await fetch("/api/state");
+    if (res.ok) render(await res.json());
+  } catch (err) { console.error(err); }
+}
+
+refresh();
+setInterval(() => {
+  // Do not re-render while someone is typing their name in an approval.
+  if (!document.activeElement || document.activeElement.tagName !== "INPUT") refresh();
+}, 3000);
+</script>
+</body>
+</html>

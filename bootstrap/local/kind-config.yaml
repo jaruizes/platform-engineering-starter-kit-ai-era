@@ -1,0 +1,15 @@
+# Local cluster for the demo. Ports on localhost:
+#   8080 -> platform console (dashboard and approvals)
+#   8081 -> platform MCP server (for AI agents)
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: platform-starter-kit
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 30081
+        hostPort: 8081
+        protocol: TCP

@@ -1,0 +1,11 @@
+# Act 1: a developer asks the platform for an environment, through the
+# platform API (the same Golden Path agents use through MCP).
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: payments-dev
+spec:
+  team: payments
+  purpose: Try the new refunds API before opening the pull request
+  size: medium
+  ttlHours: 48

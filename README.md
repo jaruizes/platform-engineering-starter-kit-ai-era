@@ -6,7 +6,7 @@ This is the second generation of the [Platform Engineering Starter Kit](https://
 
 This kit turns that idea into something you can run.
 
-> **Status: work in progress.** This README describes the target design. The [roadmap](#roadmap) shows what is already available.
+> **Status: work in progress.** The local demo works today: two Golden Paths, the platform MCP server, guardrails for humans and agents, human approvals and a console with AI-era metrics. The rest of this README describes the target design; the [roadmap](#roadmap) shows what is available.
 
 ---
 
@@ -99,9 +99,11 @@ Optional modules (Kafka, Redis, Vault…) can be enabled on top.
 
 ## The demo: "I need an environment to test this change"
 
+![Platform console](docs/console.png)
+
 The demo shows a platform working as an engineering control plane, in three acts.
 
-1. **The developer.** From the portal, a developer creates a new service. In a couple of minutes there is a repository, a pipeline, an environment and a catalog entry, with observability. *Golden Paths, not golden cages.*
+1. **The developer.** A developer asks for an environment and deploys a service through the Golden Paths, describing *what* they need, not *how*. *Golden Paths, not golden cages.* (Today through the platform API; the portal comes next.)
 2. **The agent.** From an MCP client, a coding agent asks the platform for an environment to test a change:
    1. **Request:** the agent calls the platform MCP server.
    2. **Identify:** the platform knows which agent is asking, on behalf of which team and with which permissions.
@@ -111,6 +113,8 @@ The demo shows a platform working as an engineering control plane, in three acts
 3. **The dashboard.** What was created, by whom (human or agent, for which team), how much it costs, and how delivery, developer experience and AI metrics are evolving.
 
 *Autonomy for agents, control for the organization.*
+
+The full script, with what to say in each act, is in [demo/README.md](demo/README.md).
 
 ---
 
@@ -144,6 +148,25 @@ Measure the baseline before building anything: without it, there is no business 
 
 ## Repository structure
 
+What is available today:
+
+```
+.
+├── Makefile            # up, down, demo-developer, demo-agent, demo-reset, status, test
+├── .mcp.json           # connects Claude Code (or any MCP client) to the local platform
+├── bootstrap/local/    # kind cluster, Crossplane, Kyverno and the platform, in one script
+├── control-plane/      # Crossplane functions and permissions
+├── golden-paths/
+│   ├── environment/    # ephemeral environment: namespace, budget, team access, expiry, cost
+│   └── app/            # new service: deployment with probes, limits, security context and service
+├── policies/           # guardrails (Kyverno CEL policies) for humans and agents
+├── mcp-server/         # platform MCP server, console and scripted demo agent (Python)
+├── demo/               # demo script, developer requests and reset
+└── docs/
+```
+
+Target structure:
+
 ```
 .
 ├── bootstrap/          # local cluster (kind) and AWS foundation with OpenTofu
@@ -169,24 +192,34 @@ Measure the baseline before building anything: without it, there is no business 
 
 ## Getting started
 
-> Planned. The commands below describe the target experience.
-
 ### Prerequisites
 
-- Docker, `kubectl`, `helm`, `kind`, `make`
-- For AWS: an AWS account, AWS CLI with SSO or a profile, and OpenTofu
-- A GitHub account
+- Docker (on Linux, with cgroup v2), [`kind`](https://kind.sigs.k8s.io/) 0.33+, `kubectl`, `helm` and `make`
+- About 4 CPUs and 8 GB of memory for Docker
 
 ### Run it locally
 
 ```bash
-make up          # local cluster + control plane + portal + Golden Paths
-make demo        # load the sample organization and demo data
-make demo-reset  # back to a clean state before the next demo
-make down        # remove everything
+make up              # kind cluster + Crossplane v2 + Kyverno + Golden Paths + MCP server + console
+make demo-developer  # act 1: a developer gets an environment and deploys a service
+make demo-agent      # act 2 without an AI agent: a scripted agent uses the MCP server
+make demo-reset      # back to a clean state before the next demo
+make down            # remove everything
 ```
 
+| What | Where |
+|---|---|
+| Platform console (dashboard and approvals) | <http://localhost:8080> |
+| Platform MCP server, for agents | `http://localhost:8081/mcp` |
+| Metrics in Prometheus format | <http://localhost:8080/metrics> |
+
+To connect a real agent, open this folder in Claude Code (it reads [`.mcp.json`](.mcp.json)) or run `claude mcp add --transport http platform http://localhost:8081/mcp`. Then follow [the demo script](demo/README.md).
+
+> **Local demo only.** The MCP server has no authentication yet and the console asks approvers to type their name. Both are fine on a laptop and are replaced by real identity (Keycloak) in the *Optimize* milestone.
+
 ### Run it on AWS
+
+> Planned. The commands below describe the target experience.
 
 ```bash
 make aws-bootstrap   # OpenTofu: network, control plane EKS cluster, IAM, Pod Identity
@@ -210,7 +243,8 @@ No access keys are passed as arguments or stored in plain secrets: the control p
 
 ## Roadmap
 
-- [ ] **Demo MVP:** local setup, *new service* and *ephemeral environment* Golden Paths, platform MCP server, cost and human approval policies, first dashboard
+- [x] **Demo MVP:** local setup, *new service* and *ephemeral environment* Golden Paths, platform MCP server, cost and human approval policies, first dashboard
+- [ ] **Portal and GitOps:** Backstage templates on top of the same Golden Paths, Argo CD for the platform itself
 - [ ] **Assess:** pulse check, DevEx survey and baseline scripts
 - [ ] **AWS:** OpenTofu foundation, EKS and RDS compositions
 - [ ] **Optimize:** agent identities, AI gateway, agent-ready and LLM-powered service Golden Paths, AI metrics dashboard

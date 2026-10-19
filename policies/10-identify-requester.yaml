@@ -1,0 +1,59 @@
+# Step "Identify": every request is stamped with who made it, human or
+# agent, taken from the authenticated identity, not from what the client says.
+# It also turns the requested time to live into a deletion date.
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
+metadata:
+  name: identify-requester
+  annotations:
+    policies.kyverno.io/title: Identify the requester
+    policies.kyverno.io/description: >-
+      Records the authenticated requester of every Golden Path request and
+      whether it is a human or an AI agent, and sets the time to live.
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [platform.starterkit.dev]
+        apiVersions: ["*"]
+        operations: [CREATE]
+        resources: [environments, apps]
+  variables:
+    - name: agentIdentity
+      expression: "'system:serviceaccount:platform-system:platform-mcp'"
+    - name: approverIdentity
+      expression: "'system:serviceaccount:platform-system:platform-console'"
+    - name: requesterType
+      expression: >-
+        request.userInfo.username in [variables.agentIdentity, variables.approverIdentity] ? 'agent' : 'human'
+    # Agents identify themselves through the MCP server, which runs with its
+    # own identity. A human approving in the console keeps the agent as requester.
+    - name: requestedBy
+      expression: >-
+        variables.requesterType == 'agent'
+          ? object.metadata.?annotations[?'platform.starterkit.dev/agent'].orValue(request.userInfo.username)
+          : request.userInfo.username
+  mutations:
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: >-
+          Object{
+            metadata: Object.metadata{
+              annotations: {
+                "platform.starterkit.dev/requested-by": string(variables.requestedBy),
+                "platform.starterkit.dev/requester-type": string(variables.requesterType)
+              }
+            }
+          }
+    # Environments expire: Kyverno deletes them when the time to live is over.
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: >-
+          object.kind != 'Environment' ? Object{} :
+          Object{
+            metadata: Object.metadata{
+              labels: {
+                "cleanup.kyverno.io/ttl": string(object.spec.ttlHours) + "h",
+                "platform.starterkit.dev/team": string(object.spec.team)
+              }
+            }
+          }
