@@ -1,17 +1,8 @@
 # A local Git server (Gitea) so the Spring service template can create real
 # repositories without a GitHub account. The portal publishes to the
 # "platform" organization; open http://localhost:3000 to browse it.
-# Local demo only: the credentials below are not secret.
-apiVersion: v1
-kind: Secret
-metadata:
-  name: gitea-admin
-  namespace: platform-system
-type: Opaque
-stringData:
-  username: platform-admin
-  password: platform-starter-kit
----
+# The admin credentials are in the gitea-admin secret, which make up creates
+# with a random password the first time.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

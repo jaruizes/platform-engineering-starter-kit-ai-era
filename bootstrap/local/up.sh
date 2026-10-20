@@ -110,6 +110,11 @@ kubectl -n platform-system rollout status deployment/platform-console --timeout=
 
 if [[ "$PORTAL" == "true" ]]; then
   step "Deploying the local Git server (Gitea), where the Spring service template creates repositories"
+  if ! kubectl -n platform-system get secret gitea-admin >/dev/null 2>&1; then
+    kubectl -n platform-system create secret generic gitea-admin \
+      --from-literal=username=platform-admin \
+      --from-literal=password="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)"
+  fi
   kubectl apply -f "$ROOT/git-server/gitea.yaml"
   kubectl -n platform-system rollout status deployment/gitea --timeout=180s || diagnose gitea
 
@@ -125,7 +130,7 @@ cat <<MSG
   Console (dashboard and approvals): http://localhost:8080
   MCP server for agents:             http://localhost:8081/mcp
   Portal MCP server (context):       http://localhost:7007/api/mcp-actions/v1/context
-  Git server (repositories):         http://localhost:3000 (platform-admin / platform-starter-kit)
+  Git server (repositories):         http://localhost:3000 (read-only without signing in)
 
   Next: follow the demo script in demo/README.md.
 MSG

@@ -245,14 +245,14 @@ make down            # remove everything
 | Platform console (dashboard and approvals) | <http://localhost:8080> |
 | Platform MCP server, for agents (actions) | `http://localhost:8081/mcp` |
 | Portal MCP server, for agents (context, read-only) | `http://localhost:7007/api/mcp-actions/v1/context` |
-| Git server with the repositories the portal creates | <http://localhost:3000> (`platform-admin` / `platform-starter-kit`) |
+| Git server with the repositories the portal creates | <http://localhost:3000> (to sign in as `platform-admin`: `kubectl -n platform-system get secret gitea-admin -o jsonpath='{.data.password}' \| base64 -d`) |
 | Metrics in Prometheus format | <http://localhost:8080/metrics> |
 
 To connect a real agent, open this folder in Claude Code: it reads [`.mcp.json`](.mcp.json) (the `platform` and `portal` servers) and the skills in [`.claude/skills/`](.claude/skills/). Then follow [the demo script](demo/README.md).
 
 `PORTAL=false make up` skips the portal and the Git server if you only need the MCP server and the console.
 
-> **Local demo only.** The platform MCP server has no authentication yet, the portal signs everyone in as a guest (mapped to the sample user Ana), agents reach the portal MCP server with a fixed token and the Git server has a fixed admin password. All of this is fine on a laptop and is replaced by real identity (Keycloak, and OAuth for MCP clients) in the *Optimize* milestone.
+> **Local demo only.** The platform MCP server has no authentication yet, the portal signs everyone in as a guest (mapped to the sample user Ana), and agents reach the portal MCP server with a fixed token. All of this is fine on a laptop and is replaced by real identity (Keycloak, and OAuth for MCP clients) in the *Optimize* milestone.
 
 ### Run it on AWS
 
