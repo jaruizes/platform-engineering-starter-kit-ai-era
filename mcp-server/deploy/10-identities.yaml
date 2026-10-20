@@ -1,0 +1,70 @@
+# Two identities, two roles:
+# - platform-mcp is how AI agents act on the platform. Policies recognize it.
+# - platform-console is how humans approve what agents cannot do alone.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: platform-mcp
+  namespace: platform-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: platform-console
+  namespace: platform-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform:golden-paths:consumer
+rules:
+  - apiGroups: [platform.starterkit.dev]
+    resources: [environments, apps]
+    verbs: [get, list, watch, create, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platform:golden-paths:consumers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: platform:golden-paths:consumer
+subjects:
+  - kind: ServiceAccount
+    name: platform-mcp
+    namespace: platform-system
+  - kind: ServiceAccount
+    name: platform-console
+    namespace: platform-system
+---
+# Approval requests and the audit trail live in platform-system.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform:records
+  namespace: platform-system
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [get, list, watch, create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform:records
+  namespace: platform-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform:records
+subjects:
+  - kind: ServiceAccount
+    name: platform-mcp
+    namespace: platform-system
+  - kind: ServiceAccount
+    name: platform-console
+    namespace: platform-system

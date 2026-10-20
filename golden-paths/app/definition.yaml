@@ -1,0 +1,53 @@
+# Golden Path: new service.
+# A workload deployed the standard way: probes, resources, security context,
+# labels for ownership and cost, and a Service in front of it.
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: apps.platform.starterkit.dev
+spec:
+  group: platform.starterkit.dev
+  names:
+    kind: App
+    plural: apps
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      additionalPrinterColumns:
+        - name: Image
+          type: string
+          jsonPath: .spec.image
+        - name: Replicas
+          type: integer
+          jsonPath: .spec.replicas
+        - name: URL
+          type: string
+          jsonPath: .status.url
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                image:
+                  type: string
+                  description: Container image to run.
+                  default: ghcr.io/stefanprodan/podinfo:6.15.0
+                port:
+                  type: integer
+                  description: Port the container listens on.
+                  default: 9898
+                replicas:
+                  type: integer
+                  minimum: 1
+                  maximum: 3
+                  default: 1
+            status:
+              type: object
+              properties:
+                url:
+                  type: string
+                  description: In-cluster URL of the service.

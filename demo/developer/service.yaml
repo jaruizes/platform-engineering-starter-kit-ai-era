@@ -1,0 +1,9 @@
+# Act 1: the developer deploys a service with the new-service Golden Path.
+# Probes, limits, security context and ownership labels come for free.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: App
+metadata:
+  name: refunds-api
+  namespace: env-payments-dev
+spec:
+  replicas: 2

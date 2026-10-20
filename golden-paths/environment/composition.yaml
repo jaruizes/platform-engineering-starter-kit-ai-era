@@ -1,0 +1,97 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: environment
+spec:
+  compositeTypeRef:
+    apiVersion: platform.starterkit.dev/v1alpha1
+    kind: Environment
+  mode: Pipeline
+  pipeline:
+    - step: render
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{- $xr := .observed.composite.resource }}
+            {{- $name := $xr.metadata.name }}
+            {{- $team := $xr.spec.team }}
+            {{- $ns := printf "env-%s" $name }}
+            {{- /* Capacity and estimated cost per size. Adjust to your prices. */}}
+            {{- $sizes := dict
+                  "small"  (dict "cpu" "1" "memory" "2Gi"  "pods" "10" "cost" "1.50")
+                  "medium" (dict "cpu" "2" "memory" "4Gi"  "pods" "20" "cost" "3.00")
+                  "large"  (dict "cpu" "8" "memory" "16Gi" "pods" "50" "cost" "12.00") }}
+            {{- $size := get $sizes ($xr.spec.size | default "small") }}
+            apiVersion: v1
+            kind: Namespace
+            metadata:
+              name: {{ $ns }}
+              labels:
+                platform.starterkit.dev/team: {{ $team }}
+                platform.starterkit.dev/environment: {{ $name }}
+                platform.starterkit.dev/cost-center: {{ $team }}
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: namespace
+                gotemplating.fn.crossplane.io/ready: "True"
+            ---
+            apiVersion: v1
+            kind: ResourceQuota
+            metadata:
+              name: budget
+              namespace: {{ $ns }}
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: quota
+                gotemplating.fn.crossplane.io/ready: "True"
+            spec:
+              hard:
+                requests.cpu: {{ $size.cpu | quote }}
+                requests.memory: {{ $size.memory | quote }}
+                limits.cpu: {{ $size.cpu | quote }}
+                limits.memory: {{ $size.memory | quote }}
+                pods: {{ $size.pods | quote }}
+            ---
+            apiVersion: v1
+            kind: LimitRange
+            metadata:
+              name: defaults
+              namespace: {{ $ns }}
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: limits
+                gotemplating.fn.crossplane.io/ready: "True"
+            spec:
+              limits:
+                - type: Container
+                  default:
+                    cpu: 250m
+                    memory: 256Mi
+                  defaultRequest:
+                    cpu: 50m
+                    memory: 64Mi
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: RoleBinding
+            metadata:
+              name: team-{{ $team }}
+              namespace: {{ $ns }}
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: team-access
+                gotemplating.fn.crossplane.io/ready: "True"
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: edit
+            subjects:
+              - apiGroup: rbac.authorization.k8s.io
+                kind: Group
+                name: team:{{ $team }}
+            ---
+            apiVersion: {{ $xr.apiVersion }}
+            kind: {{ $xr.kind }}
+            status:
+              namespace: {{ $ns }}
+              estimatedDailyCost: {{ $size.cost | quote }}

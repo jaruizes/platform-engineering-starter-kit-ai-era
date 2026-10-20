@@ -1,0 +1,68 @@
+# Golden Path: ephemeral environment.
+# An isolated, budgeted and time-limited place to test a change.
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: environments.platform.starterkit.dev
+spec:
+  group: platform.starterkit.dev
+  names:
+    kind: Environment
+    plural: environments
+    shortNames: [env]
+  scope: Cluster
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      additionalPrinterColumns:
+        - name: Team
+          type: string
+          jsonPath: .spec.team
+        - name: Size
+          type: string
+          jsonPath: .spec.size
+        - name: TTL
+          type: integer
+          jsonPath: .spec.ttlHours
+        - name: Namespace
+          type: string
+          jsonPath: .status.namespace
+        - name: Cost/day
+          type: string
+          jsonPath: .status.estimatedDailyCost
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [team, purpose]
+              properties:
+                team:
+                  type: string
+                  description: Team that owns the environment and pays for it.
+                  pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                  maxLength: 30
+                purpose:
+                  type: string
+                  description: Why the environment is needed, for example the change to test.
+                  maxLength: 200
+                size:
+                  type: string
+                  description: Capacity of the environment. Larger sizes cost more.
+                  enum: [small, medium, large]
+                  default: small
+                ttlHours:
+                  type: integer
+                  description: Hours until the environment is deleted automatically.
+                  minimum: 1
+                  default: 8
+            status:
+              type: object
+              properties:
+                namespace:
+                  type: string
+                estimatedDailyCost:
+                  type: string
+                  description: Estimated cost per day, in EUR.

@@ -1,0 +1,41 @@
+# Guardrails for everyone, humans and agents alike: environments are
+# temporary and each team has a budget of active environments.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: cost-guardrails
+  annotations:
+    policies.kyverno.io/title: Cost guardrails
+    policies.kyverno.io/description: >-
+      Environments live at most 72 hours and each team can have at most
+      3 active environments.
+spec:
+  validationActions: [Deny]
+  evaluation:
+    background:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [platform.starterkit.dev]
+        apiVersions: ["*"]
+        operations: [CREATE]
+        resources: [environments]
+  variables:
+    - name: maxTtlHours
+      expression: "72"
+    - name: maxEnvironmentsPerTeam
+      expression: "3"
+    - name: teamEnvironments
+      expression: >-
+        dyn(resource.List("platform.starterkit.dev/v1alpha1", "environments", "").items)
+          .filter(e, e.spec.team == object.spec.team)
+  validations:
+    - expression: object.spec.ttlHours <= variables.maxTtlHours
+      messageExpression: >-
+        'Cost guardrail: environments can live at most ' + string(variables.maxTtlHours) +
+        ' hours, requested ' + string(object.spec.ttlHours) + '.'
+    - expression: size(variables.teamEnvironments) < variables.maxEnvironmentsPerTeam
+      messageExpression: >-
+        'Cost guardrail: team ' + object.spec.team + ' already has ' +
+        string(size(variables.teamEnvironments)) + ' active environments (budget: ' +
+        string(variables.maxEnvironmentsPerTeam) + '). Delete one first.'

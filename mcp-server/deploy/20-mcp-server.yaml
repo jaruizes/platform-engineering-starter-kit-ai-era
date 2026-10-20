@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-mcp
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/name: platform-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platform-mcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: platform-mcp
+    spec:
+      serviceAccountName: platform-mcp
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: platform
+          image: platform-starter-kit/platform-mcp:dev
+          imagePullPolicy: IfNotPresent
+          command: [platform-mcp]
+          env:
+            - name: PORT
+              value: "8081"
+            - name: MCP_ALLOWED_HOSTS
+              value: "localhost:*,127.0.0.1:*,platform-mcp.platform-system.svc:*"
+          ports:
+            - name: http
+              containerPort: 8081
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-mcp
+  namespace: platform-system
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: platform-mcp
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+      nodePort: 30081

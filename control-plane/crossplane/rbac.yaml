@@ -1,0 +1,23 @@
+# Crossplane v2 composes plain Kubernetes resources directly. It needs
+# permission to manage the kinds our Golden Paths create.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: crossplane:golden-paths
+  labels:
+    rbac.crossplane.io/aggregate-to-crossplane: "true"
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, resourcequotas, limitranges, services, serviceaccounts]
+    verbs: ["*"]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: ["*"]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [rolebindings]
+    verbs: ["*"]
+  # Needed to grant the "edit" role to teams in their environments.
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterroles]
+    verbs: [bind]
+    resourceNames: [edit]

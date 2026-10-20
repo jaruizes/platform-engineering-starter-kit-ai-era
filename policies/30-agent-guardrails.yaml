@@ -1,0 +1,82 @@
+# Guardrails for AI agents: the more autonomous the consumer, the stronger
+# the guardrails. Agents get small environments on their own; anything
+# bigger goes to a human for approval through the platform console.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: agent-guardrails
+  annotations:
+    policies.kyverno.io/title: Agent guardrails
+    policies.kyverno.io/description: >-
+      Agents can only request small environments and only deploy into
+      ephemeral environments. Larger requests need human approval.
+spec:
+  validationActions: [Deny]
+  evaluation:
+    background:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [platform.starterkit.dev]
+        apiVersions: ["*"]
+        operations: [CREATE, UPDATE]
+        resources: [environments, apps]
+  matchConditions:
+    - name: requested-by-an-agent
+      expression: request.userInfo.username == 'system:serviceaccount:platform-system:platform-mcp'
+  validations:
+    - expression: object.kind != 'Environment' || object.spec.size == 'small'
+      messageExpression: >-
+        'Human approval required: agents can only request small environments on their own, requested ' +
+        object.spec.size + '.'
+      reason: Forbidden
+    - expression: object.kind != 'App' || object.metadata.namespace.startsWith('env-')
+      message: Agents can only deploy services into ephemeral environments (env-* namespaces).
+      reason: Forbidden
+    - expression: >-
+        !has(object.metadata.annotations) ||
+        !('platform.starterkit.dev/approved-by' in object.metadata.annotations)
+      message: Agents cannot approve their own requests.
+      reason: Forbidden
+---
+# Requester and approval records cannot be forged or changed afterwards.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: protect-audit-trail
+  annotations:
+    policies.kyverno.io/title: Protect the audit trail
+    policies.kyverno.io/description: >-
+      Only the platform console can record an approval, and requester
+      annotations cannot be changed after creation.
+spec:
+  validationActions: [Deny]
+  evaluation:
+    background:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [platform.starterkit.dev]
+        apiVersions: ["*"]
+        operations: [CREATE, UPDATE]
+        resources: [environments, apps]
+  variables:
+    - name: keys
+      expression: >-
+        ['platform.starterkit.dev/requested-by', 'platform.starterkit.dev/requester-type', 'platform.starterkit.dev/approved-by']
+    - name: annotations
+      expression: object.metadata.?annotations.orValue({})
+    - name: oldAnnotations
+      expression: "request.operation == 'UPDATE' ? oldObject.metadata.?annotations.orValue({}) : {}"
+  validations:
+    - expression: >-
+        !('platform.starterkit.dev/approved-by' in variables.annotations) ||
+        request.operation == 'UPDATE' ||
+        request.userInfo.username == 'system:serviceaccount:platform-system:platform-console'
+      message: Approvals can only be recorded through the platform console.
+      reason: Forbidden
+    - expression: >-
+        request.operation == 'CREATE' ||
+        variables.keys.all(k, variables.annotations[?k].orValue('') == variables.oldAnnotations[?k].orValue(''))
+      message: Requester and approval annotations cannot be changed.
+      reason: Forbidden

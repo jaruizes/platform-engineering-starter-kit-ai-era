@@ -1,0 +1,100 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: app
+spec:
+  compositeTypeRef:
+    apiVersion: platform.starterkit.dev/v1alpha1
+    kind: App
+  mode: Pipeline
+  pipeline:
+    - step: render
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{- $xr := .observed.composite.resource }}
+            {{- $name := $xr.metadata.name }}
+            {{- $ns := $xr.metadata.namespace }}
+            {{- $replicas := $xr.spec.replicas | default 1 }}
+            {{- $deploy := dig "resources" "deployment" "resource" dict .observed }}
+            {{- $available := dig "status" "availableReplicas" 0 $deploy }}
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: {{ $name }}
+              labels:
+                app.kubernetes.io/name: {{ $name }}
+                app.kubernetes.io/managed-by: platform
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: deployment
+                {{- if ge (int $available) (int $replicas) }}
+                gotemplating.fn.crossplane.io/ready: "True"
+                {{- end }}
+            spec:
+              replicas: {{ $replicas }}
+              selector:
+                matchLabels:
+                  app.kubernetes.io/name: {{ $name }}
+              template:
+                metadata:
+                  labels:
+                    app.kubernetes.io/name: {{ $name }}
+                    app.kubernetes.io/managed-by: platform
+                spec:
+                  automountServiceAccountToken: false
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 10001
+                    runAsGroup: 10001
+                    seccompProfile:
+                      type: RuntimeDefault
+                  containers:
+                    - name: app
+                      image: {{ $xr.spec.image }}
+                      ports:
+                        - name: http
+                          containerPort: {{ $xr.spec.port }}
+                      readinessProbe:
+                        tcpSocket:
+                          port: http
+                      livenessProbe:
+                        tcpSocket:
+                          port: http
+                      resources:
+                        requests:
+                          cpu: 50m
+                          memory: 64Mi
+                        limits:
+                          cpu: 250m
+                          memory: 256Mi
+                      securityContext:
+                        allowPrivilegeEscalation: false
+                        capabilities:
+                          drop: [ALL]
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: {{ $name }}
+              labels:
+                app.kubernetes.io/name: {{ $name }}
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: service
+                gotemplating.fn.crossplane.io/ready: "True"
+            spec:
+              selector:
+                app.kubernetes.io/name: {{ $name }}
+              ports:
+                - name: http
+                  port: 80
+                  targetPort: http
+            ---
+            apiVersion: {{ $xr.apiVersion }}
+            kind: {{ $xr.kind }}
+            status:
+              url: http://{{ $name }}.{{ $ns }}.svc.cluster.local
