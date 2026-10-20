@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Creates the local platform: k3d cluster, Crossplane v2, Kyverno,
-# Golden Paths, policies, platform MCP server and console.
+# Golden Paths, policies, platform MCP server, console and developer portal.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -12,6 +12,9 @@ CROSSPLANE_CHART="${CROSSPLANE_CHART:-crossplane-stable/crossplane}"
 KYVERNO_CHART="${KYVERNO_CHART:-kyverno/kyverno}"
 FUNCTION_REGISTRY="${FUNCTION_REGISTRY:-xpkg.crossplane.io}"
 MCP_IMAGE="${MCP_IMAGE:-platform-starter-kit/platform-mcp:dev}"
+PORTAL_IMAGE="${PORTAL_IMAGE:-platform-starter-kit/portal:dev}"
+# PORTAL=false skips the developer portal (Backstage), whose first build is slow.
+PORTAL="${PORTAL:-true}"
 
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 
@@ -19,6 +22,10 @@ step "Creating k3d cluster '$CLUSTER_NAME'"
 if k3d cluster get "$CLUSTER_NAME" >/dev/null 2>&1; then
   echo "Cluster already exists, reusing it."
   k3d cluster start "$CLUSTER_NAME" >/dev/null
+  # Clusters created before the portal existed do not publish its port.
+  if ! docker port "k3d-$CLUSTER_NAME-serverlb" 2>/dev/null | grep -q '^30007/'; then
+    k3d cluster edit "$CLUSTER_NAME" --port-add 7007:30007@loadbalancer
+  fi
 else
   k3d cluster create "$CLUSTER_NAME" --image "$K3S_IMAGE" \
     --config "$ROOT/bootstrap/local/k3d-config.yaml" --wait --timeout 180s
@@ -55,28 +62,34 @@ kubectl apply -f "$ROOT/golden-paths/environment/composition.yaml" -f "$ROOT/gol
 step "Installing guardrails (policies for humans and agents)"
 kubectl apply -f "$ROOT/policies/"
 
-step "Building and deploying the platform MCP server and console"
-# No provenance attestations: with Docker Desktop's containerd image store they
-# break 'k3d image import'. Each build gets its own tag so pods always roll.
-BUILD_FLAGS=""
-if docker buildx version >/dev/null 2>&1; then
-  BUILD_FLAGS="--provenance=false --sbom=false"
-fi
-docker build $BUILD_FLAGS -t "$MCP_IMAGE" ${MCP_BUILD_ARGS:-} "$ROOT/mcp-server"
-IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$MCP_IMAGE")"
-IMAGE="${MCP_IMAGE%:*}:${IMAGE_ID:7:12}"
-docker tag "$MCP_IMAGE" "$IMAGE"
-k3d image import "$IMAGE" --cluster "$CLUSTER_NAME"
+# Builds an image and loads it into the cluster. No provenance attestations:
+# with Docker Desktop's containerd image store they break 'k3d image import'.
+# Each build gets its own tag so pods always roll. Prints the tag.
+load_image() {
+  local image="$1" context="$2" build_args="${3:-}" flags="" id tagged node
+  if docker buildx version >/dev/null 2>&1; then
+    flags="--provenance=false --sbom=false"
+  fi
+  docker build $flags -t "$image" $build_args "$context" >&2
+  id="$(docker image inspect --format '{{.Id}}' "$image")"
+  tagged="${image%:*}:${id:7:12}"
+  docker tag "$image" "$tagged"
+  k3d image import "$tagged" --cluster "$CLUSTER_NAME" >&2
+  node="k3d-$CLUSTER_NAME-server-0"
+  if ! docker exec "$node" crictl inspecti "$tagged" >/dev/null 2>&1; then
+    echo "The image did not reach the cluster, loading it directly into $node." >&2
+    docker save "$tagged" | docker exec -i "$node" ctr -n k8s.io images import - >&2
+  fi
+  echo "$tagged"
+}
 
-NODE="k3d-$CLUSTER_NAME-server-0"
-if ! docker exec "$NODE" crictl inspecti "$IMAGE" >/dev/null 2>&1; then
-  echo "The image did not reach the cluster, loading it directly into $NODE."
-  docker save "$IMAGE" | docker exec -i "$NODE" ctr -n k8s.io images import -
-fi
-
-for manifest in "$ROOT"/mcp-server/deploy/*.yaml; do echo "---"; cat "$manifest"; done \
-  | sed "s|image: platform-starter-kit/platform-mcp:dev|image: $IMAGE|" \
-  | kubectl apply -f -
+# Applies the manifests in a folder with the given image.
+deploy() {
+  local dir="$1" placeholder="$2" image="$3"
+  for manifest in "$dir"/*.yaml; do echo "---"; cat "$manifest"; done \
+    | sed "s|image: $placeholder|image: $image|" \
+    | kubectl apply -f -
+}
 
 diagnose() {
   echo
@@ -86,13 +99,26 @@ diagnose() {
   kubectl -n platform-system logs "deployment/$1" --tail=30 || true
   exit 1
 }
+
+step "Building and deploying the platform MCP server and console"
+IMAGE="$(load_image "$MCP_IMAGE" "$ROOT/mcp-server" "${MCP_BUILD_ARGS:-}")"
+deploy "$ROOT/mcp-server/deploy" platform-starter-kit/platform-mcp:dev "$IMAGE"
 kubectl -n platform-system rollout status deployment/platform-mcp --timeout=180s || diagnose platform-mcp
 kubectl -n platform-system rollout status deployment/platform-console --timeout=180s || diagnose platform-console
 
+if [[ "$PORTAL" == "true" ]]; then
+  step "Building and deploying the developer portal (Backstage, the first build takes several minutes)"
+  IMAGE="$(load_image "$PORTAL_IMAGE" "$ROOT/portal" "${PORTAL_BUILD_ARGS:-}")"
+  deploy "$ROOT/portal/deploy" platform-starter-kit/portal:dev "$IMAGE"
+  kubectl -n platform-system rollout status deployment/portal --timeout=300s || diagnose portal
+fi
+
 step "Platform ready"
 cat <<MSG
+  Developer portal (Backstage):      http://localhost:7007
   Console (dashboard and approvals): http://localhost:8080
   MCP server for agents:             http://localhost:8081/mcp
+  Portal MCP server (context):       http://localhost:7007/api/mcp-actions/v1/context
 
-  Next: 'make demo' loads the sample organization. See demo/README.md.
+  Next: follow the demo script in demo/README.md.
 MSG

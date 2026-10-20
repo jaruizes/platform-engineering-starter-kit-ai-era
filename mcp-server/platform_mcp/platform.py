@@ -339,7 +339,7 @@ def record(action: str, message: str, subject: str, warning: bool = False, actor
 
 def list_activity(limit: int = 50) -> list[dict[str, Any]]:
     events = _core().list_namespaced_event(NAMESPACE).items
-    events = [e for e in events if e.source and e.source.component in ("platform-mcp", "platform-console")]
+    events = [e for e in events if e.source and e.source.component in ("platform-mcp", "platform-console", "platform-portal")]
     events.sort(key=lambda e: e.last_timestamp or e.metadata.creation_timestamp, reverse=True)
     return [
         {

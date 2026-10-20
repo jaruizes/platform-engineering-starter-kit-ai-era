@@ -4,7 +4,7 @@ SHELL := /usr/bin/env bash
 help: ## Show the available commands
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
 
-up: ## Create the local platform (k3d + Crossplane + Kyverno + MCP server + console)
+up: ## Create the local platform (k3d, Crossplane, Kyverno, MCP server, console, portal)
 	@bootstrap/local/up.sh
 
 down: ## Delete the local platform

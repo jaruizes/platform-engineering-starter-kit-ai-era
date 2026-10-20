@@ -6,7 +6,7 @@ This is the second generation of the [Platform Engineering Starter Kit](https://
 
 This kit turns that idea into something you can run.
 
-> **Status: work in progress.** The local demo works today: two Golden Paths, the platform MCP server, guardrails for humans and agents, human approvals and a console with AI-era metrics. The rest of this README describes the target design; the [roadmap](#roadmap) shows what is available.
+> **Status: work in progress.** The local demo works today: two Golden Paths, a developer portal (Backstage) for humans and agents, the platform MCP server, guardrails for humans and agents, human approvals and AI-era metrics. The rest of this README describes the target design; the [roadmap](#roadmap) shows what is available.
 
 ---
 
@@ -57,7 +57,20 @@ Every capability is exposed through **three interfaces** backed by the same Gold
 
 - **Portal**, for humans who want to discover and click.
 - **CLI / Platform API**, for automation and for humans who prefer the terminal. The API is the set of Crossplane composite resources.
-- **Platform MCP server**, for agents. It exposes Golden Paths as tools (`request_environment`, `create_service`…), never raw infrastructure.
+- **Platform MCP server**, for agents. It exposes Golden Paths as tools (`request_environment`, `deploy_service`…), never raw infrastructure.
+
+### The portal in the AI era
+
+The portal (Backstage) is no longer only for people. It is where humans and agents get **context**, while actions always go through a Golden Path:
+
+| | Humans | AI agents |
+|---|---|---|
+| **Context** | Catalog: who owns what, which environments exist, who asked for them (human or agent), who approved them, what they cost, live Kubernetes status | The same catalog, live status, search and team usage, as MCP tools ([Backstage MCP actions](https://backstage.io/docs/ai/mcp-actions)), read-only |
+| **Action** | Software Templates on top of the Golden Paths | The platform MCP server, with the agent identity, so the agent guardrails apply |
+| **Rules** | Guardrails as code (Kyverno) | The same guardrails, plus a catalog of AI resources: the rules agents follow, the skills that teach them to use the platform, and the MCP servers they can use |
+| **Decisions** | Approve or reject what agents cannot do alone, signed in with their own identity | Never: agents cannot approve their own requests |
+
+Every request is stamped with an identity the requester cannot forge: the agent identity (platform MCP server), the portal acting on behalf of a signed-in person, or the console recording who approved what.
 
 ### Technology choices
 
@@ -68,7 +81,7 @@ The kit is opinionated so it works out of the box, and modular so each piece can
 | Platform API | **Crossplane v2** (namespaced composite resources, composition functions) | The platform as a Kubernetes-style API: declarative, versioned and consumable by humans, pipelines and agents alike |
 | Infrastructure as code | **OpenTofu** | Bootstraps the foundation (network, control plane cluster, identity) and can run inside compositions for modules teams already have in Terraform/OpenTofu |
 | GitOps | **Argo CD** | Everything the platform provides is in Git and kept in sync |
-| Portal | **Backstage** | Catalog, templates, docs and scorecards |
+| Portal | **Backstage** | Catalog, templates, AI resources (rules, skills, MCP servers) and MCP actions for agents |
 | Policy as code | **Kyverno** | One policy catalog for humans and agents |
 | Identity | **Keycloak** | Human users and non-human identities for agents, acting on behalf of a team |
 | AI gateway | **LiteLLM** | Allowed models, quotas and cost per team |
@@ -99,18 +112,18 @@ Optional modules (Kafka, Redis, Vault…) can be enabled on top.
 
 ## The demo: "I need an environment to test this change"
 
-![Platform console](docs/console.png)
+![AI Platform page in the portal](docs/portal-ai-platform.png)
 
 The demo shows a platform working as an engineering control plane, in three acts.
 
-1. **The developer.** A developer asks for an environment and deploys a service through the Golden Paths, describing *what* they need, not *how*. *Golden Paths, not golden cages.* (Today through the platform API; the portal comes next.)
+1. **The developer.** A developer asks for an environment and deploys a service through the Golden Paths in the portal, describing *what* they need, not *how*. *Golden Paths, not golden cages.*
 2. **The agent.** From an MCP client, a coding agent asks the platform for an environment to test a change:
-   1. **Request:** the agent calls the platform MCP server.
+   1. **Request:** the agent reads context from the portal (who owns the service, how many environments its team has) and calls the platform MCP server.
    2. **Identify:** the platform knows which agent is asking, on behalf of which team and with which permissions.
    3. **Golden Path:** the request is resolved with the approved template, not with ad-hoc infrastructure.
-   4. **Guardrails:** policies check cost, security and data rules. A second, oversized request is stopped and sent to a human for approval.
+   4. **Guardrails:** policies check cost, security and data rules. A second, oversized request is stopped and sent to a human, who approves it in the portal.
    5. **Observe:** every action is traced, measured and charged to the team's budget.
-3. **The dashboard.** What was created, by whom (human or agent, for which team), how much it costs, and how delivery, developer experience and AI metrics are evolving.
+3. **The dashboard.** What was created, by whom (human or agent, for which team), how much it costs, and how delivery, developer experience and AI metrics are evolving, in the portal's AI Platform page and catalog.
 
 *Autonomy for agents, control for the organization.*
 
@@ -153,7 +166,8 @@ What is available today:
 ```
 .
 ├── Makefile            # up, down, demo-developer, demo-agent, demo-reset, status, test
-├── .mcp.json           # connects Claude Code (or any MCP client) to the local platform
+├── .mcp.json           # connects Claude Code (or any MCP client) to the platform and portal MCP servers
+├── .claude/skills/     # skill that teaches coding agents to use the Golden Paths
 ├── bootstrap/local/    # k3d cluster, Crossplane, Kyverno and the platform, in one script
 ├── control-plane/      # Crossplane functions and permissions
 ├── golden-paths/
@@ -161,6 +175,7 @@ What is available today:
 │   └── app/            # new service: deployment with probes, limits, security context and service
 ├── policies/           # guardrails (Kyverno CEL policies) for humans and agents
 ├── mcp-server/         # platform MCP server, console and scripted demo agent (Python)
+├── portal/             # Backstage: catalog, templates, AI Platform page and MCP actions
 ├── demo/               # demo script, developer requests and reset
 └── docs/
 ```
@@ -195,12 +210,12 @@ Target structure:
 ### Prerequisites
 
 - Docker, [`k3d`](https://k3d.io/) 5.8+, `kubectl`, `helm` and `make`
-- About 4 CPUs and 8 GB of memory for Docker
+- About 4 CPUs and 8 GB of memory for Docker. The first `make up` builds the portal image, which takes several minutes
 
 ### Run it locally
 
 ```bash
-make up              # k3d cluster + Crossplane v2 + Kyverno + Golden Paths + MCP server + console
+make up              # k3d cluster + Crossplane v2 + Kyverno + Golden Paths + MCP server + console + portal
 make demo-developer  # act 1: a developer gets an environment and deploys a service
 make demo-agent      # act 2 without an AI agent: a scripted agent uses the MCP server
 make demo-reset      # back to a clean state before the next demo
@@ -209,13 +224,17 @@ make down            # remove everything
 
 | What | Where |
 |---|---|
+| Developer portal (Backstage) | <http://localhost:7007> |
 | Platform console (dashboard and approvals) | <http://localhost:8080> |
-| Platform MCP server, for agents | `http://localhost:8081/mcp` |
+| Platform MCP server, for agents (actions) | `http://localhost:8081/mcp` |
+| Portal MCP server, for agents (context, read-only) | `http://localhost:7007/api/mcp-actions/v1/context` |
 | Metrics in Prometheus format | <http://localhost:8080/metrics> |
 
-To connect a real agent, open this folder in Claude Code (it reads [`.mcp.json`](.mcp.json)) or run `claude mcp add --transport http platform http://localhost:8081/mcp`. Then follow [the demo script](demo/README.md).
+To connect a real agent, open this folder in Claude Code: it reads [`.mcp.json`](.mcp.json) (the `platform` and `portal` servers) and the [platform skill](.claude/skills/platform-golden-paths/SKILL.md). Then follow [the demo script](demo/README.md).
 
-> **Local demo only.** The MCP server has no authentication yet and the console asks approvers to type their name. Both are fine on a laptop and are replaced by real identity (Keycloak) in the *Optimize* milestone.
+`PORTAL=false make up` skips the portal if you only need the MCP server and the console.
+
+> **Local demo only.** The platform MCP server has no authentication yet, the portal signs everyone in as a guest (mapped to the sample user Ana) and agents reach the portal MCP server with a fixed token. All of this is fine on a laptop and is replaced by real identity (Keycloak, and OAuth for MCP clients) in the *Optimize* milestone.
 
 ### Run it on AWS
 
@@ -244,7 +263,8 @@ No access keys are passed as arguments or stored in plain secrets: the control p
 ## Roadmap
 
 - [x] **Demo MVP:** local setup, *new service* and *ephemeral environment* Golden Paths, platform MCP server, cost and human approval policies, first dashboard
-- [ ] **Portal and GitOps:** Backstage templates on top of the same Golden Paths, Argo CD for the platform itself
+- [x] **Portal:** Backstage with templates on top of the same Golden Paths, live catalog of what humans and agents created, approvals, AI resources and MCP actions for agents
+- [ ] **GitOps:** Argo CD for the platform itself
 - [ ] **Assess:** pulse check, DevEx survey and baseline scripts
 - [ ] **AWS:** OpenTofu foundation, EKS and RDS compositions
 - [ ] **Optimize:** agent identities, AI gateway, agent-ready and LLM-powered service Golden Paths, AI metrics dashboard

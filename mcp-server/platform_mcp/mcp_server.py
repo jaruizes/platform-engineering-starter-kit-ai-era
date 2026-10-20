@@ -92,7 +92,8 @@ def request_environment(
                 "approval_id": approval_id,
                 "reason": denied.reason,
                 "next_step": (
-                    "Tell the user this request needs human approval in the platform console "
+                    "Tell the user this request needs human approval in the developer portal "
+                    "(AI Platform page) or the platform console "
                     f"(approval id {approval_id}). Use get_approval_status to follow it, or ask for "
                     "a small environment instead."
                 ),

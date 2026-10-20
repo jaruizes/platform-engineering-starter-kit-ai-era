@@ -1,0 +1,73 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: ephemeral-environment
+  title: Ephemeral environment
+  description: >-
+    An isolated environment to test a change, with a CPU and memory budget,
+    team access and automatic deletion. Same Golden Path that AI agents use.
+  tags: [golden-path, environment]
+spec:
+  owner: platform-team
+  type: environment
+  parameters:
+    - title: Environment
+      required: [name, team, purpose]
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Lowercase letters, numbers and dashes.
+          pattern: '^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$'
+        team:
+          title: Team
+          type: string
+          description: Team that owns the environment and pays for it.
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+              spec.type: team
+        purpose:
+          title: Purpose
+          type: string
+          description: What it is for, for example the change to test.
+    - title: Size and lifetime
+      properties:
+        size:
+          title: Size
+          type: string
+          default: small
+          enum: [small, medium, large]
+          enumNames:
+            - Small (1 CPU, 2 GiB, 1.50 EUR/day)
+            - Medium (2 CPU, 4 GiB, 3.00 EUR/day)
+            - Large (8 CPU, 16 GiB, 12.00 EUR/day)
+        ttlHours:
+          title: Time to live (hours)
+          type: integer
+          default: 8
+          minimum: 1
+          maximum: 72
+          description: It is deleted automatically after this time. At most 72 hours.
+  steps:
+    - id: create
+      name: Request the environment
+      action: platform:environment:create
+      input:
+        name: ${{ parameters.name }}
+        team: ${{ parameters.team }}
+        purpose: ${{ parameters.purpose }}
+        size: ${{ parameters.size }}
+        ttlHours: ${{ parameters.ttlHours }}
+  output:
+    links:
+      - title: Open the environment in the catalog
+        icon: catalog
+        entityRef: ${{ steps.create.output.entityRef }}
+    text:
+      - title: Next step
+        content: |
+          The environment appears in the catalog in a few seconds, in namespace
+          `${{ steps.create.output.namespace }}`. Deploy a service into it with
+          the **New service** template.

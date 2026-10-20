@@ -1,6 +1,7 @@
 # Local cluster for the demo. Ports on localhost:
 #   8080 -> platform console (dashboard and approvals)
 #   8081 -> platform MCP server (for AI agents)
+#   7007 -> developer portal (Backstage)
 apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
@@ -12,10 +13,12 @@ ports:
     nodeFilters: [loadbalancer]
   - port: 8081:30081
     nodeFilters: [loadbalancer]
+  - port: 7007:30007
+    nodeFilters: [loadbalancer]
 options:
   k3s:
     extraArgs:
-      # Not needed: the demo exposes the console and MCP server as NodePorts.
+      # Not needed: the demo exposes its services as NodePorts.
       - arg: --disable=traefik
         nodeFilters: [server:*]
       - arg: --disable=metrics-server
