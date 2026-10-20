@@ -56,13 +56,38 @@ step "Installing guardrails (policies for humans and agents)"
 kubectl apply -f "$ROOT/policies/"
 
 step "Building and deploying the platform MCP server and console"
-docker build -t "$MCP_IMAGE" ${MCP_BUILD_ARGS:-} "$ROOT/mcp-server"
-k3d image import "$MCP_IMAGE" --cluster "$CLUSTER_NAME"
-kubectl apply -f "$ROOT/mcp-server/deploy/"
-kubectl -n platform-system set image deployment/platform-mcp platform="$MCP_IMAGE" >/dev/null
-kubectl -n platform-system set image deployment/platform-console platform="$MCP_IMAGE" >/dev/null
-kubectl -n platform-system rollout status deployment/platform-mcp --timeout=180s
-kubectl -n platform-system rollout status deployment/platform-console --timeout=180s
+# No provenance attestations: with Docker Desktop's containerd image store they
+# break 'k3d image import'. Each build gets its own tag so pods always roll.
+BUILD_FLAGS=""
+if docker buildx version >/dev/null 2>&1; then
+  BUILD_FLAGS="--provenance=false --sbom=false"
+fi
+docker build $BUILD_FLAGS -t "$MCP_IMAGE" ${MCP_BUILD_ARGS:-} "$ROOT/mcp-server"
+IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$MCP_IMAGE")"
+IMAGE="${MCP_IMAGE%:*}:${IMAGE_ID:7:12}"
+docker tag "$MCP_IMAGE" "$IMAGE"
+k3d image import "$IMAGE" --cluster "$CLUSTER_NAME"
+
+NODE="k3d-$CLUSTER_NAME-server-0"
+if ! docker exec "$NODE" crictl inspecti "$IMAGE" >/dev/null 2>&1; then
+  echo "The image did not reach the cluster, loading it directly into $NODE."
+  docker save "$IMAGE" | docker exec -i "$NODE" ctr -n k8s.io images import -
+fi
+
+for manifest in "$ROOT"/mcp-server/deploy/*.yaml; do echo "---"; cat "$manifest"; done \
+  | sed "s|image: platform-starter-kit/platform-mcp:dev|image: $IMAGE|" \
+  | kubectl apply -f -
+
+diagnose() {
+  echo
+  echo "The $1 did not start. This is what the cluster says:"
+  kubectl -n platform-system get pods -l "app.kubernetes.io/name=$1" -o wide || true
+  kubectl -n platform-system describe pods -l "app.kubernetes.io/name=$1" | sed -n '/^Events:/,$p' || true
+  kubectl -n platform-system logs "deployment/$1" --tail=30 || true
+  exit 1
+}
+kubectl -n platform-system rollout status deployment/platform-mcp --timeout=180s || diagnose platform-mcp
+kubectl -n platform-system rollout status deployment/platform-console --timeout=180s || diagnose platform-console
 
 step "Platform ready"
 cat <<MSG

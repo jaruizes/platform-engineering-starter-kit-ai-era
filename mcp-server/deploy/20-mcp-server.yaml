@@ -23,7 +23,7 @@ spec:
       containers:
         - name: platform
           image: platform-starter-kit/platform-mcp:dev
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           command: [platform-mcp]
           env:
             - name: PORT
