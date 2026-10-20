@@ -154,7 +154,7 @@ What is available today:
 .
 ├── Makefile            # up, down, demo-developer, demo-agent, demo-reset, status, test
 ├── .mcp.json           # connects Claude Code (or any MCP client) to the local platform
-├── bootstrap/local/    # kind cluster, Crossplane, Kyverno and the platform, in one script
+├── bootstrap/local/    # k3d cluster, Crossplane, Kyverno and the platform, in one script
 ├── control-plane/      # Crossplane functions and permissions
 ├── golden-paths/
 │   ├── environment/    # ephemeral environment: namespace, budget, team access, expiry, cost
@@ -169,7 +169,7 @@ Target structure:
 
 ```
 .
-├── bootstrap/          # local cluster (kind) and AWS foundation with OpenTofu
+├── bootstrap/          # local cluster (k3d) and AWS foundation with OpenTofu
 ├── control-plane/      # Argo CD, Crossplane v2, Kyverno, Keycloak, AI gateway
 ├── golden-paths/       # composite resource definitions, compositions and portal templates
 │   ├── service/
@@ -194,13 +194,13 @@ Target structure:
 
 ### Prerequisites
 
-- Docker (on Linux, with cgroup v2), [`kind`](https://kind.sigs.k8s.io/) 0.33+, `kubectl`, `helm` and `make`
+- Docker, [`k3d`](https://k3d.io/) 5.8+, `kubectl`, `helm` and `make`
 - About 4 CPUs and 8 GB of memory for Docker
 
 ### Run it locally
 
 ```bash
-make up              # kind cluster + Crossplane v2 + Kyverno + Golden Paths + MCP server + console
+make up              # k3d cluster + Crossplane v2 + Kyverno + Golden Paths + MCP server + console
 make demo-developer  # act 1: a developer gets an environment and deploys a service
 make demo-agent      # act 2 without an AI agent: a scripted agent uses the MCP server
 make demo-reset      # back to a clean state before the next demo

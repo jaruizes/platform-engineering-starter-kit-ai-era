@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Creates the local platform: kind cluster, Crossplane v2, Kyverno,
+# Creates the local platform: k3d cluster, Crossplane v2, Kyverno,
 # Golden Paths, policies, platform MCP server and console.
 set -euo pipefail
 
@@ -15,14 +15,15 @@ MCP_IMAGE="${MCP_IMAGE:-platform-starter-kit/platform-mcp:dev}"
 
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 
-step "Creating kind cluster '$CLUSTER_NAME'"
-if kind get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
+step "Creating k3d cluster '$CLUSTER_NAME'"
+if k3d cluster get "$CLUSTER_NAME" >/dev/null 2>&1; then
   echo "Cluster already exists, reusing it."
+  k3d cluster start "$CLUSTER_NAME" >/dev/null
 else
-  kind create cluster --name "$CLUSTER_NAME" --image "$KIND_NODE_IMAGE" \
-    --config "$ROOT/bootstrap/local/kind-config.yaml" --wait 120s
+  k3d cluster create "$CLUSTER_NAME" --image "$K3S_IMAGE" \
+    --config "$ROOT/bootstrap/local/k3d-config.yaml" --wait --timeout 180s
 fi
-kubectl config use-context "kind-$CLUSTER_NAME" >/dev/null
+kubectl config use-context "k3d-$CLUSTER_NAME" >/dev/null
 
 if [[ "$CROSSPLANE_CHART" == crossplane-stable/* || "$KYVERNO_CHART" == kyverno/* ]]; then
   step "Adding Helm repositories"
@@ -56,7 +57,7 @@ kubectl apply -f "$ROOT/policies/"
 
 step "Building and deploying the platform MCP server and console"
 docker build -t "$MCP_IMAGE" ${MCP_BUILD_ARGS:-} "$ROOT/mcp-server"
-kind load docker-image "$MCP_IMAGE" --name "$CLUSTER_NAME"
+k3d image import "$MCP_IMAGE" --cluster "$CLUSTER_NAME"
 kubectl apply -f "$ROOT/mcp-server/deploy/"
 kubectl -n platform-system set image deployment/platform-mcp platform="$MCP_IMAGE" >/dev/null
 kubectl -n platform-system set image deployment/platform-console platform="$MCP_IMAGE" >/dev/null
