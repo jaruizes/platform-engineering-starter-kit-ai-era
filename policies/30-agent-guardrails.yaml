@@ -20,7 +20,7 @@ spec:
       - apiGroups: [platform.starterkit.dev]
         apiVersions: ["*"]
         operations: [CREATE, UPDATE]
-        resources: [environments, apps]
+        resources: ["*"]
   matchConditions:
     - name: requested-by-an-agent
       expression: request.userInfo.username == 'system:serviceaccount:platform-system:platform-mcp'
@@ -60,7 +60,7 @@ spec:
       - apiGroups: [platform.starterkit.dev]
         apiVersions: ["*"]
         operations: [CREATE, UPDATE]
-        resources: [environments, apps]
+        resources: ["*"]
   variables:
     - name: keys
       expression: >-

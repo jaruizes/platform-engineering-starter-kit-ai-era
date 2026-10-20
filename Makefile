@@ -28,7 +28,15 @@ status: ## Show environments, services and pending approvals
 	@kubectl -n platform-system get configmaps -l platform.starterkit.dev/approval-request \
 	  -L platform.starterkit.dev/approval-status
 
-test: ## Run the unit tests of the MCP server and console
-	cd mcp-server && python -m pytest -q tests
+capability: ## Check a platform capability, e.g. make capability NAME=postgres-database
+	@capabilities/tools/check.sh $(NAME)
 
-.PHONY: help up down demo-developer demo-agent demo-reset status test
+capabilities: ## List the platform capabilities installed in the cluster
+	@kubectl get xrd -l platform.starterkit.dev/capability \
+	  -L platform.starterkit.dev/capability
+
+test: ## Run the unit tests of the MCP server, console and capability tools
+	cd mcp-server && python -m pytest -q tests
+	python -m pytest -q capabilities/tools/tests
+
+.PHONY: help up down demo-developer demo-agent demo-reset status capability capabilities test

@@ -44,8 +44,19 @@ export function registerActions(
       const names = new Set(environments.map(e => e.name));
       const services = apps.map(summarizeApp).filter(a => names.has(a.environment));
       const pendingApprovals = (state?.approvals ?? [])
-        .filter(a => a.status === 'pending' && a.request.team === input.team)
-        .map(a => ({ id: a.id, agent: a.agent, environment: a.request.name, reason: a.reason }));
+        .filter(
+          a =>
+            a.status === 'pending' &&
+            (a.request.team === input.team ||
+              names.has((a.request.namespace ?? '').replace(/^env-/, ''))),
+        )
+        .map(a => ({
+          id: a.id,
+          agent: a.agent,
+          kind: a.request.kind ?? 'Environment',
+          name: a.request.name,
+          reason: a.reason,
+        }));
       const dailyCostEur = environments.reduce((sum, e) => sum + e.estimatedDailyCostEur, 0);
       return {
         output: {
@@ -79,7 +90,9 @@ export function registerActions(
             id: a.id,
             status: a.status,
             agent: a.agent,
-            environment: a.request.name,
+            kind: a.request.kind ?? 'Environment',
+            name: a.request.name,
+            namespace: a.request.namespace,
             team: a.request.team,
             size: a.request.size,
             reason: a.reason,

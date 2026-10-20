@@ -61,3 +61,39 @@ def test_compute_metrics():
     assert m["denied_by_policy"] == 1
     assert m["pending_approvals"] == 1
     assert m["cost_by_team"] == {"checkout": 1.5, "payments": 4.5}
+
+
+def test_summarize_capability_reads_the_xrd():
+    import yaml
+    from pathlib import Path
+
+    xrd = yaml.safe_load((Path(__file__).parents[2] / "capabilities/postgres-database/definition.yaml").read_text())
+    c = platform.summarize_capability(xrd)
+    assert c["name"] == "postgres-database" and c["kind"] == "PostgresDatabase"
+    assert c["api_version"] == "platform.starterkit.dev/v1alpha1" and c["plural"] == "postgresdatabases"
+    assert c["parameters"]["size"]["enum"] == ["small", "medium", "large"]
+    assert c["estimated_daily_cost_eur"]["large"] == "8.00"
+    assert len(c["guardrails"]) == 3 and c["tool"] == "request_capability"
+
+
+def test_capability_manifest_marks_the_agent():
+    cap = {"api_version": "platform.starterkit.dev/v1alpha1", "kind": "PostgresDatabase", "scope": "Namespaced"}
+    m = platform.capability_manifest(cap, "orders-db", "env-pr-42", {"size": "small"}, "claude-code")
+    assert m["metadata"] == {"name": "orders-db", "namespace": "env-pr-42",
+                             "annotations": {"platform.starterkit.dev/agent": "claude-code"}}
+    assert m["spec"] == {"size": "small"}
+
+
+def test_summarize_resource_hides_crossplane_internals():
+    obj = {
+        "kind": "PostgresDatabase",
+        "metadata": {"name": "orders-db", "namespace": "env-pr-42",
+                     "annotations": {"platform.starterkit.dev/requester-type": "agent"}},
+        "spec": {"size": "small", "crossplane": {"resourceRefs": []}},
+        "status": {"secretName": "orders-db-connection",
+                   "conditions": [{"type": "Ready", "status": "False", "message": "Unready resources: server"}]},
+    }
+    s = platform.summarize_resource(obj)
+    assert s["parameters"] == {"size": "small"}
+    assert s["status"] == {"secretName": "orders-db-connection"}
+    assert not s["ready"] and s["waiting_for"] == "Unready resources: server"

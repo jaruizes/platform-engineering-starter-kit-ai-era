@@ -46,8 +46,11 @@ helm upgrade --install crossplane "$CROSSPLANE_CHART" --version "$CROSSPLANE_VER
   --namespace crossplane-system --create-namespace --wait ${CROSSPLANE_HELM_ARGS:-}
 
 step "Installing Kyverno (chart $KYVERNO_CHART_VERSION)"
+# The CRD watcher lets Kyverno enforce a new capability's guardrails as soon
+# as it is installed, instead of after its next 15-minute resync.
 helm upgrade --install kyverno "$KYVERNO_CHART" --version "$KYVERNO_CHART_VERSION" \
-  --namespace kyverno --create-namespace --wait ${KYVERNO_HELM_ARGS:-}
+  --namespace kyverno --create-namespace --wait \
+  --set admissionController.crdWatcher=true ${KYVERNO_HELM_ARGS:-}
 
 step "Installing composition functions"
 kubectl apply -f "$ROOT/control-plane/crossplane/rbac.yaml"
@@ -63,6 +66,9 @@ kubectl apply -f "$ROOT/golden-paths/environment/composition.yaml" -f "$ROOT/gol
 
 step "Installing guardrails (policies for humans and agents)"
 kubectl apply -f "$ROOT/policies/"
+
+step "Installing platform capabilities (capabilities/)"
+"$ROOT/capabilities/tools/install.sh"
 
 # Builds an image and loads it into the cluster. No provenance attestations:
 # with Docker Desktop's containerd image store they break 'k3d image import'.
@@ -109,7 +115,7 @@ kubectl -n platform-system rollout status deployment/platform-mcp --timeout=180s
 kubectl -n platform-system rollout status deployment/platform-console --timeout=180s || diagnose platform-console
 
 if [[ "$PORTAL" == "true" ]]; then
-  step "Deploying the local Git server (Gitea), where the Spring service template creates repositories"
+  step "Deploying the local Git server (Gitea): service repositories and the platform repository"
   if ! kubectl -n platform-system get secret gitea-admin >/dev/null 2>&1; then
     kubectl -n platform-system create secret generic gitea-admin \
       --from-literal=username=platform-admin \
@@ -117,9 +123,11 @@ if [[ "$PORTAL" == "true" ]]; then
   fi
   kubectl apply -f "$ROOT/git-server/gitea.yaml"
   kubectl -n platform-system rollout status deployment/gitea --timeout=180s || diagnose gitea
+  # Where the portal proposes new capabilities as pull requests.
+  "$ROOT/git-server/seed-platform-repo.sh"
 
   step "Building and deploying the developer portal (Backstage, the first build takes several minutes)"
-  IMAGE="$(load_image "$PORTAL_IMAGE" "$ROOT/portal" "--build-context standards=$ROOT/standards ${PORTAL_BUILD_ARGS:-}")"
+  IMAGE="$(load_image "$PORTAL_IMAGE" "$ROOT/portal" "--build-context standards=$ROOT/standards --build-context capabilities=$ROOT/capabilities ${PORTAL_BUILD_ARGS:-}")"
   deploy "$ROOT/portal/deploy" platform-starter-kit/portal:dev "$IMAGE"
   kubectl -n platform-system rollout status deployment/portal --timeout=300s || diagnose portal
 fi
@@ -131,6 +139,7 @@ cat <<MSG
   MCP server for agents:             http://localhost:8081/mcp
   Portal MCP server (context):       http://localhost:7007/api/mcp-actions/v1/context
   Git server (repositories):         http://localhost:3000 (read-only without signing in)
+  Platform repository (capabilities): http://localhost:3000/platform/platform-starter-kit
 
   Next: follow the demo script in demo/README.md.
 MSG

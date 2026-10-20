@@ -16,7 +16,8 @@ spec:
       - apiGroups: [platform.starterkit.dev]
         apiVersions: ["*"]
         operations: [CREATE]
-        resources: [environments, apps]
+        # Every Golden Path and capability.
+        resources: ["*"]
   variables:
     - name: agentIdentity
       expression: "'system:serviceaccount:platform-system:platform-mcp'"

@@ -48,15 +48,26 @@ const PendingApproval = ({
     }
   };
   const r = approval.request;
+  const environment = !r.kind || r.kind === 'Environment';
   return (
     <Box mb={2} p={2} border={1} borderColor="divider" borderRadius={8}>
       <Typography variant="subtitle1">
         <Chip size="small" label="agent" color="secondary" /> <b>{approval.agent}</b> asks for a{' '}
-        <b>{r.size}</b> environment <b>{r.name}</b> for team <b>{r.team}</b>, {r.ttlHours}h
+        {environment ? (
+          <>
+            <b>{r.size}</b> environment <b>{r.name}</b> for team <b>{r.team}</b>, {r.ttlHours}h
+          </>
+        ) : (
+          <>
+            <b>{r.size ?? ''}</b> {r.kind} <b>{r.name}</b> in <b>{r.namespace}</b>
+          </>
+        )}
       </Typography>
-      <Typography variant="body2" color="textSecondary">
-        Purpose: {r.purpose}
-      </Typography>
+      {r.purpose && (
+        <Typography variant="body2" color="textSecondary">
+          Purpose: {r.purpose}
+        </Typography>
+      )}
       <Typography variant="body2" color="textSecondary" gutterBottom>
         Guardrail: {approval.reason}
       </Typography>

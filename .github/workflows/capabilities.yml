@@ -1,0 +1,90 @@
+# Checks every platform capability against its definition
+# (capabilities/<name>/capability.yaml), as described in capabilities/README.md.
+# A capability is only merged when this passes and a person on the platform
+# team has reviewed its TRACEABILITY.md.
+name: Platform capabilities
+
+on:
+  pull_request:
+    paths:
+      - capabilities/**
+      - policies/**
+      - control-plane/**
+      - mcp-server/**
+      - bootstrap/local/**
+      - .github/workflows/capabilities.yml
+  push:
+    branches: [main]
+    paths:
+      - capabilities/**
+      - .github/workflows/capabilities.yml
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Definition, render and policy tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Install the tools
+        run: |
+          source bootstrap/local/versions.env
+          pip install -r capabilities/requirements.txt
+          go install "github.com/crossplane/cli/v2/cmd/crossplane@${CROSSPLANE_CLI_VERSION}"
+          curl -sSL "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_CLI_VERSION}/kyverno-cli_${KYVERNO_CLI_VERSION}_linux_x86_64.tar.gz" \
+            | tar xz -C /usr/local/bin kyverno
+      - name: Test the tools
+        run: python -m pytest -q capabilities/tools/tests
+      - name: Check every capability
+        run: |
+          failed=0
+          for definition in capabilities/*/capability.yaml; do
+            name="$(basename "$(dirname "$definition")")"
+            capabilities/tools/check.sh "$name" --no-e2e || failed=1
+          done
+          exit $failed
+
+  acceptance:
+    name: Acceptance tests in a local platform
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Install the tools
+        run: |
+          source bootstrap/local/versions.env
+          pip install -r capabilities/requirements.txt
+          go install "github.com/crossplane/cli/v2/cmd/crossplane@${CROSSPLANE_CLI_VERSION}"
+          curl -sSL "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_CLI_VERSION}/kyverno-cli_${KYVERNO_CLI_VERSION}_linux_x86_64.tar.gz" \
+            | tar xz -C /usr/local/bin kyverno
+          curl -sSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+      - name: Create the platform (without the portal)
+        run: PORTAL=false make up
+      - name: Run the acceptance tests, as a person and as an agent
+        run: |
+          failed=0
+          for definition in capabilities/*/capability.yaml; do
+            name="$(basename "$(dirname "$definition")")"
+            capabilities/tools/check.sh "$name" || failed=1
+          done
+          exit $failed
+      - name: Keep the traceability matrices
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: traceability
+          path: capabilities/*/TRACEABILITY.md

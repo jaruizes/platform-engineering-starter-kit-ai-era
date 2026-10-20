@@ -1,8 +1,9 @@
 # Multi-stage build of the portal, so the only requirement is Docker.
 # See https://backstage.io/docs/deployment/docker#multi-stage-build
 #
-# Build it with the engineering standards as an extra context:
-#   docker build --build-context standards=../standards -t portal .
+# Build it with the engineering standards and the capabilities as extra contexts:
+#   docker build --build-context standards=../standards \
+#     --build-context capabilities=../capabilities -t portal .
 
 # Stage 1: the package.json files, to cache the dependency install.
 FROM node:24-trixie-slim AS packages
@@ -40,7 +41,17 @@ COPY --from=standards . .
 RUN mkdocs build --quiet --site-dir /site \
     && python3 -c "import json,time; p='/site/techdocs_metadata.json'; m=json.load(open(p)); m['build_timestamp']=int(time.time()*1000); json.dump(m,open(p,'w'))"
 
-# Stage 4: the runtime image.
+# Stage 4: the documentation of each platform capability, as TechDocs sites.
+FROM techdocs AS capability-docs
+COPY --from=capabilities . /capabilities
+RUN mkdir -p /capability-sites && for mk in /capabilities/*/mkdocs.yml; do \
+      [ -f "$mk" ] || continue; \
+      name="$(basename "$(dirname "$mk")")"; \
+      (cd "$(dirname "$mk")" && mkdocs build --quiet --site-dir "/capability-sites/$name") || exit 1; \
+      python3 -c "import json,sys,time; p=sys.argv[1]; m=json.load(open(p)); m['build_timestamp']=int(time.time()*1000); json.dump(m,open(p,'w'))" "/capability-sites/$name/techdocs_metadata.json"; \
+    done
+
+# Stage 5: the runtime image.
 FROM node:24-trixie-slim
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -61,5 +72,7 @@ COPY --chown=node:node catalog ./catalog
 COPY --from=standards --chown=node:node docs ./standards/docs
 COPY --from=standards --chown=node:node catalog-info.yaml ./standards/
 COPY --from=techdocs --chown=node:node /site ./techdocs/default/component/engineering-standards
+COPY --from=capabilities --chown=node:node schema ./capabilities/schema
+COPY --from=capability-docs --chown=node:node /capability-sites ./techdocs/default/resource
 EXPOSE 7007
 CMD ["node", "packages/backend", "--config", "app-config.yaml"]

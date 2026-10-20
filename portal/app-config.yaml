@@ -167,6 +167,15 @@ platform:
   consoleUrl: http://platform-console.platform-system.svc:8080
   # Markdown documents served to agents by get-engineering-standard.
   standardsDir: ./standards/docs
+  capabilities:
+    # The "New platform capability" form is built from this schema.
+    schema: ./capabilities/schema/capability-definition.schema.json
+    # Where capability definitions are proposed as pull requests, in the local
+    # Git server (credentials from integrations.gitea).
+    repository:
+      baseUrl: http://localhost:3000
+      owner: platform
+      name: platform-starter-kit
 
 permission:
   enabled: true

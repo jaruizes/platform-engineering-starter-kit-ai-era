@@ -1,0 +1,206 @@
+# Generated from capability.yaml (implementation: plain PostgreSQL, no operator,
+# persistent storage) by the build-platform-capability skill.
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: postgres-database
+  labels:
+    platform.starterkit.dev/capability: postgres-database
+spec:
+  compositeTypeRef:
+    apiVersion: platform.starterkit.dev/v1alpha1
+    kind: PostgresDatabase
+  mode: Pipeline
+  pipeline:
+    - step: render
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{- $xr := .observed.composite.resource }}
+            {{- $name := $xr.metadata.name }}
+            {{- $ns := $xr.metadata.namespace }}
+            {{- $server := printf "%s-postgres" $name }}
+            {{- $secret := printf "%s-connection" $name }}
+            {{- $host := printf "%s.%s.svc.cluster.local" $server $ns }}
+            {{- /* Capacity and estimated cost per size, from the definition's cost model. */}}
+            {{- $sizes := dict
+                  "small"  (dict "cpu" "250m" "memory" "256Mi" "storage" "1Gi"  "cost" "0.50")
+                  "medium" (dict "cpu" "500m" "memory" "1Gi"   "storage" "5Gi"  "cost" "2.00")
+                  "large"  (dict "cpu" "2"    "memory" "4Gi"   "storage" "20Gi" "cost" "8.00") }}
+            {{- $size := get $sizes ($xr.spec.size | default "small") }}
+            {{- /* Keep the password once generated: the template runs on every reconcile. */}}
+            {{- $observedPassword := dig "resources" "connection" "resource" "data" "password" "" .observed }}
+            {{- $password := randAlphaNum 24 }}
+            {{- if $observedPassword }}{{ $password = b64dec $observedPassword }}{{ end }}
+            {{- $deploy := dig "resources" "server" "resource" dict .observed }}
+            {{- $available := dig "status" "availableReplicas" 0 $deploy }}
+            apiVersion: v1
+            kind: Secret
+            metadata:
+              name: {{ $secret }}
+              labels:
+                app.kubernetes.io/name: {{ $server }}
+                app.kubernetes.io/managed-by: platform
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: connection
+                gotemplating.fn.crossplane.io/ready: "True"
+            type: Opaque
+            stringData:
+              host: {{ $host }}
+              port: "5432"
+              database: {{ $name | replace "-" "_" }}
+              username: app
+              password: {{ $password }}
+            ---
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: {{ $server }}-data
+              labels:
+                app.kubernetes.io/name: {{ $server }}
+                app.kubernetes.io/managed-by: platform
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: storage
+                gotemplating.fn.crossplane.io/ready: "True"
+            spec:
+              accessModes: [ReadWriteOnce]
+              resources:
+                requests:
+                  storage: {{ $size.storage }}
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: {{ $server }}
+              labels:
+                app.kubernetes.io/name: {{ $server }}
+                app.kubernetes.io/component: database
+                app.kubernetes.io/managed-by: platform
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: server
+                {{- if ge (int $available) 1 }}
+                gotemplating.fn.crossplane.io/ready: "True"
+                {{- end }}
+            spec:
+              replicas: 1
+              # One writer on one volume: never run two servers at once.
+              strategy:
+                type: Recreate
+              selector:
+                matchLabels:
+                  app.kubernetes.io/name: {{ $server }}
+              template:
+                metadata:
+                  labels:
+                    app.kubernetes.io/name: {{ $server }}
+                    app.kubernetes.io/component: database
+                    app.kubernetes.io/managed-by: platform
+                spec:
+                  automountServiceAccountToken: false
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 70
+                    runAsGroup: 70
+                    fsGroup: 70
+                    seccompProfile:
+                      type: RuntimeDefault
+                  containers:
+                    - name: postgres
+                      image: postgres:{{ $xr.spec.version | default "17" }}-alpine
+                      ports:
+                        - name: postgres
+                          containerPort: 5432
+                      env:
+                        - name: PGDATA
+                          value: /var/lib/postgresql/data/pgdata
+                        - name: POSTGRES_DB
+                          valueFrom:
+                            secretKeyRef: {name: {{ $secret }}, key: database}
+                        - name: POSTGRES_USER
+                          valueFrom:
+                            secretKeyRef: {name: {{ $secret }}, key: username}
+                        - name: POSTGRES_PASSWORD
+                          valueFrom:
+                            secretKeyRef: {name: {{ $secret }}, key: password}
+                      readinessProbe:
+                        exec:
+                          command: [sh, -c, 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" -h 127.0.0.1']
+                        periodSeconds: 5
+                      livenessProbe:
+                        tcpSocket:
+                          port: postgres
+                        initialDelaySeconds: 30
+                      resources:
+                        requests:
+                          cpu: {{ $size.cpu | quote }}
+                          memory: {{ $size.memory | quote }}
+                        limits:
+                          cpu: {{ $size.cpu | quote }}
+                          memory: {{ $size.memory | quote }}
+                      securityContext:
+                        allowPrivilegeEscalation: false
+                        capabilities:
+                          drop: [ALL]
+                      volumeMounts:
+                        - name: data
+                          mountPath: /var/lib/postgresql/data
+                        - name: run
+                          mountPath: /var/run/postgresql
+                  volumes:
+                    - name: data
+                      persistentVolumeClaim:
+                        claimName: {{ $server }}-data
+                    - name: run
+                      emptyDir: {}
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: {{ $server }}
+              labels:
+                app.kubernetes.io/name: {{ $server }}
+                app.kubernetes.io/managed-by: platform
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: service
+                gotemplating.fn.crossplane.io/ready: "True"
+            spec:
+              selector:
+                app.kubernetes.io/name: {{ $server }}
+              ports:
+                - name: postgres
+                  port: 5432
+                  targetPort: postgres
+            ---
+            # Security (definition): only reachable from pods in the same environment.
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: {{ $server }}
+              labels:
+                app.kubernetes.io/name: {{ $server }}
+                app.kubernetes.io/managed-by: platform
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: network
+                gotemplating.fn.crossplane.io/ready: "True"
+            spec:
+              podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: {{ $server }}
+              policyTypes: [Ingress]
+              ingress:
+                - from:
+                    - podSelector: {}
+                  ports:
+                    - port: 5432
+            ---
+            apiVersion: {{ $xr.apiVersion }}
+            kind: {{ $xr.kind }}
+            status:
+              host: {{ $host }}
+              secretName: {{ $secret }}
+              estimatedDailyCost: {{ $size.cost | quote }}

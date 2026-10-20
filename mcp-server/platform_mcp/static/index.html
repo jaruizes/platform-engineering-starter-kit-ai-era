@@ -131,9 +131,11 @@ function renderApprovals(approvals) {
   const decided = approvals.filter((a) => a.status !== "pending").slice(0, 5);
   let html = pending.map((a) => `
     <div class="approval">
-      <div><span class="badge agent">agent</span> <b>${esc(a.agent)}</b> asks for a <b>${esc(a.request.size)}</b>
-        environment <b>${esc(a.request.name)}</b> for team <b>${esc(a.request.team)}</b>, ${esc(a.request.ttlHours)}h</div>
-      <div class="why">Purpose: ${esc(a.request.purpose)}<br>Guardrail: ${esc(a.reason)}</div>
+      <div><span class="badge agent">agent</span> <b>${esc(a.agent)}</b> asks for a <b>${esc(a.request.size ?? "")}</b>
+        ${!a.request.kind || a.request.kind === "Environment"
+          ? `environment <b>${esc(a.request.name)}</b> for team <b>${esc(a.request.team)}</b>, ${esc(a.request.ttlHours)}h`
+          : `${esc(a.request.kind)} <b>${esc(a.request.name)}</b> in <b>${esc(a.request.namespace)}</b>`}</div>
+      <div class="why">${a.request.purpose ? `Purpose: ${esc(a.request.purpose)}<br>` : ""}Guardrail: ${esc(a.reason)}</div>
       <div class="actions">
         <input placeholder="Your name" value="${esc(approverName())}" data-approver="${esc(a.id)}">
         <button class="primary" onclick="decide('${esc(a.id)}', 'approve')">Approve</button>

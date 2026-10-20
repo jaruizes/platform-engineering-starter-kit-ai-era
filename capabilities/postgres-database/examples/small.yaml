@@ -1,0 +1,7 @@
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: orders-db
+  namespace: env-payments-dev
+spec:
+  size: small

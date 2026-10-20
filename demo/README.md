@@ -88,6 +88,17 @@ And in the catalog, filter by kind **AiResource**: the rules agents follow (each
 
 The standards are an example taken from [My-FinAI-Manager](https://github.com/jaruizes/My-FinAI-Manager/tree/main/reference/engineering); replace [`standards/`](../standards) with your own.
 
+## Act 5: a new platform capability (optional, 10 minutes)
+
+*Message: the platform team describes what the platform needs; an agent builds it; checks prove it; a person decides. The definition is the contract.*
+
+1. **Catalog → PostgreSQL database.** A capability built this way. Show its **TechDocs** (what you get, guardrails, cost) and [its definition](../capabilities/postgres-database/capability.yaml): purpose, interface, guardrails `GR-1..3` and acceptance criteria `AC-1..6`. Then [`TRACEABILITY.md`](../capabilities/postgres-database/TRACEABILITY.md): each criterion and guardrail, the test that proves it, and its result.
+2. **Create → PostgreSQL database** in `payments-dev`. It is ready in a couple of minutes with a Secret to connect to it. Ask the agent: **"I need a large database in payments-dev to test the migration."** GR-3 sends it to a human, in the **AI Platform** page, like the large environment in Act 2.
+3. **Create → New platform capability.** Fill in a Redis cache: a parameter `size`, a guardrail for everyone (only in `env-*` namespaces) and one for agents (only small), a cost per size and an acceptance criterion. The form checks the definition against the schema. It opens a pull request in the platform repository (<http://localhost:3000/platform/platform-starter-kit/pulls>) and the proposal appears in the catalog with lifecycle *proposed*.
+4. Build it: check out the pull request branch and ask Claude Code **"Build the capability in this pull request"**. The [build-platform-capability skill](../.claude/skills/build-platform-capability/SKILL.md) generates the composition, policies and tests, and runs `make capability NAME=redis-cache` until it passes. A person reviews `TRACEABILITY.md` and merges.
+
+The checks run with `make capability NAME=<name>` and in CI ([`.github/workflows/capabilities.yml`](../.github/workflows/capabilities.yml)). How the definition, the generated files and the checks fit together is in [`capabilities/README.md`](../capabilities/README.md).
+
 ## What is under the hood
 
 | Step | How it works |
@@ -99,6 +110,7 @@ The standards are an example taken from [My-FinAI-Manager](https://github.com/ja
 | Engineering standards | [`standards/`](../standards): TechDocs built into the portal image, an `AiResource` per rule document, and MCP actions that serve the Markdown to agents |
 | Spring service | A [template](../portal/catalog/templates/spring-service) that publishes to the local Git server ([Gitea](../git-server/gitea.yaml)); the catalog discovers every repository of the `platform` organization. `create_service` in the platform MCP server runs the same template with a token that only reaches the scaffolder and the catalog |
 | Human in the loop | The console creates approved requests with its own identity and records the approver; the portal passes on who is signed in. [`protect-audit-trail`](../policies/30-agent-guardrails.yaml) stops anyone else from doing so |
+| Platform capabilities | [`capabilities/`](../capabilities): a definition per capability, what the agent generated from it (XRD, composition, policies, tests) and the checks; the portal and the platform MCP server discover them from the label `platform.starterkit.dev/capability` on the XRD |
 | Time to live | Kyverno deletes environments when their time to live is over |
 | Observe | Every action is a Kubernetes event in `platform-system`; the console reads events and resources |
 
@@ -107,6 +119,7 @@ The standards are an example taken from [My-FinAI-Manager](https://github.com/ja
 - **The portal shows the sign-in page again:** click **Enter**; the demo keeps no session state.
 - **The console is empty:** run `make status`. If Golden Path resources are missing, run `make up` again; it is idempotent.
 - **"Team already has 3 active environments":** that is the team budget guardrail. Run `make demo-reset`.
+- **A new capability is not in the portal:** the portal reads capabilities from the cluster every 15 seconds; check `make capabilities`. A proposal is read from the open pull requests of the platform repository.
 - **The Spring service does not appear in the catalog:** it is discovered from the Git server every 15 seconds. Check the repository exists at <http://localhost:3000/platform>.
 - **"The repository with the same name already exists":** pick another name, or run `make demo-reset`, which also deletes the repositories created from templates.
 - **The agent does not see the `platform` or `portal` server:** check <http://localhost:8081/healthz> answers `ok` and the portal opens, then restart the agent.

@@ -248,6 +248,132 @@ def summarize_app(app: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# --- Capabilities ------------------------------------------------------------
+# Capabilities built from a CapabilityDefinition (capabilities/<name>/) carry
+# everything a consumer needs on their XRD: a label to find them, and
+# annotations with the title, guardrails, cost and examples. That is how they
+# reach agents without code of their own in this server.
+
+XRD_GROUP, XRD_VERSION, XRD_PLURAL = "apiextensions.crossplane.io", "v2", "compositeresourcedefinitions"
+CAPABILITY_LABEL = f"{PREFIX}/capability"
+
+
+def _annotation_json(annotations: dict[str, str], key: str, default: Any) -> Any:
+    try:
+        return json.loads(annotations.get(f"{PREFIX}/{key}", ""))
+    except ValueError:
+        return default
+
+
+def summarize_capability(xrd: dict[str, Any]) -> dict[str, Any]:
+    meta, spec = xrd["metadata"], xrd["spec"]
+    annotations = meta.get("annotations") or {}
+    version = spec["versions"][-1]
+    props = (version.get("schema", {}).get("openAPIV3Schema", {}).get("properties", {})
+             .get("spec", {}).get("properties", {}))
+    parameters = {
+        name: {k: v for k, v in prop.items() if k in ("type", "description", "enum", "default", "minimum", "maximum")}
+        for name, prop in props.items()
+    }
+    return {
+        "name": meta["labels"][CAPABILITY_LABEL],
+        "kind": spec["names"]["kind"],
+        "plural": spec["names"]["plural"],
+        "api_version": f"{spec['group']}/{version['name']}",
+        "scope": spec.get("scope", "Namespaced"),
+        "title": annotations.get(f"{PREFIX}/title", spec["names"]["kind"]),
+        "description": annotations.get(f"{PREFIX}/description", ""),
+        "owner": annotations.get(f"{PREFIX}/owner", ""),
+        "stage": annotations.get(f"{PREFIX}/stage", "experimental"),
+        "parameters": parameters,
+        "outputs": _annotation_json(annotations, "outputs", {}),
+        "guardrails": _annotation_json(annotations, "guardrails", []),
+        "examples": _annotation_json(annotations, "examples", []),
+        "estimated_daily_cost_eur": _annotation_json(annotations, "cost", {}),
+        "tool": "request_capability",
+    }
+
+
+def list_capabilities() -> list[dict[str, Any]]:
+    xrds = _custom().list_cluster_custom_object(XRD_GROUP, XRD_VERSION, XRD_PLURAL, label_selector=CAPABILITY_LABEL)
+    return sorted((summarize_capability(x) for x in xrds["items"]), key=lambda c: c["name"])
+
+
+def find_capability(capability: str) -> dict[str, Any] | None:
+    """By capability name (postgres-database) or kind (PostgresDatabase)."""
+    wanted = capability.strip().lower()
+    return next((c for c in list_capabilities() if wanted in (c["name"], c["kind"].lower())), None)
+
+
+def _plural(kind: str) -> str:
+    """Plural of a platform kind, from its XRD (Golden Paths and capabilities alike)."""
+    xrds = _custom().list_cluster_custom_object(XRD_GROUP, XRD_VERSION, XRD_PLURAL)["items"]
+    for xrd in xrds:
+        if xrd["spec"]["group"] == GROUP and xrd["spec"]["names"]["kind"] == kind:
+            return xrd["spec"]["names"]["plural"]
+    raise KeyError(kind)
+
+
+def capability_manifest(
+    capability: dict[str, Any], name: str, namespace: str | None, parameters: dict[str, Any], agent: str | None
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {"name": name, "annotations": {f"{PREFIX}/agent": agent} if agent else {}}
+    if capability["scope"] == "Namespaced":
+        metadata["namespace"] = namespace
+    return {"apiVersion": capability["api_version"], "kind": capability["kind"], "metadata": metadata, "spec": parameters}
+
+
+def create_resource(manifest: dict[str, Any]) -> dict[str, Any]:
+    """Creates any Golden Path or capability request, with this process's identity."""
+    plural = _plural(manifest["kind"])
+    namespace = manifest["metadata"].get("namespace")
+    try:
+        if namespace:
+            return _custom().create_namespaced_custom_object(GROUP, VERSION, namespace, plural, manifest)
+        return _custom().create_cluster_custom_object(GROUP, VERSION, plural, manifest)
+    except ApiException as err:
+        if is_policy_denial(err):
+            raise Denied(denial_reason(err)) from err
+        if err.status == 409:
+            raise Denied(f"A {manifest['kind']} called '{manifest['metadata']['name']}' already exists.") from err
+        if err.status == 422:
+            raise Denied(f"Invalid request: {denial_reason(err)}") from err
+        if err.status == 404 and namespace:
+            raise Denied(f"There is no environment with namespace {namespace}.") from err
+        raise
+
+
+def get_resource(capability: dict[str, Any], name: str, namespace: str | None) -> dict[str, Any] | None:
+    try:
+        if namespace:
+            return _custom().get_namespaced_custom_object(GROUP, VERSION, namespace, capability["plural"], name)
+        return _custom().get_cluster_custom_object(GROUP, VERSION, capability["plural"], name)
+    except ApiException as err:
+        if err.status == 404:
+            return None
+        raise
+
+
+def summarize_resource(obj: dict[str, Any]) -> dict[str, Any]:
+    meta, status = obj["metadata"], obj.get("status", {})
+    annotations = meta.get("annotations") or {}
+    conditions = status.get("conditions", [])
+    ready = any(c.get("type") == "Ready" and c.get("status") == "True" for c in conditions)
+    not_ready = next((c.get("message") for c in conditions if c.get("type") == "Ready" and c.get("status") != "True"), None)
+    return {
+        "kind": obj["kind"],
+        "name": meta["name"],
+        "namespace": meta.get("namespace"),
+        "parameters": {k: v for k, v in obj.get("spec", {}).items() if k != "crossplane"},
+        "ready": ready,
+        "waiting_for": None if ready else not_ready,
+        "status": {k: v for k, v in status.items() if k != "conditions"},
+        "requested_by": annotations.get(f"{PREFIX}/requested-by"),
+        "requester_type": annotations.get(f"{PREFIX}/requester-type"),
+        "approved_by": annotations.get(f"{PREFIX}/approved-by"),
+    }
+
+
 # --- Human approvals ---------------------------------------------------------
 # A request an agent cannot make on its own is stored as an approval request.
 # A human approves or rejects it in the console, which then creates the
@@ -295,7 +421,11 @@ def _summarize_approval(cm: client.V1ConfigMap) -> dict[str, Any]:
         "reason": cm.data.get("reason"),
         "decided_by": (cm.metadata.annotations or {}).get(f"{PREFIX}/decided-by"),
         "decision_note": (cm.metadata.annotations or {}).get(f"{PREFIX}/decision-note"),
-        "request": manifest["spec"] | {"name": manifest["metadata"]["name"]},
+        "request": manifest["spec"] | {
+            "name": manifest["metadata"]["name"],
+            "kind": manifest["kind"],
+            "namespace": manifest["metadata"].get("namespace"),
+        },
         "manifest": manifest,
         "created_at": cm.metadata.creation_timestamp.isoformat(),
     }
@@ -311,9 +441,9 @@ def decide_approval(approval_id: str, approve: bool, approver: str) -> dict[str,
     status = "rejected"
     if approve:
         manifest = approval["manifest"]
-        manifest["metadata"]["annotations"][f"{PREFIX}/approved-by"] = approver
+        manifest["metadata"].setdefault("annotations", {})[f"{PREFIX}/approved-by"] = approver
         try:
-            create_environment(manifest)
+            create_resource(manifest)
             status = "approved"
         except Denied as denied:
             # Approval does not bypass the guardrails that apply to everyone.

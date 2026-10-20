@@ -1,9 +1,14 @@
-import { createBackendModule } from '@backstage/backend-plugin-api';
+import { coreServices, createBackendModule } from '@backstage/backend-plugin-api';
 import {
   createTemplateAction,
   scaffolderActionsExtensionPoint,
 } from '@backstage/plugin-scaffolder-node';
+import Ajv2020 from 'ajv/dist/2020';
+import YAML from 'yaml';
+import { summarizeCapability } from './capabilities';
+import { GitServer } from './git';
 import { PlatformClient, PlatformDenied } from './kubernetes';
+import { capabilitySettings } from './settings';
 
 const NAME = /^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$/;
 
@@ -118,15 +123,176 @@ export function createServiceAction(platform: PlatformClient) {
   });
 }
 
+export function createCapabilityRequestAction(platform: PlatformClient) {
+  return createTemplateAction({
+    id: 'platform:capability:request',
+    description: 'Requests a platform capability (for example a database) through its Golden Path.',
+    schema: {
+      input: {
+        capability: z => z.string().describe('Capability kind, for example PostgresDatabase'),
+        name: z => z.string().regex(NAME).describe('Name of what is requested'),
+        environment: z => z.string().optional().describe('Environment (name or entity ref)'),
+        parameters: z => z.record(z.any()).default({}).describe('Parameters of the capability'),
+      },
+      output: {
+        entityRef: z => z.string(),
+      },
+    },
+    async handler(ctx) {
+      const person = await requester(ctx);
+      const xrds = await platform.listCapabilityXrds();
+      const capability = xrds.map(summarizeCapability).find(c => c.kind === ctx.input.capability);
+      if (!capability) {
+        throw new Error(`The platform does not offer ${ctx.input.capability}.`);
+      }
+      const environment = ctx.input.environment?.split('/').pop();
+      if (capability.scope === 'Namespaced' && !(environment && NAME.test(environment))) {
+        throw new Error(`${capability.title} lives in an environment: choose one.`);
+      }
+      // Empty optional fields mean "use the default".
+      const parameters = Object.fromEntries(
+        Object.entries(ctx.input.parameters).filter(([, v]) => v !== undefined && v !== ''),
+      );
+      const { name } = ctx.input;
+      ctx.logger.info(`Requesting ${capability.kind} ${name}${environment ? ` in env-${environment}` : ''}`);
+      try {
+        await platform.createCapabilityRequest({ capability, name, environment, parameters, onBehalfOf: person.ref });
+      } catch (error) {
+        friendly(error);
+      }
+      await platform.record(
+        'RequestAccepted',
+        `${person.name} requested ${capability.kind} ${name}${environment ? ` in env-${environment}` : ''} from the portal`,
+        name,
+        person.ref,
+        capability.kind,
+      );
+      ctx.output('entityRef', `resource:default/${environment ? `${name}.${environment}` : name}`);
+    },
+  });
+}
+
+/** Drops what the form leaves empty, so the definition only says what was filled in. */
+export function compact(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    const items = value.map(compact).filter(v => v !== undefined);
+    return items.length ? items : undefined;
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value)
+      .map(([k, v]) => [k, compact(v)] as const)
+      .filter(([, v]) => v !== undefined);
+    return entries.length ? Object.fromEntries(entries) : undefined;
+  }
+  if (value === null || value === '' || (typeof value === 'string' && value.startsWith('${{'))) {
+    return undefined;
+  }
+  return value;
+}
+
+export function definitionErrors(schema: Record<string, any>, definition: unknown): string[] {
+  const ajv = new Ajv2020({ strict: false, allErrors: true });
+  const validate = ajv.compile(schema);
+  if (validate(definition)) {
+    return [];
+  }
+  return (validate.errors ?? []).map(e => `${e.instancePath || '(root)'} ${e.message}`);
+}
+
+export function pullRequestBody(definition: any, requestedBy: string): string {
+  const { metadata, spec } = definition;
+  const rules = [...spec.guardrails.everyone, ...spec.guardrails.agents];
+  return [
+    `**${metadata.title}** (\`${spec.interface.kind}\`), proposed by ${requestedBy} from the developer portal.`,
+    '',
+    `> ${spec.purpose.problem}`,
+    '',
+    `- ${spec.interface.parameters.length} parameters: ${spec.interface.parameters.map((p: any) => `\`${p.name}\``).join(', ') || 'none'}`,
+    `- ${rules.length} guardrails: ${rules.map((r: any) => `${r.id} (${r.enforcement})`).join(', ')}`,
+    `- ${spec.acceptance.length} acceptance criteria: ${spec.acceptance.map((a: any) => a.id).join(', ')}`,
+    '',
+    '## Next steps',
+    '',
+    '1. **An agent builds it** on this branch with the `build-platform-capability` skill. In Claude Code:',
+    `   _"Build the capability in this pull request"_. It never changes \`capability.yaml\`; if something is unclear it asks here.`,
+    '2. **CI checks it** against this definition (`capabilities/tools/check.sh`) and writes `TRACEABILITY.md`.',
+    '3. **A person on the platform team validates it** and merges. It becomes available as experimental.',
+  ].join('\n');
+}
+
+export function createCapabilityProposalAction(
+  platform: PlatformClient,
+  schema?: Record<string, any>,
+  git?: GitServer,
+) {
+  return createTemplateAction({
+    id: 'platform:capability:propose',
+    description:
+      'Opens a pull request in the platform repository with a new capability definition, for an agent to build.',
+    schema: {
+      input: {
+        definition: z => z.record(z.any()).describe('The CapabilityDefinition, as filled in the form'),
+      },
+      output: {
+        pullRequestUrl: z => z.string(),
+        entityRef: z => z.string(),
+      },
+    },
+    async handler(ctx) {
+      const person = await requester(ctx);
+      if (!schema || !git) {
+        throw new Error('The portal has no platform repository configured (platform.capabilities).');
+      }
+      const definition = compact(ctx.input.definition) as any;
+      const errors = definitionErrors(schema, definition);
+      if (errors.length) {
+        throw new Error(`The definition is not valid:\n- ${errors.join('\n- ')}`);
+      }
+      const name = definition.metadata.name;
+      const content =
+        '# Written by a platform engineer with the "New platform capability" template.\n' +
+        '# An agent builds the capability from it (build-platform-capability skill);\n' +
+        '# a person on the platform team validates the result. Agents never edit it.\n' +
+        YAML.stringify(definition, { lineWidth: 100 });
+      const email = ctx.user?.entity?.spec?.profile
+        ? ((ctx.user.entity.spec.profile as { email?: string }).email ?? 'portal@starterkit.local')
+        : 'portal@starterkit.local';
+      const pr = await git.propose({
+        name,
+        content,
+        title: `New platform capability: ${definition.metadata.title}`,
+        body: pullRequestBody(definition, person.name),
+        author: { name: person.name, email },
+      });
+      ctx.logger.info(`Opened pull request #${pr.number}: ${pr.url}`);
+      await platform.record(
+        'CapabilityProposed',
+        `${person.name} proposed the capability ${name} (pull request #${pr.number})`,
+        name,
+        person.ref,
+        'CapabilityDefinition',
+      );
+      ctx.output('pullRequestUrl', pr.url);
+      ctx.output('entityRef', `resource:default/${name}.pr-${pr.number}`);
+    },
+  });
+}
+
 export const scaffolderModulePlatform = createBackendModule({
   pluginId: 'scaffolder',
   moduleId: 'platform-golden-paths',
   register(env) {
     env.registerInit({
-      deps: { scaffolder: scaffolderActionsExtensionPoint },
-      async init({ scaffolder }) {
+      deps: { scaffolder: scaffolderActionsExtensionPoint, config: coreServices.rootConfig },
+      async init({ scaffolder, config }) {
         const platform = new PlatformClient();
-        scaffolder.addActions(createEnvironmentAction(platform), createServiceAction(platform));
+        const { schema, git } = capabilitySettings(config);
+        scaffolder.addActions(
+          createEnvironmentAction(platform),
+          createServiceAction(platform),
+          createCapabilityRequestAction(platform),
+          createCapabilityProposalAction(platform, schema, git),
+        );
       },
     });
   },

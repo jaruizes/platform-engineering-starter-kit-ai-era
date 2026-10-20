@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.starterkit.dev/schemas/capability-definition/v1alpha1",
+  "title": "CapabilityDefinition",
+  "description": "What a platform engineer asks for when the platform needs a new capability: the contract (interface), the limits (guardrails) and how to know it works (acceptance). It never says how to build it: the agent decides that and a human validates the result.",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "platform.starterkit.dev/v1alpha1" },
+    "kind": { "const": "CapabilityDefinition" },
+    "metadata": {
+      "title": "Capability",
+      "type": "object",
+      "required": ["name", "title", "owner"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "description": "Identifier of the capability, for example postgres-database. It names its folder in the platform repository.",
+          "type": "string",
+          "pattern": "^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$"
+        },
+        "title": { "title": "Title", "description": "Name people read, for example PostgreSQL database.", "type": "string", "minLength": 3, "maxLength": 60 },
+        "owner": { "title": "Owner", "description": "Team that owns the capability, for example group:default/platform-team.", "type": "string", "pattern": "^group:[a-z0-9-]+/[a-z0-9-]+$" }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["purpose", "interface", "guardrails", "acceptance"],
+      "additionalProperties": false,
+      "properties": {
+        "purpose": { "$ref": "#/$defs/purpose" },
+        "interface": { "$ref": "#/$defs/interface" },
+        "guardrails": { "$ref": "#/$defs/guardrails" },
+        "acceptance": { "$ref": "#/$defs/acceptance" },
+        "implementation": { "$ref": "#/$defs/implementation" },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" },
+        "ownership": { "$ref": "#/$defs/ownership" },
+        "delivery": { "$ref": "#/$defs/delivery" }
+      }
+    }
+  },
+  "$defs": {
+    "purpose": {
+      "title": "Purpose",
+      "description": "Why the platform needs this capability.",
+      "type": "object",
+      "required": ["problem", "consumers"],
+      "additionalProperties": false,
+      "properties": {
+        "problem": { "title": "Problem", "description": "What hurts today without this capability.", "type": "string", "minLength": 20, "ui:widget": "textarea" },
+        "consumers": {
+          "title": "Consumers",
+          "description": "Who will use it.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "enum": ["developers", "agents", "platform-team"] },
+          "ui:widget": "checkboxes"
+        },
+        "demandEvidence": { "title": "Demand evidence", "description": "What shows that people need it, for example tickets or requests.", "type": "string" }
+      }
+    },
+    "interface": {
+      "title": "Interface",
+      "description": "What humans and agents can ask for, and what they get back. This becomes the platform API.",
+      "type": "object",
+      "required": ["kind", "scope", "parameters", "outputs"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "title": "Kind", "description": "Name of the resource people will request, in PascalCase, for example PostgresDatabase.", "type": "string", "pattern": "^[A-Z][A-Za-z0-9]{2,40}$" },
+        "scope": {
+          "title": "Scope",
+          "description": "Namespaced: it lives in an environment. Cluster: it is shared by the whole platform.",
+          "type": "string",
+          "enum": ["Namespaced", "Cluster"],
+          "default": "Namespaced"
+        },
+        "parameters": {
+          "title": "Parameters",
+          "description": "What the requester chooses. Keep it short: every parameter is a decision you ask people to make.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "title": "Name", "type": "string", "pattern": "^[a-z][A-Za-z0-9]{0,30}$" },
+              "type": { "title": "Type", "type": "string", "enum": ["string", "integer", "boolean"] },
+              "description": { "title": "Description", "type": "string" },
+              "enum": { "title": "Allowed values", "type": "array", "items": { "type": "string" } },
+              "default": { "title": "Default", "type": "string", "description": "Leave empty if the parameter is required." },
+              "minimum": { "title": "Minimum", "type": "integer" },
+              "maximum": { "title": "Maximum", "type": "integer" }
+            }
+          }
+        },
+        "outputs": {
+          "title": "Outputs",
+          "description": "What the requester gets back.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "secret": { "title": "Secret keys", "description": "Keys of the Secret with the connection details, if any.", "type": "array", "items": { "type": "string" } },
+            "status": { "title": "Status fields", "description": "Fields shown in the resource status, for example host.", "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "examples": {
+          "title": "Example requests",
+          "description": "How a person or an agent would ask for it in natural language. Agents learn from these.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "required": ["id", "rule", "enforcement"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "title": "Id", "description": "For example GR-1. Tests and policies refer to it.", "type": "string", "pattern": "^GR-[0-9]+$" },
+        "rule": { "title": "Rule", "type": "string", "minLength": 10 },
+        "enforcement": {
+          "title": "Enforcement",
+          "description": "deny: the request is rejected. approval: a human must approve it.",
+          "type": "string",
+          "enum": ["deny", "approval"]
+        }
+      }
+    },
+    "guardrails": {
+      "title": "Guardrails",
+      "description": "The limits. Rules for everyone apply to humans and agents; agent rules apply only to agents.",
+      "type": "object",
+      "required": ["everyone", "agents"],
+      "additionalProperties": false,
+      "properties": {
+        "everyone": { "title": "Rules for everyone", "type": "array", "items": { "$ref": "#/$defs/rule" } },
+        "agents": { "title": "Rules for agents", "type": "array", "items": { "$ref": "#/$defs/rule" } },
+        "cost": {
+          "title": "Estimated cost",
+          "description": "Estimated cost per day, in EUR, for each value of the size parameter, if there is one.",
+          "type": "object",
+          "additionalProperties": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]{1,2})?$" }
+        },
+        "security": {
+          "title": "Security",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dataClassification": { "title": "Data classification", "type": "string", "enum": ["public", "internal", "confidential", "restricted"] },
+            "network": { "title": "Network access", "type": "string" }
+          }
+        }
+      }
+    },
+    "acceptance": {
+      "title": "Acceptance criteria",
+      "description": "How we know it works. Each criterion becomes an end-to-end test with the same id. If you cannot check it, it does not belong here.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "when", "then"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "title": "Id", "description": "For example AC-1.", "type": "string", "pattern": "^AC-[0-9]+$" },
+          "given": { "title": "Given", "type": "string" },
+          "when": { "title": "When", "type": "string" },
+          "then": { "title": "Then", "type": "string" },
+          "as": {
+            "title": "Checked as",
+            "description": "Who makes the request in the test.",
+            "type": "string",
+            "enum": ["human", "agent", "both"],
+            "default": "both"
+          }
+        }
+      }
+    },
+    "implementation": {
+      "title": "Implementation constraints",
+      "description": "Optional. Constraints on how it is built in each environment, not the design itself.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "local": { "title": "Local (k3d)", "type": "string" },
+        "aws": { "title": "AWS", "type": "string" },
+        "constraints": { "title": "Constraints", "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "lifecycle": {
+      "title": "Lifecycle",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ttl": { "title": "Time to live", "type": "string" },
+        "backups": { "title": "Backups", "type": "string" },
+        "deletion": { "title": "Deletion", "type": "string" },
+        "day2": { "title": "Day-2 operations", "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "ownership": {
+      "title": "Ownership",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "support": { "title": "Support", "type": "string", "enum": ["best-effort", "business-hours", "24x7"] },
+        "slo": { "title": "SLO", "type": "string" }
+      }
+    },
+    "delivery": {
+      "title": "Delivery",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reviewers": { "title": "Reviewers", "type": "array", "items": { "type": "string" } },
+        "stage": {
+          "title": "Stage",
+          "description": "experimental: available, may change. production: supported.",
+          "type": "string",
+          "enum": ["experimental", "production"],
+          "default": "experimental"
+        }
+      }
+    }
+  }
+}

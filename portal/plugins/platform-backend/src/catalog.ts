@@ -10,12 +10,22 @@ import {
   EntityProviderConnection,
 } from '@backstage/plugin-catalog-node';
 import {
+  capabilityEntity,
+  capabilityRequestEntity,
+  newCapabilityTemplate,
+  proposalEntity,
+  requestTemplate,
+  summarizeCapability,
+} from './capabilities';
+import { GitServer } from './git';
+import {
   KubeObject,
   PlatformClient,
   PREFIX,
   summarizeApp,
   summarizeEnvironment,
 } from './kubernetes';
+import { capabilitySettings } from './settings';
 
 const LOCATION = 'platform:golden-paths';
 
@@ -63,6 +73,71 @@ export class PlatformEntityProvider implements EntityProvider {
     await this.connection.applyMutation({
       type: 'full',
       entities: entities.map(entity => ({ entity, locationKey: LOCATION })),
+    });
+  }
+}
+
+/**
+ * Brings the platform capabilities into the catalog: each installed one with
+ * a form to request it, what has been requested from it, the definitions
+ * waiting in pull requests, and the form to propose a new one. All of it is
+ * read from the cluster and the platform repository, so a new capability needs
+ * no change in the portal.
+ */
+export class CapabilitiesEntityProvider implements EntityProvider {
+  private connection?: EntityProviderConnection;
+
+  constructor(
+    private readonly platform: PlatformClient,
+    private readonly settings: { schema?: Record<string, any>; git?: GitServer; appUrl: string },
+    private readonly logger: LoggerService,
+  ) {}
+
+  getProviderName() {
+    return 'platform-capabilities';
+  }
+
+  async connect(connection: EntityProviderConnection) {
+    this.connection = connection;
+  }
+
+  async refresh() {
+    if (!this.connection) {
+      return;
+    }
+    const entities: Entity[] = [];
+    if (this.settings.schema) {
+      entities.push(newCapabilityTemplate(this.settings.schema));
+    }
+    try {
+      const [xrds, environments] = await Promise.all([
+        this.platform.listCapabilityXrds(),
+        this.platform.listEnvironments(),
+      ]);
+      const teams = new Map(environments.map(e => [e.metadata.name, e.spec?.team]));
+      for (const cap of xrds.map(summarizeCapability)) {
+        entities.push(
+          capabilityEntity(cap, this.settings.appUrl, this.settings.git?.repositoryUrl),
+          requestTemplate(cap, this.settings.appUrl),
+        );
+        const requests = await this.platform.listRequests(cap).catch(() => []);
+        entities.push(...requests.map(r => capabilityRequestEntity(cap, r, teams)));
+      }
+    } catch (error) {
+      this.logger.warn(`Could not read the capabilities from the cluster: ${error}`);
+      return;
+    }
+    if (this.settings.git) {
+      try {
+        const proposals = await this.settings.git.proposals();
+        entities.push(...proposals.map(p => proposalEntity(p.definition, p.pr)));
+      } catch (error) {
+        this.logger.warn(`Could not read the proposed capabilities from the platform repository: ${error}`);
+      }
+    }
+    await this.connection.applyMutation({
+      type: 'full',
+      entities: entities.map(entity => ({ entity, locationKey: 'platform:capabilities' })),
     });
   }
 }
@@ -165,16 +240,26 @@ export const catalogModulePlatform = createBackendModule({
         catalog: catalogProcessingExtensionPoint,
         scheduler: coreServices.scheduler,
         logger: coreServices.logger,
+        config: coreServices.rootConfig,
       },
-      async init({ catalog, scheduler, logger }) {
-        const provider = new PlatformEntityProvider(new PlatformClient(), logger);
-        catalog.addEntityProvider(provider);
+      async init({ catalog, scheduler, logger, config }) {
+        const platform = new PlatformClient();
+        const provider = new PlatformEntityProvider(platform, logger);
+        const capabilities = new CapabilitiesEntityProvider(platform, capabilitySettings(config), logger);
+        catalog.addEntityProvider(provider, capabilities);
         await scheduler.scheduleTask({
           id: 'platform-golden-paths-refresh',
           frequency: { seconds: 10 },
           timeout: { seconds: 30 },
           initialDelay: { seconds: 5 },
           fn: () => provider.refresh(),
+        });
+        await scheduler.scheduleTask({
+          id: 'platform-capabilities-refresh',
+          frequency: { seconds: 15 },
+          timeout: { seconds: 60 },
+          initialDelay: { seconds: 5 },
+          fn: () => capabilities.refresh(),
         });
       },
     });

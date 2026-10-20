@@ -59,7 +59,8 @@ async def decide(request: Request) -> JSONResponse:
     message = f"{approver} {result['status']} the request from {result['agent']}"
     if result.get("decision_note"):
         message += f": {result['decision_note']}"
-    platform.record(action, message, result["request"]["name"], warning=action != "Approved", actor=approver)
+    platform.record(action, message, result["request"]["name"], warning=action != "Approved", actor=approver,
+                    kind=result["request"].get("kind", "Environment"))
     result.pop("manifest", None)
     return JSONResponse(result)
 

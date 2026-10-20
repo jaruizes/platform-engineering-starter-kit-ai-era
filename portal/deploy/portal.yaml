@@ -12,11 +12,15 @@ kind: ClusterRole
 metadata:
   name: platform:portal
 rules:
-  # Golden Paths: read everything, create on behalf of people. No delete:
-  # environments expire on their own.
+  # Golden Paths and capabilities: read everything, create on behalf of
+  # people. No delete: environments expire on their own.
   - apiGroups: [platform.starterkit.dev]
-    resources: [environments, apps]
+    resources: ["*"]
     verbs: [get, list, watch, create]
+  # To find the capabilities the platform offers and build their forms.
+  - apiGroups: [apiextensions.crossplane.io]
+    resources: [compositeresourcedefinitions]
+    verbs: [get, list, watch]
   # Read-only view of workloads for the Kubernetes tab and for agents.
   - apiGroups: [""]
     resources: [pods, services, configmaps, limitranges, resourcequotas]
