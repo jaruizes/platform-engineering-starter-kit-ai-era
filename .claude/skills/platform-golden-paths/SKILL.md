@@ -14,6 +14,9 @@ platform, through its two MCP servers:
 - `platform` (the platform MCP server) acts: it requests environments and
   deploys services through the Golden Paths, with your agent identity.
 
+To create the code of a new service (a new repository), follow the
+`spring-service` skill: it uses `create_service`, not a hand-made scaffold.
+
 ## Steps
 
 1. Find the team. If the user did not say, look for the service in the catalog

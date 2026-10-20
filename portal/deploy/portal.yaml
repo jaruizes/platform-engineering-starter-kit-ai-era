@@ -114,6 +114,21 @@ spec:
                 secretKeyRef:
                   name: portal-mcp-token
                   key: token
+            - name: PLATFORM_MCP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: platform-mcp-portal-token
+                  key: token
+            - name: GITEA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-admin
+                  key: username
+            - name: GITEA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-admin
+                  key: password
           ports:
             - name: http
               containerPort: 7007
@@ -129,6 +144,21 @@ spec:
               memory: 512Mi
             limits:
               memory: 1536Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+        # Makes the Git server reachable at localhost:3000 inside the pod, the
+        # same address the browser uses, so repository links work everywhere.
+        - name: git-proxy
+          image: alpine/socat:1.8.1.3
+          args: ["TCP-LISTEN:3000,fork,reuseaddr", "TCP:gitea.platform-system.svc:3000"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

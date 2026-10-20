@@ -68,3 +68,15 @@ subjects:
   - kind: ServiceAccount
     name: platform-console
     namespace: platform-system
+---
+# Lets the platform MCP server run the portal's Spring service template for
+# agents (create_service). The portal only accepts it for the scaffolder
+# and the catalog.
+# Local demo only: not a secret.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: platform-mcp-portal-token
+  namespace: platform-system
+stringData:
+  token: platform-mcp-local-demo

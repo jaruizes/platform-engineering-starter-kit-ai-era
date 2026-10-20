@@ -1,0 +1,6 @@
+target/
+.git/
+*.md
+.mvn/wrapper/maven-wrapper.jar
+.idea/
+.vscode/

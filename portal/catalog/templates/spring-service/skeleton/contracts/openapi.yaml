@@ -1,0 +1,8 @@
+# The external business API of ${{ values.name }} (architecture rule AAC-008).
+# Describe each endpoint here before or together with its implementation.
+openapi: 3.0.3
+info:
+  title: ${{ values.name }}
+  description: ${{ values.description }}
+  version: 0.1.0
+paths: {}

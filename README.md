@@ -72,6 +72,21 @@ The portal (Backstage) is no longer only for people. It is where humans and agen
 
 Every request is stamped with an identity the requester cannot forge: the agent identity (platform MCP server), the portal acting on behalf of a signed-in person, or the console recording who approved what.
 
+### Engineering standards, for humans and agents
+
+Most organizations have documents that say how a service must be built: architecture, package structure, naming, approved technologies, testing. In the AI era they have three readers, and the kit gives each one a way in, from a single source of truth ([`standards/`](standards/), an example taken from [My-FinAI-Manager](https://github.com/jaruizes/My-FinAI-Manager/tree/main/reference/engineering)):
+
+| | Humans | AI agents |
+|---|---|---|
+| **Read** | TechDocs in the portal (*Engineering standards*) | `platform.list-engineering-standards` and `platform.get-engineering-standard` in the portal MCP server, and an `AiResource` per rule document in the catalog |
+| **Create** | The **Spring service** template: a repository that follows the standards from the first commit | `create_service` in the platform MCP server runs the same template; the [spring-service skill](.claude/skills/spring-service/SKILL.md) tells agents to use it instead of scaffolding by hand |
+| **Change** | The repository's README | The repository's `AGENTS.md` (and `CLAUDE.md`), with the essentials and links to the full documents |
+| **Check** | `./mvnw verify` locally and in CI | The same command: ArchUnit tests for the package structure, dependency direction, framework-free domain and module ownership |
+
+Nobody has to remember the rules: the ones that can be checked are checked, the same way for human and AI-written code.
+
+![Spring service template in the portal](docs/portal-spring-template.png)
+
 ### Technology choices
 
 The kit is opinionated so it works out of the box, and modular so each piece can be replaced.
@@ -167,7 +182,7 @@ What is available today:
 .
 ├── Makefile            # up, down, demo-developer, demo-agent, demo-reset, status, test
 ├── .mcp.json           # connects Claude Code (or any MCP client) to the platform and portal MCP servers
-├── .claude/skills/     # skill that teaches coding agents to use the Golden Paths
+├── .claude/skills/     # skills that teach coding agents to use the Golden Paths and build services
 ├── bootstrap/local/    # k3d cluster, Crossplane, Kyverno and the platform, in one script
 ├── control-plane/      # Crossplane functions and permissions
 ├── golden-paths/
@@ -175,7 +190,9 @@ What is available today:
 │   └── app/            # new service: deployment with probes, limits, security context and service
 ├── policies/           # guardrails (Kyverno CEL policies) for humans and agents
 ├── mcp-server/         # platform MCP server, console and scripted demo agent (Python)
-├── portal/             # Backstage: catalog, templates, AI Platform page and MCP actions
+├── portal/             # Backstage: catalog, templates (Spring service included), AI Platform page and MCP actions
+├── standards/          # engineering standards: TechDocs for people, AI rules for agents
+├── git-server/         # local Git server (Gitea) for the repositories the templates create
 ├── demo/               # demo script, developer requests and reset
 └── docs/
 ```
@@ -228,13 +245,14 @@ make down            # remove everything
 | Platform console (dashboard and approvals) | <http://localhost:8080> |
 | Platform MCP server, for agents (actions) | `http://localhost:8081/mcp` |
 | Portal MCP server, for agents (context, read-only) | `http://localhost:7007/api/mcp-actions/v1/context` |
+| Git server with the repositories the portal creates | <http://localhost:3000> (`platform-admin` / `platform-starter-kit`) |
 | Metrics in Prometheus format | <http://localhost:8080/metrics> |
 
-To connect a real agent, open this folder in Claude Code: it reads [`.mcp.json`](.mcp.json) (the `platform` and `portal` servers) and the [platform skill](.claude/skills/platform-golden-paths/SKILL.md). Then follow [the demo script](demo/README.md).
+To connect a real agent, open this folder in Claude Code: it reads [`.mcp.json`](.mcp.json) (the `platform` and `portal` servers) and the skills in [`.claude/skills/`](.claude/skills/). Then follow [the demo script](demo/README.md).
 
-`PORTAL=false make up` skips the portal if you only need the MCP server and the console.
+`PORTAL=false make up` skips the portal and the Git server if you only need the MCP server and the console.
 
-> **Local demo only.** The platform MCP server has no authentication yet, the portal signs everyone in as a guest (mapped to the sample user Ana) and agents reach the portal MCP server with a fixed token. All of this is fine on a laptop and is replaced by real identity (Keycloak, and OAuth for MCP clients) in the *Optimize* milestone.
+> **Local demo only.** The platform MCP server has no authentication yet, the portal signs everyone in as a guest (mapped to the sample user Ana), agents reach the portal MCP server with a fixed token and the Git server has a fixed admin password. All of this is fine on a laptop and is replaced by real identity (Keycloak, and OAuth for MCP clients) in the *Optimize* milestone.
 
 ### Run it on AWS
 
@@ -264,6 +282,7 @@ No access keys are passed as arguments or stored in plain secrets: the control p
 
 - [x] **Demo MVP:** local setup, *new service* and *ephemeral environment* Golden Paths, platform MCP server, cost and human approval policies, first dashboard
 - [x] **Portal:** Backstage with templates on top of the same Golden Paths, live catalog of what humans and agents created, approvals, AI resources and MCP actions for agents
+- [x] **Engineering standards:** TechDocs and AI rules from one source, a Spring service template with ArchUnit checks and `AGENTS.md`, and `create_service` for agents
 - [ ] **GitOps:** Argo CD for the platform itself
 - [ ] **Assess:** pulse check, DevEx survey and baseline scripts
 - [ ] **AWS:** OpenTofu foundation, EKS and RDS compositions

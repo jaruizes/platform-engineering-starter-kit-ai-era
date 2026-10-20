@@ -3,7 +3,8 @@
  *
  * Humans use the portal to request Golden Paths through Software Templates.
  * AI agents read context from it through MCP (catalog, Kubernetes, team
- * usage) and act through the platform MCP server, inside the guardrails.
+ * usage, engineering standards) and act through the platform MCP server,
+ * inside the guardrails.
  */
 
 import { createBackend } from '@backstage/backend-defaults';
@@ -30,10 +31,18 @@ backend.add(
 backend.add(import('@backstage/plugin-catalog-backend-module-ai-model'));
 backend.add(import('@backstage/plugin-catalog-backend-module-logs'));
 backend.add(catalogModulePlatform);
+// services created from the Spring service template, discovered in the local
+// Git server
+backend.add(import('@backstage/plugin-catalog-backend-module-gitea'));
 
-// software templates for the Golden Paths
+// software templates for the Golden Paths; new services are published to the
+// local Git server (Gitea)
 backend.add(import('@backstage/plugin-scaffolder-backend'));
+backend.add(import('@backstage/plugin-scaffolder-backend-module-gitea'));
 backend.add(scaffolderModulePlatform);
+
+// techdocs: the engineering standards, built when the image is built
+backend.add(import('@backstage/plugin-techdocs-backend'));
 
 // permissions
 backend.add(import('@backstage/plugin-permission-backend'));

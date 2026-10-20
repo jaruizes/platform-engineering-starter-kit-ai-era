@@ -8,10 +8,12 @@ import { registerActions } from './actions';
 import { ConsoleClient } from './console';
 import { PlatformClient } from './kubernetes';
 import { createRouter } from './router';
+import { registerStandardsActions } from './standards';
 
 /**
  * The platform plugin: agent approvals and AI-era metrics in the portal, and
- * read-only platform context for AI agents through the MCP actions.
+ * read-only platform context and engineering standards for AI agents
+ * through the MCP actions.
  */
 export const platformPlugin = createBackendPlugin({
   pluginId: 'platform',
@@ -41,6 +43,10 @@ export const platformPlugin = createBackendPlugin({
         };
 
         registerActions(actionsRegistry, platform, platformConsole);
+        registerStandardsActions(
+          actionsRegistry,
+          config.getOptionalString('platform.standardsDir') ?? './standards/docs',
+        );
         httpRouter.use(await createRouter({ httpAuth, platformConsole, displayName }));
       },
     });

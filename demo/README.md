@@ -13,7 +13,7 @@ make demo-reset    # before every demo: clean state
 
 Open the portal at <http://localhost:7007>, click **Enter** (you are Ana, from the platform team) and keep it visible during the whole demo. The lighter console at <http://localhost:8080> shows the same approvals and metrics.
 
-To use a real coding agent, connect it to the two MCP servers: `platform` (`http://localhost:8081/mcp`) to act, and `portal` (`http://localhost:7007/api/mcp-actions/v1/context`, with the header `Authorization: Bearer platform-starter-kit-local-demo`) to read context. This repository already includes a `.mcp.json` and a [skill](../.claude/skills/platform-golden-paths/SKILL.md), so [Claude Code](https://claude.com/claude-code) opened in this folder offers both servers and knows how to use the platform. For any other agent:
+To use a real coding agent, connect it to the two MCP servers: `platform` (`http://localhost:8081/mcp`) to act, and `portal` (`http://localhost:7007/api/mcp-actions/v1/context`, with the header `Authorization: Bearer platform-starter-kit-local-demo`) to read context. This repository already includes a `.mcp.json` and two skills ([platform Golden Paths](../.claude/skills/platform-golden-paths/SKILL.md) and [Spring services](../.claude/skills/spring-service/SKILL.md)), so [Claude Code](https://claude.com/claude-code) opened in this folder offers both servers and knows how to use the platform. For any other agent:
 
 ```bash
 claude mcp add --transport http platform http://localhost:8081/mcp
@@ -77,6 +77,17 @@ And in the catalog, filter by kind **AiResource**: the rules agents follow (each
 
 **Closing line:** *autonomy for agents, control for the organization.*
 
+## Act 4: the engineering standards (optional, 5 minutes)
+
+*Message: the organization's architecture rules have three readers now: people, agents and CI. One source of truth, and the rules that can be checked are checked.*
+
+1. **Docs → Engineering standards.** Architecture, architecture rules, technology policy, development rules and testing, as TechDocs. This is where people read them.
+2. **Create → Spring service.** Name `payments-service`, a description, owner *Payments*, first module `payments`. The repository appears in the Git server (<http://localhost:3000/platform/payments-service>) and in the catalog a few seconds later. Show its package structure (`payments/domain`, `business`, `infrastructure`), its `AGENTS.md` and `src/test/java/**/architecture/ArchitectureTest.java`.
+3. Ask the agent: **"Create a new service for the checkout team that takes and tracks customer orders."** With the Spring service skill, it does not scaffold by hand: it calls `create_service`, the same template, and the catalog shows the service as requested by the agent. Then: **"Which rules must I follow to add a REST endpoint?"** It reads them through the portal MCP server (`platform.get-engineering-standard`).
+4. Break a rule on purpose: in the cloned repository, make a class in `domain` use a JPA annotation and run `./mvnw verify`. ArchUnit fails and names the rule (AAC-003). The same happens for code written by an agent.
+
+The standards are an example taken from [My-FinAI-Manager](https://github.com/jaruizes/My-FinAI-Manager/tree/main/reference/engineering); replace [`standards/`](../standards) with your own.
+
 ## What is under the hood
 
 | Step | How it works |
@@ -85,6 +96,8 @@ And in the catalog, filter by kind **AiResource**: the rules agents follow (each
 | Identify | Kyverno [`identify-requester`](../policies/10-identify-requester.yaml) stamps the authenticated requester and whether it is a human or an agent |
 | Guardrails | Kyverno [`cost-guardrails`](../policies/20-cost-guardrails.yaml) (for everyone) and [`agent-guardrails`](../policies/30-agent-guardrails.yaml) (for agents) |
 | Portal | Backstage: [Software Templates](../portal/catalog/templates) that call the Golden Paths on behalf of the signed-in person, a [catalog provider](../portal/plugins/platform-backend/src/catalog.ts) that brings environments and services from the cluster, and MCP actions for agents |
+| Engineering standards | [`standards/`](../standards): TechDocs built into the portal image, an `AiResource` per rule document, and MCP actions that serve the Markdown to agents |
+| Spring service | A [template](../portal/catalog/templates/spring-service) that publishes to the local Git server ([Gitea](../git-server/gitea.yaml)); the catalog discovers every repository of the `platform` organization. `create_service` in the platform MCP server runs the same template with a token that only reaches the scaffolder and the catalog |
 | Human in the loop | The console creates approved requests with its own identity and records the approver; the portal passes on who is signed in. [`protect-audit-trail`](../policies/30-agent-guardrails.yaml) stops anyone else from doing so |
 | Time to live | Kyverno deletes environments when their time to live is over |
 | Observe | Every action is a Kubernetes event in `platform-system`; the console reads events and resources |
@@ -94,4 +107,6 @@ And in the catalog, filter by kind **AiResource**: the rules agents follow (each
 - **The portal shows the sign-in page again:** click **Enter**; the demo keeps no session state.
 - **The console is empty:** run `make status`. If Golden Path resources are missing, run `make up` again; it is idempotent.
 - **"Team already has 3 active environments":** that is the team budget guardrail. Run `make demo-reset`.
+- **The Spring service does not appear in the catalog:** it is discovered from the Git server every 15 seconds. Check the repository exists at <http://localhost:3000/platform>.
+- **"The repository with the same name already exists":** pick another name, or run `make demo-reset`, which also deletes the repositories created from templates.
 - **The agent does not see the `platform` or `portal` server:** check <http://localhost:8081/healthz> answers `ok` and the portal opens, then restart the agent.

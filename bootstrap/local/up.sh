@@ -22,10 +22,12 @@ step "Creating k3d cluster '$CLUSTER_NAME'"
 if k3d cluster get "$CLUSTER_NAME" >/dev/null 2>&1; then
   echo "Cluster already exists, reusing it."
   k3d cluster start "$CLUSTER_NAME" >/dev/null
-  # Clusters created before the portal existed do not publish its port.
-  if ! docker port "k3d-$CLUSTER_NAME-serverlb" 2>/dev/null | grep -q '^30007/'; then
-    k3d cluster edit "$CLUSTER_NAME" --port-add 7007:30007@loadbalancer
-  fi
+  # Clusters created by older versions of the kit do not publish every port.
+  for port in 7007:30007 3000:30300; do
+    if ! docker port "k3d-$CLUSTER_NAME-serverlb" 2>/dev/null | grep -q "^${port#*:}/"; then
+      k3d cluster edit "$CLUSTER_NAME" --port-add "$port@loadbalancer"
+    fi
+  done
 else
   k3d cluster create "$CLUSTER_NAME" --image "$K3S_IMAGE" \
     --config "$ROOT/bootstrap/local/k3d-config.yaml" --wait --timeout 180s
@@ -107,8 +109,12 @@ kubectl -n platform-system rollout status deployment/platform-mcp --timeout=180s
 kubectl -n platform-system rollout status deployment/platform-console --timeout=180s || diagnose platform-console
 
 if [[ "$PORTAL" == "true" ]]; then
+  step "Deploying the local Git server (Gitea), where the Spring service template creates repositories"
+  kubectl apply -f "$ROOT/git-server/gitea.yaml"
+  kubectl -n platform-system rollout status deployment/gitea --timeout=180s || diagnose gitea
+
   step "Building and deploying the developer portal (Backstage, the first build takes several minutes)"
-  IMAGE="$(load_image "$PORTAL_IMAGE" "$ROOT/portal" "${PORTAL_BUILD_ARGS:-}")"
+  IMAGE="$(load_image "$PORTAL_IMAGE" "$ROOT/portal" "--build-context standards=$ROOT/standards ${PORTAL_BUILD_ARGS:-}")"
   deploy "$ROOT/portal/deploy" platform-starter-kit/portal:dev "$IMAGE"
   kubectl -n platform-system rollout status deployment/portal --timeout=300s || diagnose portal
 fi
@@ -119,6 +125,7 @@ cat <<MSG
   Console (dashboard and approvals): http://localhost:8080
   MCP server for agents:             http://localhost:8081/mcp
   Portal MCP server (context):       http://localhost:7007/api/mcp-actions/v1/context
+  Git server (repositories):         http://localhost:3000 (platform-admin / platform-starter-kit)
 
   Next: follow the demo script in demo/README.md.
 MSG

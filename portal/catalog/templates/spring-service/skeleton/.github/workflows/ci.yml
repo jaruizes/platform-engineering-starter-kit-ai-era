@@ -1,0 +1,18 @@
+# Runs the same checks as `./mvnw verify` on a laptop: unit tests, the
+# ArchUnit architecture rules and integration tests with Testcontainers.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - run: ./mvnw -B verify
