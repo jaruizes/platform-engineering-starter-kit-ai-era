@@ -1,0 +1,120 @@
+# The engineering standards as catalog entities: documentation for people
+# (TechDocs) and rules for AI agents (AiResource). In an organization this
+# folder is its own repository; the kit keeps it here so it works offline.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: engineering-standards
+  title: Engineering standards
+  description: >-
+    How services are built here: architecture, architecture rules, technology
+    policy, development rules and testing. For people and AI agents alike.
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/tree/main/standards/
+  tags: [standards, architecture, spring]
+spec:
+  type: documentation
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: architecture-rules
+  title: Architecture rules
+  description: >-
+    What must be true for code to be compliant: hexagonal architecture,
+    module-first Spring packages (domain, business, infrastructure), dependency
+    direction, module ownership, replaceable providers, no speculative
+    infrastructure (AAC-001 to AAC-022).
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/architecture-rules.md
+spec:
+  type: rule
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+  category: architecture
+  rationale: >-
+    One architecture that every service shares, checked automatically with
+    ArchUnit, so human and AI-written code can be reviewed the same way.
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: technology-policy
+  title: Technology policy
+  description: >-
+    The approved stack and when each technology may be used. Spring services
+    use Maven, Spring Data JPA, Flyway, PostgreSQL, OpenAPI, JUnit 5, ArchUnit
+    and Testcontainers. Anything outside the policy needs an ADR.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/technology-policy.md
+spec:
+  type: rule
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+  category: technology
+  rationale: AI agents and people must not introduce unapproved technologies silently.
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: development-rules
+  title: Development rules
+  description: >-
+    Implementation discipline for all code, human or AI-generated: simplest
+    correct implementation, domain language, BigDecimal for money, explicit
+    errors, no secrets, intentional dependencies, no unrelated refactoring.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/development-rules.md
+spec:
+  type: rule
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+  category: quality
+  rationale: Generated code is held to the same engineering standard as human code.
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: testing-strategy
+  title: Testing strategy
+  description: >-
+    How correctness is proven: unit and domain tests, integration tests with
+    Testcontainers, contract tests against OpenAPI, ArchUnit architecture
+    tests, a few E2E journeys and evaluations for AI behavior.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/testing.md
+spec:
+  type: rule
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+  category: quality
+  rationale: Tests are the evidence that a change is correct, whoever wrote it.
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: spring-service
+  title: Create and change Spring services
+  description: >-
+    Teaches coding agents to create Spring services through the platform
+    template instead of scaffolding them by hand, and to keep them compliant
+    with the engineering standards.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/.claude/skills/spring-service/
+spec:
+  type: skill
+  lifecycle: experimental
+  owner: platform-team
+  system: internal-developer-platform
+  disciplines: [backend]
+  categories: [platform, architecture]
+  agents: [claude-code]
+  dependsOn: [architecture-rules, technology-policy, development-rules, testing-strategy]

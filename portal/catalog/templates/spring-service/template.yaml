@@ -1,0 +1,101 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: spring-service
+  title: Spring service
+  description: >-
+    Creates a Spring Boot service that follows the engineering standards:
+    module-first hexagonal packages, Maven, JPA with Flyway, OpenAPI,
+    Testcontainers, ArchUnit rules that check the architecture on every build,
+    and an AGENTS.md for AI agents. The repository is created in the local Git
+    server and appears in the catalog on its own.
+  tags: [golden-path, java, spring-boot]
+  links:
+    - url: http://localhost:7007/docs/default/component/engineering-standards
+      title: Engineering standards
+      icon: docs
+spec:
+  owner: platform-team
+  type: service
+  parameters:
+    - title: Service
+      required: [name, description, owner]
+      properties:
+        name:
+          title: Name
+          description: Repository and service name, for example orders-service.
+          type: string
+          pattern: '^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$'
+        description:
+          title: Description
+          description: What the service does, in the domain language.
+          type: string
+        owner:
+          title: Owner team
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+    - title: Architecture
+      required: [basePackage, module]
+      properties:
+        basePackage:
+          title: Base Java package
+          description: The service package is the base package plus the service name without dashes.
+          type: string
+          default: com.starterkit
+          pattern: '^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$'
+        module:
+          title: First functional module
+          description: >-
+            A business capability in the domain language, for example orders or
+            portfolio. It gets its own domain, business and infrastructure packages.
+          type: string
+          pattern: '^[a-z][a-z0-9]*$'
+        requestedBy:
+          title: Requested by
+          description: Set by the platform MCP server when an AI agent uses this template.
+          type: string
+          ui:widget: hidden
+  steps:
+    - id: fetch
+      name: Generate the service from the standard skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          module: ${{ parameters.module }}
+          basePackage: ${{ parameters.basePackage }}
+          rootPackage: ${{ parameters.basePackage }}.${{ parameters.name | replace('-', '') }}
+          packagePath: ${{ (parameters.basePackage + '.' + (parameters.name | replace('-', ''))) | replace('.', '/') }}
+          dbName: ${{ parameters.name | replace('-', '_') }}
+          requestedBy: ${{ parameters.requestedBy or user.ref }}
+
+    - id: publish
+      name: Create the repository
+      action: publish:gitea
+      input:
+        repoUrl: localhost:3000?owner=platform&repo=${{ parameters.name }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: public
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open the service in the catalog (it appears within a few seconds)
+        icon: catalog
+        entityRef: component:default/${{ parameters.name }}
+    text:
+      - title: Next steps
+        content: |
+          ```bash
+          git clone ${{ steps.publish.output.remoteUrl }}
+          cd ${{ parameters.name }} && ./mvnw verify
+          ```
+          `./mvnw verify` runs the architecture rules. AI agents read `AGENTS.md`.

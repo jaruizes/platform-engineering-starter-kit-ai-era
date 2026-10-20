@@ -47,8 +47,9 @@ metadata:
   annotations:
     policies.kyverno.io/title: Protect the audit trail
     policies.kyverno.io/description: >-
-      Only the platform console can record an approval, and requester
-      annotations cannot be changed after creation.
+      Only the platform console can record an approval, only the portal can
+      act on behalf of a person, and requester annotations cannot be changed
+      after creation.
 spec:
   validationActions: [Deny]
   evaluation:
@@ -63,7 +64,8 @@ spec:
   variables:
     - name: keys
       expression: >-
-        ['platform.starterkit.dev/requested-by', 'platform.starterkit.dev/requester-type', 'platform.starterkit.dev/approved-by']
+        ['platform.starterkit.dev/requested-by', 'platform.starterkit.dev/requester-type',
+         'platform.starterkit.dev/approved-by', 'platform.starterkit.dev/on-behalf-of']
     - name: annotations
       expression: object.metadata.?annotations.orValue({})
     - name: oldAnnotations
@@ -74,6 +76,12 @@ spec:
         request.operation == 'UPDATE' ||
         request.userInfo.username == 'system:serviceaccount:platform-system:platform-console'
       message: Approvals can only be recorded through the platform console.
+      reason: Forbidden
+    - expression: >-
+        !('platform.starterkit.dev/on-behalf-of' in variables.annotations) ||
+        request.operation == 'UPDATE' ||
+        request.userInfo.username == 'system:serviceaccount:platform-system:portal'
+      message: Only the developer portal can act on behalf of a person.
       reason: Forbidden
     - expression: >-
         request.operation == 'CREATE' ||

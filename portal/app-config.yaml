@@ -1,0 +1,172 @@
+# Configuration of the portal as it runs in the local cluster (make up).
+app:
+  title: Platform Starter Kit
+  baseUrl: http://localhost:7007
+  packages: all
+  extensions:
+    - page:catalog:
+        config:
+          path: /
+
+organization:
+  name: Platform Starter Kit
+
+backend:
+  baseUrl: http://localhost:7007
+  listen: ':7007'
+  csp:
+    connect-src: ["'self'", 'http:', 'https:']
+  cors:
+    origin: http://localhost:7007
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+  # The demo keeps no state: the catalog is rebuilt from files and from the
+  # cluster on every start.
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+  auth:
+    # AI agents connect to the portal MCP server with this token, limited to
+    # the plugins below. Local demo only: in a real deployment use OAuth
+    # (Client ID Metadata Documents), so agents act as the person using them
+    # and the permission policy applies.
+    externalAccess:
+      - type: static
+        options:
+          token: ${PORTAL_MCP_TOKEN}
+          subject: coding-agents
+        accessRestrictions:
+          - plugin: mcp-actions
+          - plugin: catalog
+          - plugin: kubernetes
+          - plugin: search
+          - plugin: platform
+      # The platform MCP server runs the Spring service template for agents
+      # (create_service). It can only reach the scaffolder and the catalog,
+      # which the scaffolder needs to read the template and register the service.
+      - type: static
+        options:
+          token: ${PLATFORM_MCP_TOKEN}
+          subject: platform-mcp
+        accessRestrictions:
+          - plugin: scaffolder
+          - plugin: catalog
+  # Plugins whose actions become MCP tools. The scaffolder is left out on
+  # purpose: agents act through the platform MCP server, with their own
+  # identity, so the agent guardrails always apply.
+  actions:
+    pluginSources:
+      - catalog
+      - kubernetes
+      - search
+      - platform
+
+mcpActions:
+  name: platform-portal
+  description: >-
+    Context about the Internal Developer Platform: the software catalog, who
+    owns what, the environments and services created through the Golden Paths
+    and who asked for them, their live status, team usage and pending approvals.
+  servers:
+    context:
+      name: Platform portal (context)
+      description: >-
+        Read-only context about the Internal Developer Platform: catalog, live
+        Kubernetes status, search, team usage, agent requests waiting for a
+        human and the engineering standards services must follow.
+      instructions: >-
+        Use these tools to understand the platform before acting: who owns a
+        service, which environments a team has and how many slots are free,
+        and which requests are waiting for a human. To create or change
+        anything, use the platform MCP server (request_environment,
+        deploy_service, create_service). Before designing or writing code,
+        read the engineering standards with list-engineering-standards and
+        get-engineering-standard. Never try to approve requests: only people can.
+      filter:
+        include:
+          - attributes:
+              readOnly: true
+
+auth:
+  environment: development
+  providers:
+    guest:
+      userEntityRef: user:default/ana
+      dangerouslyAllowOutsideDevelopment: true
+
+integrations:
+  # The local Git server. The portal pod reaches it at localhost:3000 through
+  # a sidecar, the same address the browser uses.
+  gitea:
+    - host: localhost:3000
+      baseUrl: http://localhost:3000
+      username: ${GITEA_USERNAME}
+      password: ${GITEA_PASSWORD}
+
+scaffolder:
+  defaultAuthor:
+    name: Platform portal
+    email: portal@starterkit.local
+  defaultCommitMessage: Create the service from the Spring service template
+
+techdocs:
+  # The engineering standards are built into the image (see the Dockerfile).
+  builder: external
+  publisher:
+    type: local
+    local:
+      publishDirectory: /app/techdocs
+
+catalog:
+  providers:
+    # Every repository of the "platform" organization in the local Git server
+    # with a catalog-info.yaml becomes part of the catalog, so the services
+    # created from the Spring service template appear on their own.
+    gitea:
+      platform:
+        host: localhost:3000
+        organization: platform
+        branch: main
+        catalogPath: catalog-info.yaml
+        schedule:
+          frequency: { seconds: 15 }
+          timeout: { minutes: 1 }
+  rules:
+    - allow: [Component, System, API, Resource, Location, Group, User, Template, AiResource]
+  locations:
+    - type: file
+      target: ./catalog/org.yaml
+    - type: file
+      target: ./catalog/platform.yaml
+    - type: file
+      target: ./catalog/ai.yaml
+    - type: file
+      target: ./catalog/templates/environment/template.yaml
+    - type: file
+      target: ./catalog/templates/service/template.yaml
+    - type: file
+      target: ./catalog/templates/spring-service/template.yaml
+    # The engineering standards: documentation and AI rules.
+    - type: file
+      target: ./standards/catalog-info.yaml
+
+kubernetes:
+  serviceLocatorMethod:
+    type: multiTenant
+  clusterLocatorMethods:
+    - type: config
+      clusters:
+        - name: local
+          title: Local platform cluster
+          url: https://kubernetes.default.svc
+          authProvider: serviceAccount
+          caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          skipMetricsLookup: true
+
+platform:
+  consoleUrl: http://platform-console.platform-system.svc:8080
+  # Markdown documents served to agents by get-engineering-standard.
+  standardsDir: ./standards/docs
+
+permission:
+  enabled: true

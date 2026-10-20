@@ -3,6 +3,13 @@
     "platform": {
       "type": "http",
       "url": "http://localhost:8081/mcp"
+    },
+    "portal": {
+      "type": "http",
+      "url": "http://localhost:7007/api/mcp-actions/v1/context",
+      "headers": {
+        "Authorization": "Bearer platform-starter-kit-local-demo"
+      }
     }
   }
 }

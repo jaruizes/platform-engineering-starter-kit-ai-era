@@ -17,7 +17,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 
-from . import platform
+from . import platform, portal
 from .platform import Denied
 
 NAME_PATTERN = re.compile(r"^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$")
@@ -92,7 +92,8 @@ def request_environment(
                 "approval_id": approval_id,
                 "reason": denied.reason,
                 "next_step": (
-                    "Tell the user this request needs human approval in the platform console "
+                    "Tell the user this request needs human approval in the developer portal "
+                    "(AI Platform page) or the platform console "
                     f"(approval id {approval_id}). Use get_approval_status to follow it, or ask for "
                     "a small environment instead."
                 ),
@@ -169,6 +170,63 @@ def deploy_service(
         return {"status": "denied", "reason": denied.reason}
     platform.record("RequestAccepted", f"{agent} deployed {name} in {namespace}", environment, actor=agent)
     return {"status": "accepted", "url": f"http://{name}.{namespace}.svc.cluster.local"}
+
+
+@mcp.tool(title="Create a service")
+def create_service(
+    name: str,
+    description: str,
+    team: str,
+    module: str,
+    base_package: str = "com.starterkit",
+    ctx: Context | None = None,
+) -> dict[str, Any]:
+    """Creates the repository of a new Spring Boot service with the spring-service Golden Path.
+
+    The repository follows the engineering standards from the first commit and is
+    registered in the catalog. Use it instead of scaffolding a service by hand.
+
+    Args:
+        name: Service and repository name (lowercase letters, numbers and dashes).
+        description: What the service does, in the domain language.
+        team: Team that owns the service, for example checkout.
+        module: First functional module, a business capability such as orders.
+        base_package: Base Java package; the service package adds the name without dashes.
+    """
+    if not re.match(r"^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$", name):
+        raise ValueError("name must be lowercase letters, numbers and dashes (max 40 characters).")
+    if not re.match(r"^[a-z][a-z0-9]*$", module):
+        raise ValueError("module must be lowercase letters and numbers, for example orders.")
+    _check_name(team, "team")
+    agent = agent_name(ctx)
+    values = {
+        "name": name,
+        "description": description,
+        "owner": f"group:default/{team}",
+        "basePackage": base_package,
+        "module": module,
+        "requestedBy": f"agent:{agent}",
+    }
+    try:
+        portal.run_template("spring-service", values)
+    except portal.TemplateFailed as failed:
+        platform.record("RequestFailed", f"{agent} could not create service {name}: {failed}",
+                        name, warning=True, actor=agent, kind="Component")
+        return {"status": "failed", "reason": str(failed)}
+    repository = portal.repository_url(name)
+    platform.record("RequestAccepted", f"{agent} created service {name} for team {team} from the Spring service template",
+                    name, actor=agent, kind="Component")
+    return {
+        "status": "created",
+        "repository": repository,
+        "clone": f"git clone {repository}.git",
+        "catalog_entity": f"component:default/{name}",
+        "next_step": (
+            "Clone the repository, read its AGENTS.md and the engineering standards (portal MCP server: "
+            "platform.get-engineering-standard), implement inside the generated module, and run ./mvnw verify "
+            "before finishing: it checks the architecture rules."
+        ),
+    }
 
 
 @mcp.tool(title="Get approval status")

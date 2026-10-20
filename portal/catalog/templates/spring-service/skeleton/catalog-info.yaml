@@ -1,0 +1,19 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: ${{ values.description }}
+  annotations:
+    platform.starterkit.dev/requested-by: ${{ values.requestedBy }}
+    platform.starterkit.dev/template: spring-service
+  tags: [java, spring-boot]
+  links:
+    - url: http://localhost:7007/docs/default/component/engineering-standards
+      title: Engineering standards
+      icon: docs
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  dependsOn:
+    - component:default/engineering-standards

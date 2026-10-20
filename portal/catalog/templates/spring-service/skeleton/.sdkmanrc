@@ -1,0 +1,2 @@
+# Java 21 (LTS), the same as the container image. Run `sdk env` here.
+java=21.0.2-open

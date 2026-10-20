@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: ${{ values.name }}
+  datasource:
+    # Environment-specific values come from SPRING_DATASOURCE_* variables (DR-010).
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/${{ values.dbName }}}
+    username: ${SPRING_DATASOURCE_USERNAME:${{ values.dbName }}}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    locations: classpath:db/migration
+
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
+
+logging:
+  structured:
+    format:
+      console: ecs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs

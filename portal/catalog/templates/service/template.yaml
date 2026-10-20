@@ -1,0 +1,55 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: new-service
+  title: New service
+  description: >-
+    Deploys a service the standard way: health probes, resource limits,
+    hardened security context, ownership labels and an internal URL.
+  tags: [golden-path, service]
+spec:
+  owner: platform-team
+  type: service
+  parameters:
+    - title: Service
+      required: [environment, name]
+      properties:
+        environment:
+          title: Environment
+          type: string
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: Resource
+              spec.type: environment
+        name:
+          title: Name
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$'
+        image:
+          title: Container image
+          type: string
+          default: ghcr.io/stefanprodan/podinfo:6.15.0
+        replicas:
+          title: Replicas
+          type: integer
+          default: 1
+          minimum: 1
+          maximum: 3
+  steps:
+    - id: deploy
+      name: Deploy the service
+      action: platform:service:deploy
+      input:
+        environment: ${{ parameters.environment }}
+        name: ${{ parameters.name }}
+        image: ${{ parameters.image }}
+        replicas: ${{ parameters.replicas }}
+  output:
+    links:
+      - title: Open the service in the catalog
+        icon: catalog
+        entityRef: ${{ steps.deploy.output.entityRef }}
+    text:
+      - title: Internal URL
+        content: ${{ steps.deploy.output.url }}

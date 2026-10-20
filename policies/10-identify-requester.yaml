@@ -22,16 +22,21 @@ spec:
       expression: "'system:serviceaccount:platform-system:platform-mcp'"
     - name: approverIdentity
       expression: "'system:serviceaccount:platform-system:platform-console'"
+    - name: portalIdentity
+      expression: "'system:serviceaccount:platform-system:portal'"
     - name: requesterType
       expression: >-
         request.userInfo.username in [variables.agentIdentity, variables.approverIdentity] ? 'agent' : 'human'
     # Agents identify themselves through the MCP server, which runs with its
     # own identity. A human approving in the console keeps the agent as requester.
+    # The portal acts on behalf of the signed-in person, whose user it passes on.
     - name: requestedBy
       expression: >-
         variables.requesterType == 'agent'
           ? object.metadata.?annotations[?'platform.starterkit.dev/agent'].orValue(request.userInfo.username)
-          : request.userInfo.username
+          : request.userInfo.username == variables.portalIdentity
+            ? object.metadata.?annotations[?'platform.starterkit.dev/on-behalf-of'].orValue(request.userInfo.username)
+            : request.userInfo.username
   mutations:
     - patchType: ApplyConfiguration
       applyConfiguration:

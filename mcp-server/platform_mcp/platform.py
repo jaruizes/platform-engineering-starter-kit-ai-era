@@ -115,6 +115,27 @@ GOLDEN_PATHS = [
         "guardrails": ["Agents can only deploy into ephemeral environments."],
         "tool": "deploy_service",
     },
+    {
+        "name": "spring-service",
+        "kind": "Repository",
+        "description": (
+            "Creates the repository of a new Spring Boot service that follows the engineering "
+            "standards: module-first hexagonal packages, Maven, JPA with Flyway, OpenAPI, "
+            "Testcontainers, ArchUnit rules and an AGENTS.md. It is registered in the catalog."
+        ),
+        "parameters": {
+            "name": "Service and repository name, for example orders-service",
+            "description": "What the service does, in the domain language",
+            "team": "Team that owns the service",
+            "module": "First functional module, for example orders",
+            "base_package": "Base Java package (default com.starterkit)",
+        },
+        "guardrails": [
+            "The architecture rules run in ./mvnw verify for every change, human or AI-written.",
+            "Read the engineering standards (portal MCP server) before designing or writing code.",
+        ],
+        "tool": "create_service",
+    },
 ]
 
 SIZES = {"small", "medium", "large"}
@@ -312,7 +333,9 @@ def decide_approval(approval_id: str, approve: bool, approver: str) -> dict[str,
 # measured by any tool that already reads events.
 
 
-def record(action: str, message: str, subject: str, warning: bool = False, actor: str = "") -> None:
+def record(
+    action: str, message: str, subject: str, warning: bool = False, actor: str = "", kind: str = "Environment"
+) -> None:
     timestamp = now()
     event = client.CoreV1Event(
         metadata=client.V1ObjectMeta(generate_name="platform-", namespace=NAMESPACE,
@@ -320,7 +343,7 @@ def record(action: str, message: str, subject: str, warning: bool = False, actor
         # Events must live in the namespace of the object they describe, so the
         # trail points to the environment by name from platform-system.
         involved_object=client.V1ObjectReference(
-            api_version=f"{GROUP}/{VERSION}", kind="Environment", name=subject, namespace=NAMESPACE
+            api_version=f"{GROUP}/{VERSION}", kind=kind, name=subject, namespace=NAMESPACE
         ),
         reason=action,
         message=message,
@@ -339,7 +362,7 @@ def record(action: str, message: str, subject: str, warning: bool = False, actor
 
 def list_activity(limit: int = 50) -> list[dict[str, Any]]:
     events = _core().list_namespaced_event(NAMESPACE).items
-    events = [e for e in events if e.source and e.source.component in ("platform-mcp", "platform-console")]
+    events = [e for e in events if e.source and e.source.component in ("platform-mcp", "platform-console", "platform-portal")]
     events.sort(key=lambda e: e.last_timestamp or e.metadata.creation_timestamp, reverse=True)
     return [
         {

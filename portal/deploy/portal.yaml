@@ -1,0 +1,182 @@
+# The developer portal (Backstage). Its identity is the third one in the
+# platform: it acts on behalf of signed-in people, and the policies record
+# which person each request is for.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portal
+  namespace: platform-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform:portal
+rules:
+  # Golden Paths: read everything, create on behalf of people. No delete:
+  # environments expire on their own.
+  - apiGroups: [platform.starterkit.dev]
+    resources: [environments, apps]
+    verbs: [get, list, watch, create]
+  # Read-only view of workloads for the Kubernetes tab and for agents.
+  - apiGroups: [""]
+    resources: [pods, services, configmaps, limitranges, resourcequotas]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    verbs: [get, list, watch]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platform:portal
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: platform:portal
+subjects:
+  - kind: ServiceAccount
+    name: portal
+    namespace: platform-system
+---
+# The portal writes to the same audit trail as the MCP server and the console.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform:audit-writer
+  namespace: platform-system
+rules:
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform:portal-audit
+  namespace: platform-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform:audit-writer
+subjects:
+  - kind: ServiceAccount
+    name: portal
+    namespace: platform-system
+---
+# Token AI agents use for the portal MCP server (read-only). Local demo only.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: portal-mcp-token
+  namespace: platform-system
+stringData:
+  token: platform-starter-kit-local-demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/name: portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: portal
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: portal
+    spec:
+      serviceAccountName: portal
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: portal
+          image: platform-starter-kit/portal:dev
+          imagePullPolicy: Never
+          env:
+            - name: PORTAL_MCP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: portal-mcp-token
+                  key: token
+            - name: PLATFORM_MCP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: platform-mcp-portal-token
+                  key: token
+            - name: GITEA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-admin
+                  key: username
+            - name: GITEA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-admin
+                  key: password
+          ports:
+            - name: http
+              containerPort: 7007
+          readinessProbe:
+            httpGet:
+              path: /.backstage/health/v1/readiness
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1536Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+        # Makes the Git server reachable at localhost:3000 inside the pod, the
+        # same address the browser uses, so repository links work everywhere.
+        - name: git-proxy
+          image: alpine/socat:1.8.1.3
+          args: ["TCP-LISTEN:3000,fork,reuseaddr", "TCP:gitea.platform-system.svc:3000"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portal
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/name: portal
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: portal
+  ports:
+    - name: http
+      port: 7007
+      targetPort: http
+      nodePort: 30007
