@@ -24,13 +24,23 @@ api -X POST "$GIT_URL/api/v1/orgs/platform/repos" \
   -d '{"name":"platform-starter-kit","description":"The platform: Golden Paths, capabilities and guardrails","default_branch":"main"}' >/dev/null
 
 # One commit with the files of this checkout, without its history and without
-# what .gitignore leaves out (dependencies, build output).
+# what .gitignore leaves out (dependencies, build output). tar copies them
+# with their folders and symlinks on Linux and macOS alike.
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  git -C "$ROOT" ls-files -z --cached --others --exclude-standard | (cd "$ROOT" && xargs -0 cp --parents -t "$work" 2>/dev/null) || true
+  git -C "$ROOT" ls-files -z --cached --others --exclude-standard |
+    while IFS= read -r -d '' file; do
+      # Skip files deleted in the working copy but still in the index.
+      if [[ -e "$ROOT/$file" || -L "$ROOT/$file" ]]; then printf '%s\0' "$file"; fi
+    done |
+    tar -C "$ROOT" --null -T - -cf - | tar -C "$work" -xf -
 else
   cp -R "$ROOT/." "$work"
+fi
+if [[ ! -d "$work/capabilities" ]]; then
+  echo "Could not copy the kit into the platform repository (nothing under $work)." >&2
+  exit 1
 fi
 (
   cd "$work"
