@@ -1,0 +1,93 @@
+# Existing services of the sample organization, each on a different
+# architecture (see standards/architectures.yaml). Agents call
+# platform.get-standards-for-entity with one of them to learn which rules
+# apply before changing it.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: orders-api
+  title: Orders API
+  description: >-
+    Takes and tracks customer orders. One of the first services, still on the
+    layered backend v1: changes follow v1 rules until it is migrated.
+  labels:
+    platform.starterkit.dev/architecture: backend-spring-v1
+  tags: [java, spring-boot, legacy]
+spec:
+  type: service
+  lifecycle: production
+  owner: checkout
+  system: checkout
+  dependsOn:
+    - airesource:default/backend-spring-v1
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: invoicing-api
+  title: Invoicing API
+  description: Issues invoices and credit notes for paid orders. Built on backend v2.
+  labels:
+    platform.starterkit.dev/architecture: backend-spring-v2
+  tags: [java, spring-boot]
+spec:
+  type: service
+  lifecycle: production
+  owner: payments
+  system: payments
+  dependsOn:
+    - airesource:default/backend-spring-v2
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: refunds-backoffice
+  title: Refunds back-office
+  description: Internal application where the payments team reviews and approves refunds.
+  labels:
+    platform.starterkit.dev/architecture: frontend-angular-v1
+  tags: [angular, typescript, frontend]
+spec:
+  type: website
+  lifecycle: production
+  owner: payments
+  system: payments
+  dependsOn:
+    - airesource:default/frontend-angular-v1
+    - component:default/invoicing-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: storefront-web
+  title: Storefront
+  description: The public online store where customers browse products and place orders.
+  labels:
+    platform.starterkit.dev/architecture: frontend-react-v1
+  tags: [react, typescript, frontend]
+spec:
+  type: website
+  lifecycle: production
+  owner: checkout
+  system: checkout
+  dependsOn:
+    - airesource:default/frontend-react-v1
+    - component:default/orders-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: checkout
+  title: Checkout
+  description: Everything a customer needs to place an order.
+spec:
+  owner: checkout
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: payments
+  title: Payments
+  description: Payments, refunds and invoicing.
+spec:
+  owner: payments

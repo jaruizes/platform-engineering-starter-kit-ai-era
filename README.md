@@ -78,12 +78,14 @@ Most organizations have documents that say how a service must be built: architec
 
 | | Humans | AI agents |
 |---|---|---|
-| **Read** | TechDocs in the portal (*Engineering standards*) | `platform.list-engineering-standards` and `platform.get-engineering-standard` in the portal MCP server, and an `AiResource` per rule document in the catalog |
+| **Read** | TechDocs in the portal (*Engineering standards*), one section per architecture and version | `platform.get-standards-for-entity` (which architecture and version a service follows, and what to read), `platform.get-engineering-standard` and `platform.search-engineering-standards` (filtered by architecture) in the portal MCP server, and an `AiResource` per architecture in the catalog |
 | **Create** | The **Spring service** template: a repository that follows the standards from the first commit | `create_service` in the platform MCP server runs the same template; the [spring-service skill](.claude/skills/spring-service/SKILL.md) tells agents to use it instead of scaffolding by hand |
 | **Change** | The repository's README | The repository's `AGENTS.md` (and `CLAUDE.md`), with the essentials and links to the full documents |
 | **Check** | `./mvnw verify` locally and in CI | The same command: ArchUnit tests for the package structure, dependency direction, framework-free domain and module ownership |
 
 Nobody has to remember the rules: the ones that can be checked are checked, the same way for human and AI-written code.
+
+Several architectures coexist, as in any organization with some history: **backend v2** (hexagonal Spring, for new services), **backend v1** (layered Spring, deprecated but still used by older services), **Angular v1** (internal back-office) and **React v1** (customer-facing web). Each service declares its own with the label `platform.starterkit.dev/architecture` ([`standards/architectures.yaml`](standards/architectures.yaml)), so an agent changing the old orders API gets the v1 rules and one building a new service gets v2, instead of a mix of similar-looking rules from both.
 
 ![Spring service template in the portal](docs/portal-spring-template.png)
 

@@ -77,14 +77,15 @@ And in the catalog, filter by kind **AiResource**: the rules agents follow (each
 
 **Closing line:** *autonomy for agents, control for the organization.*
 
-## Act 4: the engineering standards (optional, 5 minutes)
+## Act 4: the engineering standards (optional, 8 minutes)
 
 *Message: the organization's architecture rules have three readers now: people, agents and CI. One source of truth, and the rules that can be checked are checked.*
 
-1. **Docs → Engineering standards.** Architecture, architecture rules, technology policy, development rules and testing, as TechDocs. This is where people read them.
+1. **Docs → Engineering standards.** Four architectures side by side (backend v2 and the deprecated v1, Angular and React), each with its architecture, rules and examples, plus the documents for all of them (technology policy, development rules, testing), as TechDocs. This is where people read them.
 2. **Create → Spring service.** Name `payments-service`, a description, owner *Payments*, first module `payments`. The repository appears in the Git server (<http://localhost:3000/platform/payments-service>) and in the catalog a few seconds later. Show its package structure (`payments/domain`, `business`, `infrastructure`), its `AGENTS.md` and `src/test/java/**/architecture/ArchitectureTest.java`.
-3. Ask the agent: **"Create a new service for the checkout team that takes and tracks customer orders."** With the Spring service skill, it does not scaffold by hand: it calls `create_service`, the same template, and the catalog shows the service as requested by the agent. Then: **"Which rules must I follow to add a REST endpoint?"** It reads them through the portal MCP server (`platform.get-engineering-standard`).
-4. Break a rule on purpose: in the cloned repository, make a class in `domain` use a JPA annotation and run `./mvnw verify`. ArchUnit fails and names the rule (AAC-003). The same happens for code written by an agent.
+3. Ask the agent: **"Create a new service for the checkout team that manages gift cards."** With the Spring service skill, it does not scaffold by hand: it calls `create_service`, the same template, and the catalog shows the service as requested by the agent. Then: **"Which rules must I follow to add a REST endpoint?"** It reads them through the portal MCP server (`platform.get-standards-for-entity` and `platform.get-engineering-standard`).
+4. Ask the agent: **"Add a refund endpoint to the orders API."** The orders API is an older service: `get-standards-for-entity` says it follows **backend v1 (layered, deprecated)**, so the agent works with controller, service and repository layers and cites `BL-` rules, instead of applying the hexagonal v2 rules it would use for a new service. Then: **"How should the storefront validate the checkout form?"** It searches only the **React v1** standards (`search-engineering-standards` with `architecture: frontend-react-v1`), not the Angular ones. In the catalog, filter by the tag `architecture` to see the four architectures, and open a service to see which one it depends on.
+5. Break a rule on purpose: in the cloned repository, make a class in `domain` use a JPA annotation and run `./mvnw verify`. ArchUnit fails and names the rule (AAC-003). The same happens for code written by an agent.
 
 The standards are an example taken from [My-FinAI-Manager](https://github.com/jaruizes/My-FinAI-Manager/tree/main/reference/engineering); replace [`standards/`](../standards) with your own.
 
@@ -107,7 +108,7 @@ The checks run with `make capability NAME=<name>` and in CI ([`.github/workflows
 | Identify | Kyverno [`identify-requester`](../policies/10-identify-requester.yaml) stamps the authenticated requester and whether it is a human or an agent |
 | Guardrails | Kyverno [`cost-guardrails`](../policies/20-cost-guardrails.yaml) (for everyone) and [`agent-guardrails`](../policies/30-agent-guardrails.yaml) (for agents) |
 | Portal | Backstage: [Software Templates](../portal/catalog/templates) that call the Golden Paths on behalf of the signed-in person, a [catalog provider](../portal/plugins/platform-backend/src/catalog.ts) that brings environments and services from the cluster, and MCP actions for agents |
-| Engineering standards | [`standards/`](../standards): TechDocs built into the portal image, an `AiResource` per rule document, and MCP actions that serve the Markdown to agents |
+| Engineering standards | [`standards/`](../standards): four architectures with their versions ([`architectures.yaml`](../standards/architectures.yaml)), TechDocs built into the portal image, an `AiResource` per architecture, sample services on each one ([`portal/catalog/services.yaml`](../portal/catalog/services.yaml)), and MCP actions that tell agents which rules apply to a service, serve the Markdown and search it by architecture |
 | Spring service | A [template](../portal/catalog/templates/spring-service) that publishes to the local Git server ([Gitea](../git-server/gitea.yaml)); the catalog discovers every repository of the `platform` organization. `create_service` in the platform MCP server runs the same template with a token that only reaches the scaffolder and the catalog |
 | Human in the loop | The console creates approved requests with its own identity and records the approver; the portal passes on who is signed in. [`protect-audit-trail`](../policies/30-agent-guardrails.yaml) stops anyone else from doing so |
 | Platform capabilities | [`capabilities/`](../capabilities): a definition per capability, what the agent generated from it (XRD, composition, policies, tests) and the checks; the portal and the platform MCP server discover them from the label `platform.starterkit.dev/capability` on the XRD |
