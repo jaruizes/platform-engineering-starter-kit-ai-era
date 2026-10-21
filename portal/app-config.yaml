@@ -1,4 +1,6 @@
 # Configuration of the portal as it runs in the local cluster (make up).
+# The title, the organization name, the logos and the texts of the portal are
+# in branding/branding.yaml, merged over this file.
 app:
   title: Platform Starter Kit
   baseUrl: http://localhost:7007
@@ -7,6 +9,18 @@ app:
     - page:catalog:
         config:
           path: /
+    # The welcome card, with the texts of branding/branding.yaml.
+    - page:home:
+        config:
+          defaultConfig:
+            - component: GettingStarted
+              column: 0
+              row: 0
+              width: 8
+              height: 4
+              movable: true
+              deletable: false
+              resizable: true
 
 organization:
   name: Platform Starter Kit

@@ -15,6 +15,8 @@ MCP_IMAGE="${MCP_IMAGE:-platform-starter-kit/platform-mcp:dev}"
 PORTAL_IMAGE="${PORTAL_IMAGE:-platform-starter-kit/portal:dev}"
 # PORTAL=false skips the developer portal (Backstage), whose first build is slow.
 PORTAL="${PORTAL:-true}"
+# BRANDING_DIR: the logos, title and texts of the portal (portal/branding/README.md).
+BRANDING_DIR="${BRANDING_DIR:-$ROOT/portal/branding}"
 
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 
@@ -127,7 +129,10 @@ if [[ "$PORTAL" == "true" ]]; then
   "$ROOT/git-server/seed-platform-repo.sh"
 
   step "Building and deploying the developer portal (Backstage, the first build takes several minutes)"
-  IMAGE="$(load_image "$PORTAL_IMAGE" "$ROOT/portal" "--build-context standards=$ROOT/standards --build-context capabilities=$ROOT/capabilities ${PORTAL_BUILD_ARGS:-}")"
+  [[ -f "$BRANDING_DIR/branding.yaml" ]] || { echo "No branding.yaml in BRANDING_DIR=$BRANDING_DIR" >&2; exit 1; }
+  BRANDING_DIR="$(cd "$BRANDING_DIR" && pwd)"
+  echo "Branding: $BRANDING_DIR"
+  IMAGE="$(load_image "$PORTAL_IMAGE" "$ROOT/portal" "--build-context standards=$ROOT/standards --build-context capabilities=$ROOT/capabilities --build-context branding=$BRANDING_DIR ${PORTAL_BUILD_ARGS:-}")"
   deploy "$ROOT/portal/deploy" platform-starter-kit/portal:dev "$IMAGE"
   kubectl -n platform-system rollout status deployment/portal --timeout=300s || diagnose portal
 fi

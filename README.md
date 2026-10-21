@@ -266,6 +266,8 @@ To connect a real agent, open this folder in Claude Code: it reads [`.mcp.json`]
 
 `PORTAL=false make up` skips the portal and the Git server if you only need the MCP server and the console.
 
+To show the portal with the logo, title and texts of your company or a client, copy [`portal/branding/`](portal/branding), change it and run `BRANDING_DIR=<that folder> make up`. No code changes, and only the last layer of the portal image is rebuilt.
+
 > **Local demo only.** The platform MCP server has no authentication yet, the portal signs everyone in as a guest (mapped to the sample user Ana), and agents reach the portal MCP server with a fixed token. All of this is fine on a laptop and is replaced by real identity (Keycloak, and OAuth for MCP clients) in the *Optimize* milestone.
 
 ### Run it on AWS
