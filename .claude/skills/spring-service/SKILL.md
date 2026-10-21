@@ -25,13 +25,17 @@ rules that can be checked are checked by ArchUnit in `./mvnw verify`.
 
 ## Any change to a Spring service
 
-1. Read the standards that matter for the change through the `portal` MCP
-   server: `platform.list-engineering-standards`, then
-   `platform.get-engineering-standard` (for example `architecture-rules` and
-   `technology-policy`). The repository's `AGENTS.md` has the essentials.
-2. Put code where the architecture says: `<module>/domain`,
-   `<module>/business` and `<module>/infrastructure/...`. A new business
+1. Find out which architecture the service follows, as the
+   `engineering-standards` skill explains: `platform.get-standards-for-entity`
+   in the `portal` MCP server. Services from the template follow backend v2;
+   older ones may follow the deprecated layered backend v1, and then its
+   rules apply to the change. Read the documents it returns with
+   `platform.get-engineering-standard`. The repository's `AGENTS.md` has the
+   essentials.
+2. Put code where its architecture says. In backend v2: `<module>/domain`,
+   `<module>/business` and `<module>/infrastructure/...`; a new business
    capability is a new module package in the same service, not a new service.
+   In backend v1, keep its layers and do not mix in v2 packages without an ADR.
 3. Do not add a technology outside the technology policy (Kafka, Redis,
    another database...) without asking: it needs an ADR, and that is the
    user's decision.

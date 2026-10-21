@@ -7,12 +7,13 @@ metadata:
   name: engineering-standards
   title: Engineering standards
   description: >-
-    How services are built here: architecture, architecture rules, technology
-    policy, development rules and testing. For people and AI agents alike.
+    How software is built here: the backend and frontend architectures that
+    coexist (each with its version, rules and examples), technology policy,
+    development rules and testing. For people and AI agents alike.
   annotations:
     backstage.io/techdocs-ref: dir:.
     backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/tree/main/standards/
-  tags: [standards, architecture, spring]
+  tags: [standards, architecture, spring, angular, react]
 spec:
   type: documentation
   lifecycle: production
@@ -22,15 +23,25 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: AiResource
 metadata:
-  name: architecture-rules
-  title: Architecture rules
+  name: backend-spring-v2
+  title: Backend v2 architecture rules (hexagonal Spring)
   description: >-
-    What must be true for code to be compliant: hexagonal architecture,
-    module-first Spring packages (domain, business, infrastructure), dependency
-    direction, module ownership, replaceable providers, no speculative
-    infrastructure (AAC-001 to AAC-022).
+    The current backend architecture: hexagonal, module-first Spring packages (domain, business, infrastructure), dependency direction, module ownership, replaceable providers (AAC-001 to AAC-022). Every new backend service follows it.
+  labels:
+    platform.starterkit.dev/architecture: backend-spring-v2
   annotations:
-    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/architecture-rules.md
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/backend-spring-v2/
+  tags: [architecture, backend, spring, java]
+  links:
+    - url: http://localhost:7007/docs/default/component/engineering-standards/backend-spring-v2/architecture/
+      title: Architecture
+      icon: docs
+    - url: http://localhost:7007/docs/default/component/engineering-standards/backend-spring-v2/architecture-rules/
+      title: Architecture rules
+      icon: docs
+    - url: http://localhost:7007/docs/default/component/engineering-standards/backend-spring-v2/examples/
+      title: Examples
+      icon: docs
 spec:
   type: rule
   lifecycle: production
@@ -38,8 +49,100 @@ spec:
   system: internal-developer-platform
   category: architecture
   rationale: >-
-    One architecture that every service shares, checked automatically with
-    ArchUnit, so human and AI-written code can be reviewed the same way.
+    One architecture for new backend services, checked automatically with ArchUnit, so human and AI-written code can be reviewed the same way.
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: backend-spring-v1
+  title: Backend v1 architecture rules (layered Spring, deprecated)
+  description: >-
+    The previous backend architecture: controller, service and repository layers (BL-001 to BL-015). Only for changes to existing layered services; new services use backend v2.
+  labels:
+    platform.starterkit.dev/architecture: backend-spring-v1
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/backend-spring-v1/
+  tags: [architecture, backend, spring, java]
+  links:
+    - url: http://localhost:7007/docs/default/component/engineering-standards/backend-spring-v1/architecture/
+      title: Architecture
+      icon: docs
+    - url: http://localhost:7007/docs/default/component/engineering-standards/backend-spring-v1/architecture-rules/
+      title: Architecture rules
+      icon: docs
+    - url: http://localhost:7007/docs/default/component/engineering-standards/backend-spring-v1/examples/
+      title: Examples
+      icon: docs
+spec:
+  type: rule
+  lifecycle: deprecated
+  owner: platform-team
+  system: internal-developer-platform
+  category: architecture
+  rationale: >-
+    Older services keep a known structure while they are migrated module by module, instead of drifting into a mix of both architectures.
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: frontend-angular-v1
+  title: Frontend Angular v1 architecture rules
+  description: >-
+    Internal back-office applications: standalone components, signals, OnPush, feature-first folders and HTTP clients generated from the backend contract (FA-001 to FA-016).
+  labels:
+    platform.starterkit.dev/architecture: frontend-angular-v1
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/frontend-angular-v1/
+  tags: [architecture, frontend, angular, typescript]
+  links:
+    - url: http://localhost:7007/docs/default/component/engineering-standards/frontend-angular-v1/architecture/
+      title: Architecture
+      icon: docs
+    - url: http://localhost:7007/docs/default/component/engineering-standards/frontend-angular-v1/architecture-rules/
+      title: Architecture rules
+      icon: docs
+    - url: http://localhost:7007/docs/default/component/engineering-standards/frontend-angular-v1/examples/
+      title: Examples
+      icon: docs
+spec:
+  type: rule
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+  category: architecture
+  rationale: >-
+    Back-office applications share one structure that ESLint boundary rules and CI budgets check.
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: frontend-react-v1
+  title: Frontend React v1 architecture rules
+  description: >-
+    Customer-facing web applications: React, TypeScript and Vite, feature-sliced folders, TanStack Query over the generated API client, performance and accessibility budgets (FR-001 to FR-018).
+  labels:
+    platform.starterkit.dev/architecture: frontend-react-v1
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/frontend-react-v1/
+  tags: [architecture, frontend, react, typescript]
+  links:
+    - url: http://localhost:7007/docs/default/component/engineering-standards/frontend-react-v1/architecture/
+      title: Architecture
+      icon: docs
+    - url: http://localhost:7007/docs/default/component/engineering-standards/frontend-react-v1/architecture-rules/
+      title: Architecture rules
+      icon: docs
+    - url: http://localhost:7007/docs/default/component/engineering-standards/frontend-react-v1/examples/
+      title: Examples
+      icon: docs
+spec:
+  type: rule
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+  category: architecture
+  rationale: >-
+    Public web applications are fast, accessible and consistent, checked by ESLint boundary rules, Lighthouse CI and bundle budgets.
 ---
 apiVersion: backstage.io/v1alpha1
 kind: AiResource
@@ -51,7 +154,7 @@ metadata:
     use Maven, Spring Data JPA, Flyway, PostgreSQL, OpenAPI, JUnit 5, ArchUnit
     and Testcontainers. Anything outside the policy needs an ADR.
   annotations:
-    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/technology-policy.md
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/common/technology-policy.md
 spec:
   type: rule
   lifecycle: production
@@ -70,7 +173,7 @@ metadata:
     correct implementation, domain language, BigDecimal for money, explicit
     errors, no secrets, intentional dependencies, no unrelated refactoring.
   annotations:
-    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/development-rules.md
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/common/development-rules.md
 spec:
   type: rule
   lifecycle: production
@@ -89,7 +192,7 @@ metadata:
     Testcontainers, contract tests against OpenAPI, ArchUnit architecture
     tests, a few E2E journeys and evaluations for AI behavior.
   annotations:
-    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/testing.md
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/standards/docs/common/testing.md
 spec:
   type: rule
   lifecycle: production
@@ -117,4 +220,24 @@ spec:
   disciplines: [backend]
   categories: [platform, architecture]
   agents: [claude-code]
-  dependsOn: [architecture-rules, technology-policy, development-rules, testing-strategy]
+  dependsOn: [backend-spring-v2, technology-policy, development-rules, testing-strategy]
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: engineering-standards-skill
+  title: Follow the engineering standards
+  description: >-
+    Teaches coding agents to find the architecture and version a service
+    follows before changing it, and to read and search only its rules.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/.claude/skills/engineering-standards/
+spec:
+  type: skill
+  lifecycle: experimental
+  owner: platform-team
+  system: internal-developer-platform
+  disciplines: [backend, frontend]
+  categories: [architecture]
+  agents: [claude-code]
+  dependsOn: [backend-spring-v2, backend-spring-v1, frontend-angular-v1, frontend-react-v1]

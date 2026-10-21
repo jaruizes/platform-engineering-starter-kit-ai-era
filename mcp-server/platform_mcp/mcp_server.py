@@ -225,8 +225,9 @@ def create_service(
         "clone": f"git clone {repository}.git",
         "catalog_entity": f"component:default/{name}",
         "next_step": (
-            "Clone the repository, read its AGENTS.md and the engineering standards (portal MCP server: "
-            "platform.get-engineering-standard), implement inside the generated module, and run ./mvnw verify "
+            "Clone the repository, read its AGENTS.md and the engineering standards that apply to it (portal MCP "
+            f"server: platform.get-standards-for-entity with component:default/{name}, architecture backend-spring-v2), "
+            "implement inside the generated module, and run ./mvnw verify "
             "before finishing: it checks the architecture rules."
         ),
     }

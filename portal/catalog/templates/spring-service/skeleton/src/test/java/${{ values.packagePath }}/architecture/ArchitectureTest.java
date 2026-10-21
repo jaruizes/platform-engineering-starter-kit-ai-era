@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
  * for every change, written by a person or by an AI agent.
  *
  * <p>Do not weaken or skip these rules to make a change pass. If a rule cannot be
- * met, change the implementation or get an approved ADR (architecture-rules.md).
+ * met, change the implementation or get an approved ADR (backend-spring-v2/architecture-rules.md in the engineering standards).
  */
 class ArchitectureTest {
 

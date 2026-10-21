@@ -1,13 +1,13 @@
-# Architecture Rules
+# Architecture rules: backend v2 (hexagonal Spring)
 
 ## Purpose
 
-This document defines the concise, verifiable architecture acceptance criteria and rules for this project.
+These are the verifiable architecture rules (AAC-001 to AAC-022) a backend v2 (hexagonal Spring) service must satisfy to be considered architecture-compliant.
 
 It does **not** restate the architecture. The authoritative architectural intent, rationale, structure, interaction model, technology direction, persistence strategy, AI boundaries, observability principles, implementation model, and evolution model are defined in:
 
 ```text
-product/reference/engineering/architecture.md
+backend-spring-v2/architecture.md
 ```
 
 This document answers only:
