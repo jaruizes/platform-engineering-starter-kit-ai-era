@@ -1,9 +1,12 @@
 # Multi-stage build of the portal, so the only requirement is Docker.
 # See https://backstage.io/docs/deployment/docker#multi-stage-build
 #
-# Build it with the engineering standards and the capabilities as extra contexts:
+# Build it with the engineering standards, the capabilities and the branding
+# (branding/README.md) as extra contexts:
 #   docker build --build-context standards=../standards \
-#     --build-context capabilities=../capabilities -t portal .
+#     --build-context capabilities=../capabilities \
+#     --build-context branding=branding -t portal .
+# The branding is the last layer, so changing it alone rebuilds in seconds.
 
 # Stage 1: the package.json files, to cache the dependency install.
 FROM node:24-trixie-slim AS packages
@@ -74,5 +77,10 @@ COPY --from=standards --chown=node:node catalog-info.yaml architectures.yaml ./s
 COPY --from=techdocs --chown=node:node /site ./techdocs/default/component/engineering-standards
 COPY --from=capabilities --chown=node:node schema ./capabilities/schema
 COPY --from=capability-docs --chown=node:node /capability-sites ./techdocs/default/resource
+# The branding goes last: its configuration is merged over app-config.yaml and
+# its images are served by the portal under /branding.
+COPY --from=branding --chown=node:node . ./branding/
+RUN mkdir -p packages/app/dist/branding \
+    && find branding -maxdepth 1 -type f ! -name '*.yaml' ! -name '*.md' -exec cp {} packages/app/dist/branding/ \;
 EXPOSE 7007
-CMD ["node", "packages/backend", "--config", "app-config.yaml"]
+CMD ["node", "packages/backend", "--config", "app-config.yaml", "--config", "branding/branding.yaml"]

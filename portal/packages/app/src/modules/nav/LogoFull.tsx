@@ -1,6 +1,14 @@
 import { makeStyles } from '@material-ui/core';
+import { useBrandingImage, usePortalTitle } from '../../branding';
 
 const useStyles = makeStyles({
+  img: {
+    height: 40,
+    width: 'auto',
+    maxWidth: 170,
+    objectFit: 'contain',
+    objectPosition: 'left',
+  },
   svg: {
     width: 'auto',
     height: 30,
@@ -12,7 +20,13 @@ const useStyles = makeStyles({
 
 export const LogoFull = () => {
   const classes = useStyles();
+  const src = useBrandingImage('logo');
+  const title = usePortalTitle();
 
+  // The image of the branding, or the Backstage logo if it has none.
+  if (src) {
+    return <img className={classes.img} src={src} alt={title} />;
+  }
   return (
     <svg
       className={classes.svg}

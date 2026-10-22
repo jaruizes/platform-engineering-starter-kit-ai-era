@@ -8,13 +8,14 @@
 | [`plugins/platform-backend`](plugins/platform-backend) | Brings environments, services and [platform capabilities](../capabilities) from the cluster into the catalog (with a request form per capability, built from its XRD), builds the **New platform capability** form from the definition schema and opens the proposal as a pull request in the platform repository, runs the Golden Paths from the templates on behalf of the signed-in person, serves agent approvals and metrics, and adds read-only context tools for agents (`get-team-usage`, `list-pending-approvals`, `list-engineering-standards`, `get-standards-for-entity`, `get-engineering-standard`, `search-engineering-standards`) |
 | [`plugins/platform`](plugins/platform) | The **AI Platform** page (metrics and approvals) and the **Golden Path request** card on environments and services |
 | [`app-config.yaml`](app-config.yaml) | Configuration in the local cluster, including the MCP actions server for agents |
+| [`branding/`](branding) | Title, organization name, logos, favicon and texts of the sign-in and home pages. `BRANDING_DIR=<folder> make up` brands the portal for another company without changing code |
 | [`deploy/`](deploy) | Identity, permissions and deployment in the cluster |
 
 `make up` at the root of the repository builds it with the [`Dockerfile`](Dockerfile) and deploys it at <http://localhost:7007>. The image also carries the [engineering standards](../standards) and the documentation of each capability, built as TechDocs, and the capability definition schema:
 
 ```bash
 docker build --build-context standards=../standards --build-context capabilities=../capabilities \
-  -t platform-starter-kit/portal:dev .
+  --build-context branding=branding -t platform-starter-kit/portal:dev .
 ```
 
 ## Humans act through templates, agents through the platform MCP server

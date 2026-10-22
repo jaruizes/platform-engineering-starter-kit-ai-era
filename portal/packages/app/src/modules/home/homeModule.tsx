@@ -1,30 +1,37 @@
 import { createFrontendModule } from '@backstage/frontend-plugin-api';
 import { HomePageWidgetBlueprint } from '@backstage/plugin-home-react/alpha';
 import { MarkdownContent } from '@backstage/core-components';
+import { Typography } from '@material-ui/core';
+import { useBrandingText, usePortalTitle } from '../../branding';
 
-const content = `
-## Platform Starter Kit
-
+// The texts of the welcome card come from app.branding.home (see
+// branding/branding.yaml); these are used when it has none.
+const defaultSubtitle = 'What this portal offers to people and to AI agents';
+const defaultContent = `
 The same Golden Paths for developers and AI agents, inside the same guardrails.
-
-- **Create** an [ephemeral environment](/create/templates/default/ephemeral-environment)
-  or deploy a [new service](/create/templates/default/new-service).
-- **AI Platform**: approve what agents cannot do alone, and follow the
-  AI-era metrics in the [AI Platform](/ai-platform) page.
-- **Agents** read context from this portal through MCP and act through the
-  platform MCP server. Both are in the [APIs](/api-docs) page.
-- **Rules and skills** for agents are in the catalog as AI resources.
 `;
+
+const Welcome = () => {
+  const title = useBrandingText('home.title', usePortalTitle());
+  const subtitle = useBrandingText('home.subtitle', defaultSubtitle);
+  const content = useBrandingText('home.content', defaultContent);
+  return (
+    <>
+      <Typography variant="h5">{title}</Typography>
+      <Typography variant="body2" color="textSecondary" paragraph>
+        {subtitle}
+      </Typography>
+      <MarkdownContent content={content} />
+    </>
+  );
+};
 
 const gettingStartedWidget = HomePageWidgetBlueprint.make({
   name: 'getting-started',
   params: {
     name: 'GettingStarted',
-    title: 'Platform Starter Kit',
-    description: 'What this portal offers to people and to AI agents',
-    components: async () => ({
-      Content: () => <MarkdownContent content={content} />,
-    }),
+    description: 'Welcome card, with the texts of the branding',
+    components: async () => ({ Content: Welcome }),
   },
 });
 
