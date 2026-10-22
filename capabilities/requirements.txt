@@ -1,0 +1,6 @@
+# What capabilities/tools needs: the checks, and the acceptance tests that
+# talk to the platform MCP server as an agent.
+jsonschema==4.26.0
+PyYAML==6.0.3
+pytest==9.1.1
+mcp==2.3.0

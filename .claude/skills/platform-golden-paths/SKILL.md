@@ -17,6 +17,12 @@ platform, through its two MCP servers:
 To create the code of a new service (a new repository), follow the
 `spring-service` skill: it uses `create_service`, not a hand-made scaffold.
 
+Besides environments and services, the platform offers capabilities such as
+a PostgreSQL database. `list_golden_paths` lists them with their parameters
+and guardrails; request one with `request_capability` and follow it with
+`get_capability_request`. Each capability has its own skill (for example
+`postgres-database`) with the details.
+
 ## Steps
 
 1. Find the team. If the user did not say, look for the service in the catalog

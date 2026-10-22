@@ -5,7 +5,15 @@ export type Approval = {
   reason: string;
   decided_by?: string;
   decision_note?: string;
-  request: { name: string; team: string; size: string; ttlHours: number; purpose: string };
+  request: {
+    name: string;
+    kind?: string;
+    namespace?: string;
+    team?: string;
+    size?: string;
+    ttlHours?: number;
+    purpose?: string;
+  };
   created_at: string;
 };
 

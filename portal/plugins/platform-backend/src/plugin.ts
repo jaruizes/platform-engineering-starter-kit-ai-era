@@ -8,7 +8,7 @@ import { registerActions } from './actions';
 import { ConsoleClient } from './console';
 import { PlatformClient } from './kubernetes';
 import { createRouter } from './router';
-import { registerStandardsActions } from './standards';
+import { registerStandardsActions, StandardsLibrary } from './standards';
 
 /**
  * The platform plugin: agent approvals and AI-era metrics in the portal, and
@@ -45,7 +45,11 @@ export const platformPlugin = createBackendPlugin({
         registerActions(actionsRegistry, platform, platformConsole);
         registerStandardsActions(
           actionsRegistry,
-          config.getOptionalString('platform.standardsDir') ?? './standards/docs',
+          new StandardsLibrary(
+            config.getOptionalString('platform.standardsDir') ?? './standards',
+            `${config.getString('app.baseUrl')}/docs/default/component/engineering-standards`,
+          ),
+          catalog,
         );
         httpRouter.use(await createRouter({ httpAuth, platformConsole, displayName }));
       },

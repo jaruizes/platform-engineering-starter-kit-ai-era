@@ -169,8 +169,72 @@ export class PlatformClient {
     );
   }
 
+  /** The XRDs of the capabilities built from a CapabilityDefinition. */
+  async listCapabilityXrds(): Promise<KubeObject[]> {
+    const { custom } = await this.api();
+    const res = await custom.listClusterCustomObject({
+      group: 'apiextensions.crossplane.io',
+      version: 'v2',
+      plural: 'compositeresourcedefinitions',
+      labelSelector: `${PREFIX}/capability`,
+    });
+    return (res as { items: KubeObject[] }).items;
+  }
+
+  /** What has been requested from a capability, in every environment. */
+  async listRequests(capability: { group: string; version: string; plural: string }): Promise<KubeObject[]> {
+    const { custom } = await this.api();
+    const res = await custom.listCustomObjectForAllNamespaces({
+      group: capability.group,
+      version: capability.version,
+      plural: capability.plural,
+    });
+    return (res as { items: KubeObject[] }).items;
+  }
+
+  async createCapabilityRequest(options: {
+    capability: { kind: string; group: string; version: string; plural: string; scope: string };
+    name: string;
+    environment?: string;
+    parameters: Record<string, unknown>;
+    onBehalfOf: string;
+  }): Promise<{ namespace?: string }> {
+    const { custom } = await this.api();
+    const { capability } = options;
+    const namespace =
+      capability.scope === 'Namespaced' ? `env-${options.environment}` : undefined;
+    const body = {
+      apiVersion: `${capability.group}/${capability.version}`,
+      kind: capability.kind,
+      metadata: {
+        name: options.name,
+        ...(namespace ? { namespace } : {}),
+        annotations: { [`${PREFIX}/on-behalf-of`]: options.onBehalfOf },
+      },
+      spec: options.parameters,
+    };
+    const where = namespace ? ` in ${namespace}` : '';
+    await this.guard(`A ${capability.kind} called '${options.name}' already exists${where}.`, () =>
+      namespace
+        ? custom.createNamespacedCustomObject({
+            group: capability.group,
+            version: capability.version,
+            namespace,
+            plural: capability.plural,
+            body,
+          })
+        : custom.createClusterCustomObject({
+            group: capability.group,
+            version: capability.version,
+            plural: capability.plural,
+            body,
+          }),
+    );
+    return { namespace };
+  }
+
   /** Records the action in the platform audit trail, next to the agents' actions. */
-  async record(action: string, message: string, subject: string, actor: string) {
+  async record(action: string, message: string, subject: string, actor: string, kind = 'Environment') {
     const { core } = await this.api();
     const now = new Date();
     try {
@@ -184,7 +248,7 @@ export class PlatformClient {
           },
           involvedObject: {
             apiVersion: `${GROUP}/${VERSION}`,
-            kind: 'Environment',
+            kind,
             name: subject,
             namespace: PLATFORM_NAMESPACE,
           },
@@ -213,6 +277,12 @@ export class PlatformClient {
       }
       if ([400, 403, 422].includes(code) && body.includes('admission webhook')) {
         throw new PlatformDenied(denialReason(body));
+      }
+      if (code === 422) {
+        throw new PlatformDenied(`Invalid request: ${denialReason(body)}`);
+      }
+      if (code === 404) {
+        throw new PlatformDenied('The environment does not exist.');
       }
       throw error;
     }

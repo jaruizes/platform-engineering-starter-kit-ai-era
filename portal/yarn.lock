@@ -5514,8 +5514,10 @@ __metadata:
     "@backstage/plugin-scaffolder-node": "npm:^0.13.7"
     "@kubernetes/client-node": "npm:^1.4.0"
     "@types/express": "npm:^4.17.6"
+    ajv: "npm:^8.17.1"
     express: "npm:^4.14.0"
     express-promise-router: "npm:^4.1.0"
+    yaml: "npm:^2.8.0"
     zod: "npm:^3.25.76 || ^4.0.0"
   languageName: unknown
   linkType: soft
@@ -32714,7 +32716,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yaml@npm:^2.0.0, yaml@npm:^2.2.1, yaml@npm:^2.2.2":
+"yaml@npm:^2.0.0, yaml@npm:^2.2.1, yaml@npm:^2.2.2, yaml@npm:^2.8.0":
   version: 2.9.1
   resolution: "yaml@npm:2.9.1"
   bin:

@@ -1,0 +1,106 @@
+# Written by a platform engineer (from the "New platform capability" template).
+# Everything else in this folder was generated from it by an agent with the
+# build-platform-capability skill, and validated by a human. Agents never
+# edit this file: a change is a new definition, reviewed like a new one.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: CapabilityDefinition
+metadata:
+  name: postgres-database
+  title: PostgreSQL database
+  owner: group:default/platform-team
+spec:
+  purpose:
+    problem: >-
+      Teams ask for databases by ticket and wait days, and every database is
+      configured differently. Agents that test a change cannot get one at all.
+    consumers: [developers, agents]
+    demandEvidence: 12 database tickets last quarter
+
+  interface:
+    kind: PostgresDatabase
+    scope: Namespaced
+    parameters:
+      - name: size
+        type: string
+        enum: [small, medium, large]
+        default: small
+        description: Capacity of the database. Larger sizes cost more.
+      - name: version
+        type: string
+        enum: ["16", "17"]
+        default: "17"
+        description: PostgreSQL major version.
+    outputs:
+      secret: [host, port, database, username, password]
+      status: [host, secretName]
+    examples:
+      - I need a database for the orders service in my environment
+      - Create a small PostgreSQL in payments-dev
+
+  guardrails:
+    everyone:
+      - id: GR-1
+        rule: Databases can only be created in ephemeral environments (env-* namespaces).
+        enforcement: deny
+      - id: GR-2
+        rule: Each environment can have at most 2 databases.
+        enforcement: deny
+    agents:
+      - id: GR-3
+        rule: Agents can only create small databases on their own; medium and large need human approval.
+        enforcement: approval
+    cost:
+      small: "0.50"
+      medium: "2.00"
+      large: "8.00"
+    security:
+      dataClassification: confidential
+      network: Only reachable from pods in the same environment.
+
+  acceptance:
+    - id: AC-1
+      given: an environment
+      when: someone asks for a small database
+      then: within 3 minutes a Secret <name>-connection has host, port, database, username and password, and they open a working connection
+      as: both
+    - id: AC-2
+      when: an agent asks for a medium or large database
+      then: the request is rejected with a message saying it needs human approval, and nothing is created
+      as: agent
+    - id: AC-3
+      when: someone asks for a database outside an ephemeral environment
+      then: the request is rejected with a message that explains the rule
+      as: human
+    - id: AC-4
+      given: an environment with 2 databases
+      when: someone asks for a third one
+      then: the request is rejected with a message that explains the budget
+      as: human
+    - id: AC-5
+      when: a pod in another environment tries to connect to the database
+      then: the connection is refused
+      as: human
+    - id: AC-6
+      when: the database request is deleted
+      then: the database, its storage and its Secret are deleted, with nothing left behind
+      as: human
+
+  implementation:
+    local: Plain PostgreSQL in the environment (no operator), with persistent storage.
+    aws: Amazon RDS for PostgreSQL (not built yet).
+    constraints:
+      - Follow the technology policy (standards/docs/technology-policy.md).
+      - No new operators or controllers in the cluster for the local version.
+
+  lifecycle:
+    ttl: Same as its environment; deleted with it.
+    backups: None locally; daily with 14 days of retention on AWS.
+    deletion: Deleting the request deletes the data.
+    day2: [resize]
+
+  ownership:
+    support: business-hours
+
+  delivery:
+    reviewers: [group:default/platform-team]
+    stage: experimental

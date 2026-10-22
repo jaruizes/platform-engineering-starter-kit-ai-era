@@ -1,0 +1,82 @@
+# Generated from capability.yaml (interface) by the build-platform-capability skill.
+# The label and annotations let the portal and the platform MCP server offer
+# the capability without any code of its own.
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: postgresdatabases.platform.starterkit.dev
+  labels:
+    platform.starterkit.dev/capability: postgres-database
+  annotations:
+    platform.starterkit.dev/title: PostgreSQL database
+    platform.starterkit.dev/owner: group:default/platform-team
+    platform.starterkit.dev/stage: experimental
+    platform.starterkit.dev/description: >-
+      Teams ask for databases by ticket and wait days, and every database is
+      configured differently. Agents that test a change cannot get one at all.
+    platform.starterkit.dev/guardrails: >-
+      ["Databases can only be created in ephemeral environments (env-* namespaces).",
+       "Each environment can have at most 2 databases.",
+       "Agents can only create small databases on their own; medium and large need human approval."]
+    platform.starterkit.dev/examples: >-
+      ["I need a database for the orders service in my environment",
+       "Create a small PostgreSQL in payments-dev"]
+    platform.starterkit.dev/cost: '{"small": "0.50", "medium": "2.00", "large": "8.00"}'
+    platform.starterkit.dev/outputs: >-
+      {"secret": ["host", "port", "database", "username", "password"], "status": ["host", "secretName"]}
+spec:
+  group: platform.starterkit.dev
+  names:
+    kind: PostgresDatabase
+    plural: postgresdatabases
+    shortNames: [pgdb]
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      additionalPrinterColumns:
+        - name: Size
+          type: string
+          jsonPath: .spec.size
+        - name: Version
+          type: string
+          jsonPath: .spec.version
+        - name: Host
+          type: string
+          jsonPath: .status.host
+        - name: Secret
+          type: string
+          jsonPath: .status.secretName
+        - name: Cost/day
+          type: string
+          jsonPath: .status.estimatedDailyCost
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                size:
+                  type: string
+                  description: Capacity of the database. Larger sizes cost more.
+                  enum: [small, medium, large]
+                  default: small
+                version:
+                  type: string
+                  description: PostgreSQL major version.
+                  enum: ["16", "17"]
+                  default: "17"
+            status:
+              type: object
+              properties:
+                host:
+                  type: string
+                  description: In-cluster host name of the database.
+                secretName:
+                  type: string
+                  description: Secret with host, port, database, username and password.
+                estimatedDailyCost:
+                  type: string
+                  description: Estimated cost per day, in EUR.

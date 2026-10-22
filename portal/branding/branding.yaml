@@ -1,0 +1,36 @@
+# The look of the portal: names, images and texts. It is merged over
+# app-config.yaml when the portal starts.
+#
+# To brand the portal for your company or a client, copy this folder, change
+# the images and the texts, and point make up to it:
+#   BRANDING_DIR=/path/to/acme-branding make up
+# Only the last layer of the portal image is rebuilt. See README.md.
+app:
+  # Browser tab title, and name of the portal in the sign-in page and the
+  # home page when they have no title of their own.
+  title: Platform Starter Kit
+  branding:
+    # Files of this folder. Remove a line to show the Backstage one.
+    logo: logo.svg          # sidebar open: wide logo, about 4:1
+    logoIcon: logo-icon.svg # sidebar closed: square icon
+    favicon: logo-icon.svg  # browser tab: .ico, .png or .svg
+    signIn:
+      title: Platform Starter Kit
+    home:
+      title: Platform Starter Kit
+      subtitle: What this portal offers to people and to AI agents
+      # Markdown.
+      content: |
+        The same Golden Paths for developers and AI agents, inside the same guardrails.
+
+        - **Create** an [ephemeral environment](/create/templates/default/ephemeral-environment)
+          or deploy a [new service](/create/templates/default/new-service).
+        - **AI Platform**: approve what agents cannot do alone, and follow the
+          AI-era metrics in the [AI Platform](/ai-platform) page.
+        - **Agents** read context from this portal through MCP and act through the
+          platform MCP server. Both are in the [APIs](/api-docs) page.
+        - **Rules and skills** for agents are in the catalog as AI resources.
+
+# Shown in the catalog and the settings page.
+organization:
+  name: Platform Starter Kit

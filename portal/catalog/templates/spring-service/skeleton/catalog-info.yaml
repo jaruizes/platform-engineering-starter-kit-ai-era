@@ -3,17 +3,21 @@ kind: Component
 metadata:
   name: ${{ values.name }}
   description: ${{ values.description }}
+  # The architecture (and version) this service follows: agents read its rules
+  # with platform.get-standards-for-entity before changing it.
+  labels:
+    platform.starterkit.dev/architecture: backend-spring-v2
   annotations:
     platform.starterkit.dev/requested-by: ${{ values.requestedBy }}
     platform.starterkit.dev/template: spring-service
   tags: [java, spring-boot]
   links:
-    - url: http://localhost:7007/docs/default/component/engineering-standards
-      title: Engineering standards
+    - url: http://localhost:7007/docs/default/component/engineering-standards/backend-spring-v2/architecture-rules/
+      title: Architecture rules (backend v2)
       icon: docs
 spec:
   type: service
   lifecycle: experimental
   owner: ${{ values.owner }}
   dependsOn:
-    - component:default/engineering-standards
+    - airesource:default/backend-spring-v2

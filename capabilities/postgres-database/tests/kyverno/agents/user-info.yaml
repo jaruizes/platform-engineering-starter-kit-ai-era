@@ -1,0 +1,7 @@
+# Requests made by AI agents, through the platform MCP server identity.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: UserInfo
+metadata:
+  name: agent
+userInfo:
+  username: system:serviceaccount:platform-system:platform-mcp

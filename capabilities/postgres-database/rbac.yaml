@@ -1,0 +1,18 @@
+# Generated: Crossplane needs to manage the kinds this capability composes
+# that the existing Golden Paths do not (Secrets, storage, network policies).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: crossplane:capability:postgres-database
+  labels:
+    rbac.crossplane.io/aggregate-to-crossplane: "true"
+rules:
+  - apiGroups: [""]
+    resources: [secrets, persistentvolumeclaims, services]
+    verbs: ["*"]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: ["*"]
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies]
+    verbs: ["*"]

@@ -1,0 +1,36 @@
+# What already exists in the cluster: the PostgresDatabase kind and, for the
+# GR-2 budget check, an environment that already has 2 databases.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: ClusterResource
+metadata:
+  name: existing-databases
+spec:
+  crds:
+    - ../crd.yaml
+  resources:
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: env-payments-dev
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: env-full
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: default
+    - apiVersion: platform.starterkit.dev/v1alpha1
+      kind: PostgresDatabase
+      metadata:
+        name: first
+        namespace: env-full
+      spec:
+        size: small
+    - apiVersion: platform.starterkit.dev/v1alpha1
+      kind: PostgresDatabase
+      metadata:
+        name: second
+        namespace: env-full
+      spec:
+        size: small

@@ -1,0 +1,71 @@
+# Generated from capability.yaml (guardrails) by the build-platform-capability
+# skill. Every message starts with the id of the rule it enforces.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: postgres-database-guardrails
+  labels:
+    platform.starterkit.dev/capability: postgres-database
+  annotations:
+    policies.kyverno.io/title: PostgreSQL database guardrails (everyone)
+    policies.kyverno.io/description: >-
+      GR-1: databases only in ephemeral environments. GR-2: at most 2
+      databases per environment.
+spec:
+  validationActions: [Deny]
+  evaluation:
+    background:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [platform.starterkit.dev]
+        apiVersions: ["*"]
+        operations: [CREATE]
+        resources: [postgresdatabases]
+  variables:
+    - name: maxPerEnvironment
+      expression: "2"
+    - name: existing
+      expression: >-
+        dyn(resource.List("platform.starterkit.dev/v1alpha1", "postgresdatabases", object.metadata.namespace).items)
+  validations:
+    - expression: object.metadata.namespace.startsWith('env-')
+      messageExpression: >-
+        '[GR-1] Databases can only be created in ephemeral environments (env-* namespaces), not in ' +
+        object.metadata.namespace + '.'
+    - expression: size(variables.existing) < variables.maxPerEnvironment
+      messageExpression: >-
+        '[GR-2] Environment ' + object.metadata.namespace + ' already has ' + string(size(variables.existing)) +
+        ' databases (budget: ' + string(variables.maxPerEnvironment) + '). Delete one first.'
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: postgres-database-agent-guardrails
+  labels:
+    platform.starterkit.dev/capability: postgres-database
+  annotations:
+    policies.kyverno.io/title: PostgreSQL database guardrails (agents)
+    policies.kyverno.io/description: >-
+      GR-3: agents only get small databases on their own; medium and large
+      need human approval.
+spec:
+  validationActions: [Deny]
+  evaluation:
+    background:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [platform.starterkit.dev]
+        apiVersions: ["*"]
+        operations: [CREATE, UPDATE]
+        resources: [postgresdatabases]
+  matchConditions:
+    - name: requested-by-an-agent
+      expression: request.userInfo.username == 'system:serviceaccount:platform-system:platform-mcp'
+  validations:
+    - expression: object.spec.?size.orValue('small') == 'small'
+      messageExpression: >-
+        '[GR-3] Human approval required: agents can only create small databases on their own, requested ' +
+        object.spec.size + '.'
+      reason: Forbidden

@@ -1,0 +1,43 @@
+# The architectures a service can follow. Several versions live side by side:
+# each service declares its own in its catalog-info.yaml, with the label
+#   platform.starterkit.dev/architecture: <id>
+# so people and agents read the rules of that version, not a similar one.
+#
+# The documents of each architecture are in docs/<id>/. The ones in
+# docs/common/ apply to every architecture.
+architectures:
+  - id: backend-spring-v2
+    title: Backend v2 (hexagonal Spring)
+    layer: backend
+    version: 2
+    lifecycle: production
+    useFor: New backend services, and new modules in existing v2 services.
+    template: spring-service
+    checkedBy: ArchUnit tests generated with every service (./mvnw verify).
+
+  - id: backend-spring-v1
+    title: Backend v1 (layered Spring)
+    layer: backend
+    version: 1
+    lifecycle: deprecated
+    supersededBy: backend-spring-v2
+    useFor: >-
+      Existing layered services only: bug fixes and small features. No new
+      services. Migrate module by module to backend v2.
+    checkedBy: ArchUnit layered rules in each service.
+
+  - id: frontend-angular-v1
+    title: Frontend Angular v1
+    layer: frontend
+    version: 1
+    lifecycle: production
+    useFor: Internal back-office and operations applications.
+    checkedBy: ESLint boundary rules and performance budgets in CI.
+
+  - id: frontend-react-v1
+    title: Frontend React v1
+    layer: frontend
+    version: 1
+    lifecycle: production
+    useFor: Customer-facing web applications.
+    checkedBy: ESLint boundary rules, Lighthouse CI and bundle budgets in CI.

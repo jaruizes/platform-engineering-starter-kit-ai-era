@@ -1,12 +1,27 @@
 site_name: Engineering standards
-site_description: How services are built in this organization, for people and AI agents.
+site_description: How software is built in this organization, for people and AI agents.
 docs_dir: docs
 nav:
   - Overview: index.md
-  - Architecture: architecture.md
-  - Architecture rules: architecture-rules.md
-  - Technology policy: technology-policy.md
-  - Development rules: development-rules.md
-  - Testing: testing.md
+  - Backend v2 (hexagonal Spring):
+      - Architecture: backend-spring-v2/architecture.md
+      - Architecture rules: backend-spring-v2/architecture-rules.md
+      - Examples: backend-spring-v2/examples.md
+  - Backend v1 (layered Spring, deprecated):
+      - Architecture: backend-spring-v1/architecture.md
+      - Architecture rules: backend-spring-v1/architecture-rules.md
+      - Examples: backend-spring-v1/examples.md
+  - Frontend Angular v1:
+      - Architecture: frontend-angular-v1/architecture.md
+      - Architecture rules: frontend-angular-v1/architecture-rules.md
+      - Examples: frontend-angular-v1/examples.md
+  - Frontend React v1:
+      - Architecture: frontend-react-v1/architecture.md
+      - Architecture rules: frontend-react-v1/architecture-rules.md
+      - Examples: frontend-react-v1/examples.md
+  - For every architecture:
+      - Technology policy: common/technology-policy.md
+      - Development rules: common/development-rules.md
+      - Testing: common/testing.md
 plugins:
   - techdocs-core

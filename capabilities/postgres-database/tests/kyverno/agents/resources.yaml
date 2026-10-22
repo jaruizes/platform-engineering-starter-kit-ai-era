@@ -1,0 +1,31 @@
+# GR-3: an agent asking for each size.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: gr-3-small
+  namespace: env-payments-dev
+spec:
+  size: small
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: gr-3-default-size
+  namespace: env-payments-dev
+spec: {}
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: gr-3-medium
+  namespace: env-payments-dev
+spec:
+  size: medium
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: gr-3-large
+  namespace: env-payments-dev
+spec:
+  size: large

@@ -27,8 +27,8 @@ mcp = MCPServer(
     title="Internal Developer Platform",
     instructions=(
         "Use this server to get environments and deploy services through the "
-        "company's Golden Paths instead of writing infrastructure code. Start with "
-        "list_golden_paths. Requests are checked by policy; if one needs human "
+        "company's Golden Paths, and capabilities such as databases, instead of writing "
+        "infrastructure code. Start with list_golden_paths. Requests are checked by policy; if one needs human "
         "approval, tell the user and give them the approval id."
     ),
 )
@@ -52,8 +52,11 @@ def _check_name(value: str, field: str) -> None:
 
 @mcp.tool(title="List Golden Paths")
 def list_golden_paths() -> list[dict[str, Any]]:
-    """Lists the Golden Paths this platform offers, with their parameters and guardrails."""
-    return platform.GOLDEN_PATHS
+    """Lists the Golden Paths and capabilities this platform offers, with their parameters and guardrails.
+
+    Capabilities (databases and the like) are all requested with request_capability.
+    """
+    return platform.GOLDEN_PATHS + platform.list_capabilities()
 
 
 @mcp.tool(title="Request an environment")
@@ -222,11 +225,88 @@ def create_service(
         "clone": f"git clone {repository}.git",
         "catalog_entity": f"component:default/{name}",
         "next_step": (
-            "Clone the repository, read its AGENTS.md and the engineering standards (portal MCP server: "
-            "platform.get-engineering-standard), implement inside the generated module, and run ./mvnw verify "
+            "Clone the repository, read its AGENTS.md and the engineering standards that apply to it (portal MCP "
+            f"server: platform.get-standards-for-entity with component:default/{name}, architecture backend-spring-v2), "
+            "implement inside the generated module, and run ./mvnw verify "
             "before finishing: it checks the architecture rules."
         ),
     }
+
+
+@mcp.tool(title="Request a capability")
+def request_capability(
+    capability: str,
+    name: str,
+    environment: str | None = None,
+    parameters: dict[str, Any] | None = None,
+    ctx: Context | None = None,
+) -> dict[str, Any]:
+    """Requests a platform capability, for example a PostgresDatabase, with its Golden Path.
+
+    list_golden_paths shows the capabilities, their parameters, guardrails and cost.
+
+    Args:
+        capability: Capability kind or name, for example PostgresDatabase.
+        name: Name for what you request (lowercase letters, numbers and dashes).
+        environment: Environment it goes into, for capabilities that live in one.
+        parameters: Parameters of the capability, for example {"size": "small"}. Omit to use the defaults.
+    """
+    _check_name(name, "name")
+    cap = platform.find_capability(capability)
+    if cap is None:
+        names = ", ".join(c["kind"] for c in platform.list_capabilities()) or "none yet"
+        return {"status": "not_found", "reason": f"There is no capability '{capability}'. Available: {names}."}
+    namespace = None
+    if cap["scope"] == "Namespaced":
+        if not environment:
+            return {"status": "denied", "reason": f"{cap['kind']} lives in an environment: tell me which one."}
+        _check_name(environment, "environment")
+        namespace = f"env-{environment}"
+    agent = agent_name(ctx)
+    manifest = platform.capability_manifest(cap, name, namespace, parameters or {}, agent)
+    subject = f"{cap['kind']} {name}" + (f" in {namespace}" if namespace else "")
+    try:
+        platform.create_resource(manifest)
+    except Denied as denied:
+        if denied.needs_human_approval:
+            approval_id = platform.create_approval_request(manifest, agent, denied.reason)
+            platform.record("RequestNeedsApproval", f"{agent} asked for {subject}: {denied.reason}",
+                            name, warning=True, actor=agent, kind=cap["kind"])
+            return {
+                "status": "pending_approval",
+                "approval_id": approval_id,
+                "reason": denied.reason,
+                "next_step": (
+                    "Tell the user this request needs human approval in the developer portal "
+                    f"(AI Platform page) or the platform console (approval id {approval_id}). "
+                    "Use get_approval_status to follow it."
+                ),
+            }
+        platform.record("RequestDenied", f"{agent} asked for {subject}: {denied.reason}",
+                        name, warning=True, actor=agent, kind=cap["kind"])
+        return {"status": "denied", "reason": denied.reason}
+    platform.record("RequestAccepted", f"{agent} requested {subject}", name, actor=agent, kind=cap["kind"])
+    return {
+        "status": "accepted",
+        "capability": cap["kind"],
+        "name": name,
+        "namespace": namespace,
+        "outputs": cap["outputs"],
+        "next_step": "Use get_capability_request to check when it is ready and what it returns.",
+    }
+
+
+@mcp.tool(title="Get a capability request")
+def get_capability_request(capability: str, name: str, environment: str | None = None) -> dict[str, Any]:
+    """Returns the status of a capability request: readiness, outputs (for example the Secret name) and requester."""
+    cap = platform.find_capability(capability)
+    if cap is None:
+        return {"status": "not_found", "reason": f"There is no capability '{capability}'."}
+    namespace = f"env-{environment}" if cap["scope"] == "Namespaced" and environment else None
+    obj = platform.get_resource(cap, name, namespace)
+    if obj is None:
+        return {"status": "not_found", "name": name}
+    return platform.summarize_resource(obj)
 
 
 @mcp.tool(title="Get approval status")

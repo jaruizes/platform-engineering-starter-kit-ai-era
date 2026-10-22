@@ -78,14 +78,27 @@ Most organizations have documents that say how a service must be built: architec
 
 | | Humans | AI agents |
 |---|---|---|
-| **Read** | TechDocs in the portal (*Engineering standards*) | `platform.list-engineering-standards` and `platform.get-engineering-standard` in the portal MCP server, and an `AiResource` per rule document in the catalog |
+| **Read** | TechDocs in the portal (*Engineering standards*), one section per architecture and version | `platform.get-standards-for-entity` (which architecture and version a service follows, and what to read), `platform.get-engineering-standard` and `platform.search-engineering-standards` (filtered by architecture) in the portal MCP server, and an `AiResource` per architecture in the catalog |
 | **Create** | The **Spring service** template: a repository that follows the standards from the first commit | `create_service` in the platform MCP server runs the same template; the [spring-service skill](.claude/skills/spring-service/SKILL.md) tells agents to use it instead of scaffolding by hand |
 | **Change** | The repository's README | The repository's `AGENTS.md` (and `CLAUDE.md`), with the essentials and links to the full documents |
 | **Check** | `./mvnw verify` locally and in CI | The same command: ArchUnit tests for the package structure, dependency direction, framework-free domain and module ownership |
 
 Nobody has to remember the rules: the ones that can be checked are checked, the same way for human and AI-written code.
 
+Several architectures coexist, as in any organization with some history: **backend v2** (hexagonal Spring, for new services), **backend v1** (layered Spring, deprecated but still used by older services), **Angular v1** (internal back-office) and **React v1** (customer-facing web). Each service declares its own with the label `platform.starterkit.dev/architecture` ([`standards/architectures.yaml`](standards/architectures.yaml)), so an agent changing the old orders API gets the v1 rules and one building a new service gets v2, instead of a mix of similar-looking rules from both.
+
 ![Spring service template in the portal](docs/portal-spring-template.png)
+
+### Platform capabilities, defined by people and built by agents
+
+New capabilities (a database, a cache, a queue) are not hand-written by the platform team any more. A person describes **what** the platform needs in a capability definition, an agent builds it, CI proves it does what the definition says, and a person validates it ([`capabilities/`](capabilities/)):
+
+1. **Define.** In the portal, *Create → New platform capability* is a form built from the [definition schema](capabilities/schema/capability-definition.schema.json): purpose, interface, guardrails (`GR-n`, for everyone or only for agents), cost and acceptance criteria (`AC-n`, as a person, as an agent or both). It opens a pull request in the platform repository with `capabilities/<name>/capability.yaml`, and the proposal appears in the catalog.
+2. **Build.** An agent, with the [build-platform-capability skill](.claude/skills/build-platform-capability/SKILL.md), generates everything from that file: Crossplane XRD and composition, Kyverno policies with their tests, an acceptance test per criterion, examples, docs and a skill for agents that will use it. It never changes the definition; when something is unclear, it asks in the pull request.
+3. **Check.** `make capability NAME=<name>` (and CI) validates the definition and the generated files, renders the examples, runs the policy tests and runs the acceptance tests in the local platform, as a person and as an agent. It writes `TRACEABILITY.md`: each criterion and guardrail, the test that proves it and its result.
+4. **Validate.** A person on the platform team reviews the traceability matrix and merges. The capability appears on its own in the portal (catalog entry, docs and request form) and in the platform MCP server (`request_capability`), with its guardrails enforced for both.
+
+Changing a capability works the same way: a new version of its definition, validated by a person. The first one is a [PostgreSQL database](capabilities/postgres-database/capability.yaml).
 
 ### Technology choices
 
@@ -117,7 +130,7 @@ The kit is opinionated so it works out of the box, and modular so each piece can
 |---|---|---|
 | **New service** | Repository from a template (Java/Spring Boot, Node.js, Python), CI pipeline, deployment through GitOps, observability and catalog entry | Portal · CLI · MCP |
 | **Ephemeral environment** | An isolated environment (vcluster or namespace) to test a change, with a time to live and a cost budget | Portal · CLI · MCP |
-| **Database** | A PostgreSQL database (in-cluster locally, Amazon RDS on AWS) with credentials delivered as secrets | Portal · CLI · MCP |
+| **Database** | A PostgreSQL database (in-cluster locally, Amazon RDS on AWS) with credentials delivered as secrets. The first [platform capability](capabilities/postgres-database/) built by an agent from its definition | Portal · CLI · MCP |
 | **Agent-ready repository** | A repository prepared to work with coding agents: `AGENTS.md`, MCP configuration and verification checks in CI | Portal · CLI |
 | **LLM-powered service** | A service that consumes models through the AI gateway, with basic evaluation in CI | Portal · CLI |
 
@@ -180,7 +193,7 @@ What is available today:
 
 ```
 .
-├── Makefile            # up, down, demo-developer, demo-agent, demo-reset, status, test
+├── Makefile            # up, down, demo-developer, demo-agent, demo-reset, status, capability, test
 ├── .mcp.json           # connects Claude Code (or any MCP client) to the platform and portal MCP servers
 ├── .claude/skills/     # skills that teach coding agents to use the Golden Paths and build services
 ├── bootstrap/local/    # k3d cluster, Crossplane, Kyverno and the platform, in one script
@@ -189,10 +202,11 @@ What is available today:
 │   ├── environment/    # ephemeral environment: namespace, budget, team access, expiry, cost
 │   └── app/            # new service: deployment with probes, limits, security context and service
 ├── policies/           # guardrails (Kyverno CEL policies) for humans and agents
+├── capabilities/       # platform capabilities: definition schema, definitions, what agents generated, checks
 ├── mcp-server/         # platform MCP server, console and scripted demo agent (Python)
 ├── portal/             # Backstage: catalog, templates (Spring service included), AI Platform page and MCP actions
 ├── standards/          # engineering standards: TechDocs for people, AI rules for agents
-├── git-server/         # local Git server (Gitea) for the repositories the templates create
+├── git-server/         # local Git server (Gitea) for the repositories the templates create, and the platform repository where capabilities are proposed
 ├── demo/               # demo script, developer requests and reset
 └── docs/
 ```
@@ -252,6 +266,8 @@ To connect a real agent, open this folder in Claude Code: it reads [`.mcp.json`]
 
 `PORTAL=false make up` skips the portal and the Git server if you only need the MCP server and the console.
 
+To show the portal with the logo, title and texts of your company or a client, copy [`portal/branding/`](portal/branding), change it and run `BRANDING_DIR=<that folder> make up`. No code changes, and only the last layer of the portal image is rebuilt.
+
 > **Local demo only.** The platform MCP server has no authentication yet, the portal signs everyone in as a guest (mapped to the sample user Ana), and agents reach the portal MCP server with a fixed token. All of this is fine on a laptop and is replaced by real identity (Keycloak, and OAuth for MCP clients) in the *Optimize* milestone.
 
 ### Run it on AWS
@@ -283,6 +299,7 @@ No access keys are passed as arguments or stored in plain secrets: the control p
 - [x] **Demo MVP:** local setup, *new service* and *ephemeral environment* Golden Paths, platform MCP server, cost and human approval policies, first dashboard
 - [x] **Portal:** Backstage with templates on top of the same Golden Paths, live catalog of what humans and agents created, approvals, AI resources and MCP actions for agents
 - [x] **Engineering standards:** TechDocs and AI rules from one source, a Spring service template with ArchUnit checks and `AGENTS.md`, and `create_service` for agents
+- [x] **Platform capabilities:** a definition schema, a portal form that proposes them as pull requests, an agent skill that builds them, checks with a traceability matrix, and a PostgreSQL database as the first one
 - [ ] **GitOps:** Argo CD for the platform itself
 - [ ] **Assess:** pulse check, DevEx survey and baseline scripts
 - [ ] **AWS:** OpenTofu foundation, EKS and RDS compositions

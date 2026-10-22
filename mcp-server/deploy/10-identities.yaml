@@ -18,9 +18,14 @@ kind: ClusterRole
 metadata:
   name: platform:golden-paths:consumer
 rules:
+  # Every Golden Path and capability. The guardrails decide what each one can do.
   - apiGroups: [platform.starterkit.dev]
-    resources: [environments, apps]
+    resources: ["*"]
     verbs: [get, list, watch, create, delete]
+  # To find the capabilities the platform offers.
+  - apiGroups: [apiextensions.crossplane.io]
+    resources: [compositeresourcedefinitions]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

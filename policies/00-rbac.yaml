@@ -1,5 +1,5 @@
-# Lets Kyverno read Golden Path resources (to enforce budgets) and delete
-# expired environments (time to live).
+# Lets Kyverno read Golden Path and capability resources (to enforce
+# budgets) and delete expired environments (time to live).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -10,7 +10,7 @@ metadata:
     rbac.kyverno.io/aggregate-to-reports-controller: "true"
 rules:
   - apiGroups: [platform.starterkit.dev]
-    resources: [environments, apps]
+    resources: ["*"]
     verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

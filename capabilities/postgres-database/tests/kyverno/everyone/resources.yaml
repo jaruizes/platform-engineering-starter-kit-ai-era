@@ -1,0 +1,25 @@
+# GR-1: in an ephemeral environment (pass) and outside one (fail).
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: gr-1-in-environment
+  namespace: env-payments-dev
+spec:
+  size: small
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: gr-1-outside-environment
+  namespace: default
+spec:
+  size: small
+---
+# GR-2: env-full already has 2 databases (see context.yaml).
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: gr-2-over-budget
+  namespace: env-full
+spec:
+  size: small

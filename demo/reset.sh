@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # Puts the demo back to a clean state: no environments, services,
-# approvals, activity or repositories created from templates.
+# capability requests, approvals, activity, repositories created from
+# templates or proposed capabilities.
 set -euo pipefail
 
 echo "Deleting environments and services..."
 kubectl delete apps.platform.starterkit.dev --all -A --wait=false >/dev/null 2>&1 || true
 kubectl delete environments.platform.starterkit.dev --all --wait=false >/dev/null 2>&1 || true
+for plural in $(kubectl get xrd -l platform.starterkit.dev/capability -o jsonpath='{.items[*].spec.names.plural}' 2>/dev/null); do
+  kubectl delete "$plural.platform.starterkit.dev" --all -A --wait=false >/dev/null 2>&1 || true
+done
 kubectl -n platform-system delete configmap -l platform.starterkit.dev/approval-request >/dev/null 2>&1 || true
 kubectl -n platform-system delete events --all >/dev/null 2>&1 || true
 
@@ -16,8 +20,11 @@ if kubectl -n platform-system get deployment gitea >/dev/null 2>&1; then
   repos="$(curl -fsS -u "$user:$password" 'http://localhost:3000/api/v1/orgs/platform/repos?limit=50' \
     | grep -o '"full_name":"platform/[^"]*"' | cut -d'"' -f4)" || true
   for repo in $repos; do
+    [[ "$repo" == platform/platform-starter-kit ]] && continue
     curl -fsS -X DELETE -u "$user:$password" "http://localhost:3000/api/v1/repos/$repo" >/dev/null || true
   done
+  echo "Starting the platform repository again (no proposed capabilities)..."
+  "$(dirname "$0")/../git-server/seed-platform-repo.sh" --reset >/dev/null
 fi
 
 echo "Waiting for environments to be gone..."

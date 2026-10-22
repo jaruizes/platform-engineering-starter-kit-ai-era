@@ -1,4 +1,6 @@
 # Configuration of the portal as it runs in the local cluster (make up).
+# The title, the organization name, the logos and the texts of the portal are
+# in branding/branding.yaml, merged over this file.
 app:
   title: Platform Starter Kit
   baseUrl: http://localhost:7007
@@ -7,6 +9,18 @@ app:
     - page:catalog:
         config:
           path: /
+    # The welcome card, with the texts of branding/branding.yaml.
+    - page:home:
+        config:
+          defaultConfig:
+            - component: GettingStarted
+              column: 0
+              row: 0
+              width: 8
+              height: 4
+              movable: true
+              deletable: false
+              resizable: true
 
 organization:
   name: Platform Starter Kit
@@ -80,8 +94,11 @@ mcpActions:
         and which requests are waiting for a human. To create or change
         anything, use the platform MCP server (request_environment,
         deploy_service, create_service). Before designing or writing code,
-        read the engineering standards with list-engineering-standards and
-        get-engineering-standard. Never try to approve requests: only people can.
+        read the engineering standards: several architectures and versions
+        coexist, so call get-standards-for-entity for the service you are
+        changing, read what it returns with get-engineering-standard, and
+        filter search-engineering-standards by that architecture. Never try
+        to approve requests: only people can.
       filter:
         include:
           - attributes:
@@ -141,6 +158,8 @@ catalog:
     - type: file
       target: ./catalog/ai.yaml
     - type: file
+      target: ./catalog/services.yaml
+    - type: file
       target: ./catalog/templates/environment/template.yaml
     - type: file
       target: ./catalog/templates/service/template.yaml
@@ -165,8 +184,18 @@ kubernetes:
 
 platform:
   consoleUrl: http://platform-console.platform-system.svc:8080
-  # Markdown documents served to agents by get-engineering-standard.
-  standardsDir: ./standards/docs
+  # The engineering standards served to agents: architectures.yaml (the
+  # architectures and versions that coexist) and the Markdown in docs/.
+  standardsDir: ./standards
+  capabilities:
+    # The "New platform capability" form is built from this schema.
+    schema: ./capabilities/schema/capability-definition.schema.json
+    # Where capability definitions are proposed as pull requests, in the local
+    # Git server (credentials from integrations.gitea).
+    repository:
+      baseUrl: http://localhost:3000
+      owner: platform
+      name: platform-starter-kit
 
 permission:
   enabled: true

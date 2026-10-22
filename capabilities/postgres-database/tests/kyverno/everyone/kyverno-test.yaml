@@ -1,0 +1,27 @@
+# Policy tests for the guardrails that apply to everyone (GR-1, GR-2).
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: postgres-database-guardrails
+policies:
+  - ../../../policy.yaml
+resources:
+  - resources.yaml
+clusterResources:
+  - cluster.yaml
+results:
+  - policy: postgres-database-guardrails
+    isValidatingPolicy: true
+    resources: [env-payments-dev/gr-1-in-environment]
+    kind: PostgresDatabase
+    result: pass
+  - policy: postgres-database-guardrails
+    isValidatingPolicy: true
+    resources: [default/gr-1-outside-environment]
+    kind: PostgresDatabase
+    result: fail
+  - policy: postgres-database-guardrails
+    isValidatingPolicy: true
+    resources: [env-full/gr-2-over-budget]
+    kind: PostgresDatabase
+    result: fail

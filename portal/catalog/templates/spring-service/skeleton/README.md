@@ -4,7 +4,8 @@ ${{ values.description }}
 
 Owner: ${{ values.owner }}. Created from the platform's **Spring service**
 template, following the
-[engineering standards](http://localhost:7007/docs/default/component/engineering-standards).
+[engineering standards](http://localhost:7007/docs/default/component/engineering-standards) for backend v2
+(hexagonal Spring).
 
 ## Run the checks
 

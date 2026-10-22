@@ -3,15 +3,21 @@
 ${{ values.description }}
 
 This service was created from the platform's **Spring service** template and
-must follow the organization's engineering standards. The rules below are the
-essentials; the full documents are the source of truth.
+follows the **backend v2 (hexagonal Spring)** architecture
+(`platform.starterkit.dev/architecture: backend-spring-v2` in
+`catalog-info.yaml`). Other services may follow other architectures or
+versions: use the rules of this one. The rules below are the essentials; the
+full documents are the source of truth.
 
 ## Where the standards are
 
 - Portal MCP server (`portal` in `.mcp.json` of the platform repository):
-  `platform.list-engineering-standards` and `platform.get-engineering-standard`
-  return the documents. Read the relevant one before a design decision.
-- Portal: http://localhost:7007/docs/default/component/engineering-standards
+  `platform.get-standards-for-entity` with `component:default/${{ values.name }}`
+  returns the documents that apply, in order; read them with
+  `platform.get-engineering-standard` (for example
+  `backend-spring-v2/architecture-rules`). To find a topic, use
+  `platform.search-engineering-standards` with `architecture: backend-spring-v2`.
+- Portal: http://localhost:7007/docs/default/component/engineering-standards/backend-spring-v2/architecture-rules/
 
 ## Structure (architecture rules AAC-001 to AAC-004)
 

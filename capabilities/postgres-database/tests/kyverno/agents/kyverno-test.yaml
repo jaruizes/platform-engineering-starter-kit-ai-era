@@ -1,0 +1,23 @@
+# Policy tests for the guardrails that apply to agents (GR-3).
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: postgres-database-agent-guardrails
+policies:
+  - ../../../policy.yaml
+resources:
+  - resources.yaml
+clusterResources:
+  - cluster.yaml
+userinfo: user-info.yaml
+results:
+  - policy: postgres-database-agent-guardrails
+    isValidatingPolicy: true
+    resources: [env-payments-dev/gr-3-small, env-payments-dev/gr-3-default-size]
+    kind: PostgresDatabase
+    result: pass
+  - policy: postgres-database-agent-guardrails
+    isValidatingPolicy: true
+    resources: [env-payments-dev/gr-3-medium, env-payments-dev/gr-3-large]
+    kind: PostgresDatabase
+    result: fail

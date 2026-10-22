@@ -1,8 +1,8 @@
-# High-Level Architecture
+# Backend architecture v2: hexagonal Spring
 
 ## Purpose
 
-This document defines the architecture of the project. 
+Backend v2 is the current architecture for backend services: hexagonal architecture with module-first Spring packages (domain, business, infrastructure). Every new backend service uses it; it replaces the layered backend v1.
 
 It establishes the main architectural principles, system boundaries, interaction model, component responsibilities, and the initial set of technology choices that are considered valid for the platform.
 
