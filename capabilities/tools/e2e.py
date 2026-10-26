@@ -5,6 +5,7 @@ capability has: the platform API with kubectl, as a person, and the platform
 MCP server, as an AI agent. Both go through the same guardrails.
 
     PLATFORM_MCP_URL   platform MCP server (default http://localhost:8081/mcp)
+    PLATFORM_MCP_TOKEN its bearer token, if it has one
 """
 
 from __future__ import annotations
@@ -101,10 +102,16 @@ class Agent:
         return asyncio.run(self._call(tool, arguments))
 
     async def _call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        import httpx2
         from mcp import ClientSession, types
         from mcp.client.streamable_http import streamable_http_client
 
-        async with streamable_http_client(MCP_URL) as streams:
+        token = os.environ.get("PLATFORM_MCP_TOKEN")
+        client = httpx2.AsyncClient(
+            headers={"Authorization": f"Bearer {token}"} if token else None,
+            timeout=httpx2.Timeout(30, read=300),
+        )
+        async with client, streamable_http_client(MCP_URL, http_client=client) as streams:
             async with ClientSession(
                 streams[0], streams[1], client_info=types.Implementation(name="capability-tests", version="1")
             ) as session:

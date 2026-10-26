@@ -10,6 +10,12 @@ up: ## Create the local platform (k3d, Crossplane, Kyverno, MCP server, console,
 down: ## Delete the local platform
 	@bootstrap/local/down.sh
 
+aws-up: ## Create the platform on AWS for a demo (AWS credentials in environment variables)
+	@bootstrap/aws/up.sh
+
+aws-down: ## Delete the platform on AWS
+	@bootstrap/aws/down.sh
+
 demo-developer: ## Act 1: a developer requests an environment and deploys a service
 	kubectl apply -f demo/developer/environment.yaml
 	kubectl wait environments.platform.starterkit.dev/payments-dev --for=condition=Ready --timeout=120s
@@ -39,4 +45,4 @@ test: ## Run the unit tests of the MCP server, console and capability tools
 	cd mcp-server && python -m pytest -q tests
 	python -m pytest -q capabilities/tools/tests
 
-.PHONY: help up down demo-developer demo-agent demo-reset status capability capabilities test
+.PHONY: help up down aws-up aws-down demo-developer demo-agent demo-reset status capability capabilities test

@@ -30,6 +30,19 @@ spec:
               value: "8081"
             - name: MCP_ALLOWED_HOSTS
               value: "localhost:*,127.0.0.1:*,platform-mcp.platform-system.svc:*"
+            # Agents must send it as a bearer token. Empty on localhost.
+            - name: MCP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: platform-mcp-token
+                  key: token
+                  optional: true
+            # Where the repositories created by create_service are browsed.
+            - name: GIT_URL
+              value: http://localhost:3000
+            # Shown by the scripted agent (make demo-agent).
+            - name: CONSOLE_URL
+              value: http://localhost:8080
             # Lets create_service run the portal's Spring service template.
             - name: PORTAL_TOKEN
               valueFrom:

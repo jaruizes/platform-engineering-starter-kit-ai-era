@@ -17,11 +17,19 @@ if kubectl -n platform-system get deployment gitea >/dev/null 2>&1; then
   echo "Deleting the repositories created from templates..."
   user="$(kubectl -n platform-system get secret gitea-admin -o jsonpath='{.data.username}' | base64 -d)"
   password="$(kubectl -n platform-system get secret gitea-admin -o jsonpath='{.data.password}' | base64 -d)"
-  repos="$(curl -fsS -u "$user:$password" 'http://localhost:3000/api/v1/orgs/platform/repos?limit=50' \
+  # On a laptop the Git server is at localhost:3000; elsewhere (AWS), through a port-forward.
+  export GIT_URL="${GIT_URL:-http://localhost:3000}"
+  if ! curl -fsS "$GIT_URL/api/healthz" >/dev/null 2>&1; then
+    kubectl -n platform-system port-forward svc/gitea 13000:3000 >/dev/null 2>&1 &
+    trap 'kill $! 2>/dev/null || true' EXIT
+    export GIT_URL=http://localhost:13000
+    for _ in $(seq 1 20); do curl -fsS "$GIT_URL/api/healthz" >/dev/null 2>&1 && break; sleep 1; done
+  fi
+  repos="$(curl -fsS -u "$user:$password" "$GIT_URL/api/v1/orgs/platform/repos?limit=50" \
     | grep -o '"full_name":"platform/[^"]*"' | cut -d'"' -f4)" || true
   for repo in $repos; do
     [[ "$repo" == platform/platform-starter-kit ]] && continue
-    curl -fsS -X DELETE -u "$user:$password" "http://localhost:3000/api/v1/repos/$repo" >/dev/null || true
+    curl -fsS -X DELETE -u "$user:$password" "$GIT_URL/api/v1/repos/$repo" >/dev/null || true
   done
   echo "Starting the platform repository again (no proposed capabilities)..."
   "$(dirname "$0")/../git-server/seed-platform-repo.sh" --reset >/dev/null

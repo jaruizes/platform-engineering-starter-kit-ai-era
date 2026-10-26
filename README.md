@@ -193,10 +193,10 @@ What is available today:
 
 ```
 .
-├── Makefile            # up, down, demo-developer, demo-agent, demo-reset, status, capability, test
+├── Makefile            # up, down, aws-up, aws-down, demo-developer, demo-agent, demo-reset, status, capability, test
 ├── .mcp.json           # connects Claude Code (or any MCP client) to the platform and portal MCP servers
 ├── .claude/skills/     # skills that teach coding agents to use the Golden Paths and build services
-├── bootstrap/local/    # k3d cluster, Crossplane, Kyverno and the platform, in one script
+├── bootstrap/          # install.sh: the platform on any cluster; local/: k3d; aws/: EKS with OpenTofu
 ├── control-plane/      # Crossplane functions and permissions
 ├── golden-paths/
 │   ├── environment/    # ephemeral environment: namespace, budget, team access, expiry, cost
@@ -268,19 +268,19 @@ To connect a real agent, open this folder in Claude Code: it reads [`.mcp.json`]
 
 To show the portal with the logo, title and texts of your company or a client, copy [`portal/branding/`](portal/branding), change it and run `BRANDING_DIR=<that folder> make up`. No code changes, and only the last layer of the portal image is rebuilt.
 
-> **Local demo only.** The platform MCP server has no authentication yet, the portal signs everyone in as a guest (mapped to the sample user Ana), and agents reach the portal MCP server with a fixed token. All of this is fine on a laptop and is replaced by real identity (Keycloak, and OAuth for MCP clients) in the *Optimize* milestone.
+> **Local demo only.** On a laptop the platform MCP server has no authentication (on AWS it requires a token), the portal signs everyone in as a guest (mapped to the sample user Ana), and agents reach the portal MCP server with a fixed token. All of this is fine on a laptop and is replaced by real identity (Keycloak, and OAuth for MCP clients) in the *Optimize* milestone.
 
 ### Run it on AWS
 
-> Planned. The commands below describe the target experience.
+The same platform on Amazon EKS, so the demo needs only a browser. Created for a demo and destroyed after it, with the AWS credentials in environment variables:
 
 ```bash
-make aws-bootstrap   # OpenTofu: network, control plane EKS cluster, IAM, Pod Identity
-make aws-up          # control plane and Golden Paths on EKS
+export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_REGION=eu-west-1
+make aws-up          # OpenTofu: VPC, EKS, ECR and a load balancer with HTTPS; then the platform on EKS
 make aws-down        # remove everything
 ```
 
-No access keys are passed as arguments or stored in plain secrets: the control plane uses EKS Pod Identity.
+Only your public IP can reach it. See [bootstrap/aws](bootstrap/aws/README.md) for the CA to trust, how to connect Claude Code, the cost (about 0.35 USD per hour while it is up) and what is still missing (a real login).
 
 ---
 
@@ -302,7 +302,7 @@ No access keys are passed as arguments or stored in plain secrets: the control p
 - [x] **Platform capabilities:** a definition schema, a portal form that proposes them as pull requests, an agent skill that builds them, checks with a traceability matrix, and a PostgreSQL database as the first one
 - [ ] **GitOps:** Argo CD for the platform itself
 - [ ] **Assess:** pulse check, DevEx survey and baseline scripts
-- [ ] **AWS:** OpenTofu foundation, EKS and RDS compositions
+- [ ] **AWS:** the platform on EKS with OpenTofu (done); next, login with Keycloak, and RDS and EKS compositions
 - [ ] **Optimize:** agent identities, AI gateway, agent-ready and LLM-powered service Golden Paths, AI metrics dashboard
 - [ ] **Run:** tests for compositions and policies, automated upgrades, SLOs, runbooks and playbook
 - [ ] Other clouds as overlays

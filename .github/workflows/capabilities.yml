@@ -12,6 +12,7 @@ on:
       - control-plane/**
       - mcp-server/**
       - bootstrap/local/**
+      - bootstrap/install.sh
       - .github/workflows/capabilities.yml
   push:
     branches: [main]

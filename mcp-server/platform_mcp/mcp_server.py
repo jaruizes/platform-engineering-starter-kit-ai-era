@@ -7,6 +7,7 @@ guardrails apply. Requests outside the guardrails go to a human.
 
 from __future__ import annotations
 
+import hmac
 import os
 import re
 import time
@@ -16,6 +17,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from . import platform, portal
 from .platform import Denied
@@ -335,13 +337,36 @@ async def healthz(_: Request) -> PlainTextResponse:
     return PlainTextResponse("ok")
 
 
+class BearerToken:
+    """Lets in only requests with the token MCP_TOKEN, when it is set.
+
+    On localhost the server is open, as the demo runs on a laptop. Anywhere
+    else (AWS) agents send the token as `Authorization: Bearer <token>`.
+    """
+
+    def __init__(self, app: ASGIApp, token: str) -> None:
+        self.app = app
+        self.expected = f"Bearer {token}".encode()
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["path"] != "/healthz":
+            sent = dict(scope["headers"]).get(b"authorization", b"")
+            if not hmac.compare_digest(sent, self.expected):
+                await PlainTextResponse("Missing or wrong bearer token.", status_code=401)(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
 def main() -> None:
+    import uvicorn
+
     os.environ.setdefault("PLATFORM_COMPONENT", "platform-mcp")
     platform.load_kube_config()
     allowed_hosts = os.environ.get("MCP_ALLOWED_HOSTS", "localhost:*,127.0.0.1:*").split(",")
-    mcp.run(
-        transport="streamable-http",
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", "8081")),
+    app: ASGIApp = mcp.streamable_http_app(
         transport_security=TransportSecuritySettings(allowed_hosts=allowed_hosts),
+        host="0.0.0.0",
     )
+    if token := os.environ.get("MCP_TOKEN"):
+        app = BearerToken(app, token)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8081")))
