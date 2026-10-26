@@ -70,7 +70,15 @@ module "eks" {
     vpc-cni                = { before_compute = true }
     eks-pod-identity-agent = { before_compute = true }
     # Volumes for the Git server and the databases of the capabilities.
-    aws-ebs-csi-driver = {}
+    # Its controller gets AWS permissions with Pod Identity: the nodes only
+    # let pods reach the instance metadata with a hop limit of 1, so the
+    # role of the nodes is out of its reach.
+    aws-ebs-csi-driver = {
+      pod_identity_association = [{
+        role_arn        = aws_iam_role.ebs_csi.arn
+        service_account = "ebs-csi-controller-sa"
+      }]
+    }
   }
 
   vpc_id     = module.vpc.vpc_id
@@ -84,9 +92,6 @@ module "eks" {
       max_size       = var.node_count + 1
       desired_size   = var.node_count
       disk_size      = 50
-      iam_role_additional_policies = {
-        ebs = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-      }
     }
   }
 
@@ -98,6 +103,24 @@ module "eks" {
       source_security_group_id = aws_security_group.load_balancer.id
     }
   }
+}
+
+resource "aws_iam_role" "ebs_csi" {
+  name = "${var.name}-ebs-csi"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "pods.eks.amazonaws.com" }
+      Action    = ["sts:AssumeRole", "sts:TagSession"]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi" {
+  role       = aws_iam_role.ebs_csi.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
 
 ################################################################################
