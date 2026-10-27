@@ -46,7 +46,7 @@ trace back to a line of the definition.
    | `guardrails` | `tests/kyverno/kyverno-test.yaml` and its resources: at least one pass and one fail case per rule, with the rule id in the test or resource names. |
    | `acceptance` | `tests/e2e/test_acceptance.py`: one pytest test per criterion, named `test_ac_<n>_<what>`. A criterion checked `as: both` is parametrized with the `requester` fixture so it runs as a human and as an agent. Use the helpers in `capabilities/tools/e2e.py`. |
    | `purpose`, `interface`, `lifecycle`, `ownership` | `docs/index.md` and `mkdocs.yml` (TechDocs): what it is for, how to request it (portal, kubectl, MCP), what you get, the guardrails, cost and lifecycle. |
-   | `purpose`, `interface.examples` | `SKILL.md`: when an agent should use the capability and how (`request_capability` in the platform MCP server), and when not to. Link it so coding agents find it: `ln -s ../../capabilities/<name> .claude/skills/<name>`. |
+   | `purpose`, `interface.examples` | `SKILL.md`: when an agent should use the capability and how (`request_capability` in the platform MCP server), and when not to. Link it so coding agents find it, here and in the teams' `platform` plugin: `ln -s ../../capabilities/<name> .claude/skills/<name>` and `ln -s ../../../capabilities/<name> agent-capabilities/platform/skills/<name>`. |
 
 4. **Check it** with `make capability NAME=<name>` (`capabilities/tools/check.sh <name>`). It runs what CI
    runs: the definition and the generated files against each other

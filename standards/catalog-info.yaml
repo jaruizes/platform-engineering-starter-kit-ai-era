@@ -211,7 +211,7 @@ metadata:
     template instead of scaffolding them by hand, and to keep them compliant
     with the engineering standards.
   annotations:
-    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/.claude/skills/spring-service/
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/agent-capabilities/platform/skills/spring-service/
 spec:
   type: skill
   lifecycle: experimental
@@ -231,7 +231,7 @@ metadata:
     Teaches coding agents to find the architecture and version a service
     follows before changing it, and to read and search only its rules.
   annotations:
-    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/.claude/skills/engineering-standards/
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/agent-capabilities/platform/skills/engineering-standards/
 spec:
   type: skill
   lifecycle: experimental

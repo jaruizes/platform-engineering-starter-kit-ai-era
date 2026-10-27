@@ -1,0 +1,9 @@
+{
+  "name": "dev-team",
+  "version": "0.1.0",
+  "description": "The roles of a development team as subagents (backend, frontend, QA, architect), with skills and commands to review a spec and implement it end to end. Needs the platform plugin.",
+  "author": {
+    "name": "Platform team"
+  },
+  "keywords": ["roles", "specs", "subagents"]
+}

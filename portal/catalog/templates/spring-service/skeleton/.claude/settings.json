@@ -1,0 +1,14 @@
+{
+  "extraKnownMarketplaces": {
+    "platform-starter-kit": {
+      "source": {
+        "source": "git",
+        "url": "http://localhost:3000/platform/platform-starter-kit.git"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "platform@platform-starter-kit": true,
+    "dev-team@platform-starter-kit": true
+  }
+}

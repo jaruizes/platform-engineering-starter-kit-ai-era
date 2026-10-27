@@ -35,7 +35,7 @@ From the definition, the [build-platform-capability skill](../.claude/skills/bui
 | `tests/e2e/test_acceptance.py` | `acceptance` | One test per criterion (`test_ac_<n>_...`), as a person (`kubectl`) and as an agent (platform MCP server) |
 | `examples/` | `interface` | Requests used to render the composition |
 | `docs/`, `mkdocs.yml` | everything | TechDocs in the portal |
-| `SKILL.md` | `purpose`, `interface` | When and how agents should use it (linked from `.claude/skills/<name>`) |
+| `SKILL.md` | `purpose`, `interface` | When and how agents should use it (linked from `.claude/skills/<name>` and from the `platform` plugin in `agent-capabilities/`) |
 | `TRACEABILITY.md` | the checks | Each criterion and guardrail, the test that proves it and its result |
 
 [`postgres-database/`](postgres-database) is the first complete example.

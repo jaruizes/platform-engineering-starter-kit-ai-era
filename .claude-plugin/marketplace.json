@@ -1,0 +1,25 @@
+{
+  "name": "platform-starter-kit",
+  "owner": {
+    "name": "Platform team"
+  },
+  "metadata": {
+    "description": "What the platform team offers coding agents: access to the platform and the engineering standards, and the roles of a development team."
+  },
+  "plugins": [
+    {
+      "name": "platform",
+      "source": "./agent-capabilities/platform",
+      "description": "Connects the agent to the platform (platform and portal MCP servers) and teaches it the Golden Paths, the engineering standards and the platform capabilities.",
+      "version": "0.1.0",
+      "category": "platform"
+    },
+    {
+      "name": "dev-team",
+      "source": "./agent-capabilities/dev-team",
+      "description": "The roles of a development team as subagents (backend, frontend, QA, architect), with skills and commands to review a spec and implement it end to end.",
+      "version": "0.1.0",
+      "category": "development"
+    }
+  ]
+}

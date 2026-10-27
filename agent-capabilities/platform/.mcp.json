@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "platform": {
+      "type": "http",
+      "url": "${PLATFORM_MCP_URL:-http://localhost:8081/mcp}"
+    },
+    "portal": {
+      "type": "http",
+      "url": "${PORTAL_MCP_URL:-http://localhost:7007/api/mcp-actions/v1/context}",
+      "headers": {
+        "Authorization": "Bearer ${PORTAL_MCP_TOKEN:-platform-starter-kit-local-demo}"
+      }
+    }
+  }
+}

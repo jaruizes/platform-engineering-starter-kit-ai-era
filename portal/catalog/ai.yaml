@@ -63,7 +63,7 @@ metadata:
     Teaches coding agents to get environments and deploy services through the
     platform instead of writing infrastructure code.
   annotations:
-    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/.claude/skills/platform-golden-paths/
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/agent-capabilities/platform/skills/platform-golden-paths/
 spec:
   type: skill
   lifecycle: experimental
@@ -73,3 +73,113 @@ spec:
   categories: [platform]
   agents: [claude-code]
   dependsOn: [agent-guardrails, cost-guardrails, audit-trail]
+---
+# What teams install in their coding agents: the platform marketplace and its
+# two Claude Code plugins (.claude-plugin/marketplace.json, agent-capabilities/).
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: platform-marketplace
+  title: Platform marketplace for coding agents
+  description: >-
+    The Claude Code plugins the platform team offers every team. Repositories
+    created from the Spring service template offer them when opened; anywhere
+    else, run /plugin marketplace add
+    http://localhost:3000/platform/platform-starter-kit.git in Claude Code.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/.claude-plugin/
+  tags: [claude-code]
+spec:
+  type: marketplace
+  lifecycle: experimental
+  owner: platform-team
+  system: internal-developer-platform
+  version: 0.1.0
+  plugins: [airesource:default/platform-plugin, airesource:default/dev-team-plugin]
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: platform-plugin
+  title: Platform plugin
+  description: >-
+    Connects the agent to the platform and portal MCP servers and brings the
+    skills to use the Golden Paths, the engineering standards and the platform
+    capabilities. A hook stops the agent from changing infrastructure from its
+    shell (kubectl apply, helm, terraform...): that goes through the Golden Paths.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/agent-capabilities/platform/
+  tags: [claude-code]
+spec:
+  type: plugin
+  lifecycle: experimental
+  owner: platform-team
+  system: internal-developer-platform
+  version: 0.1.0
+  skills:
+    - airesource:default/platform-golden-paths
+    - airesource:default/spring-service
+    - airesource:default/engineering-standards-skill
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: dev-team-plugin
+  title: Development team plugin
+  description: >-
+    The roles of a development team as subagents (backend-developer,
+    frontend-developer, qa-engineer, architect), the review-spec and
+    implement-spec skills, and the commands /dev-team:review-spec,
+    /dev-team:implement-spec and /dev-team:review-architecture. Teams install
+    it and add their own roles and skills in their repositories.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/agent-capabilities/dev-team/
+  tags: [claude-code]
+spec:
+  type: plugin
+  lifecycle: experimental
+  owner: platform-team
+  system: internal-developer-platform
+  version: 0.1.0
+  skills: [airesource:default/implement-spec, airesource:default/review-spec]
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: implement-spec
+  title: Implement a spec end to end
+  description: >-
+    Reviews the spec, creates or changes the service through the platform,
+    writes a test per acceptance criterion, deploys it to a test environment
+    and tells the user how to call it, with the roles of the dev-team plugin.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/agent-capabilities/dev-team/skills/implement-spec/
+spec:
+  type: skill
+  lifecycle: experimental
+  owner: platform-team
+  system: internal-developer-platform
+  disciplines: [backend]
+  categories: [specs]
+  agents: [claude-code]
+  dependsOn: [review-spec, spring-service, platform-golden-paths, testing-strategy]
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: review-spec
+  title: Review a spec before building it
+  description: >-
+    Checks that a spec is complete, consistent and testable (ranges,
+    boundaries, criteria that contradict the rules, leftovers from other
+    specs) and proposes wording for each problem. Includes the spec template.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/agent-capabilities/dev-team/skills/review-spec/
+spec:
+  type: skill
+  lifecycle: experimental
+  owner: platform-team
+  system: internal-developer-platform
+  disciplines: [backend, frontend, qa]
+  categories: [specs]
+  agents: [claude-code]

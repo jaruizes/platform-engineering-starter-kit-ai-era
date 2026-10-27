@@ -9,9 +9,18 @@ follows the **backend v2 (hexagonal Spring)** architecture
 versions: use the rules of this one. The rules below are the essentials; the
 full documents are the source of truth.
 
+## Agent tools from the platform
+
+`.claude/settings.json` offers the platform team's Claude Code plugins when
+you open this repository: `platform` connects to the platform and portal MCP
+servers and brings the skills to use them, and `dev-team` brings the team
+roles (`backend-developer`, `qa-engineer`, `architect`...) and the commands
+`/dev-team:review-spec`, `/dev-team:implement-spec` and
+`/dev-team:review-architecture`.
+
 ## Where the standards are
 
-- Portal MCP server (`portal` in `.mcp.json` of the platform repository):
+- Portal MCP server (`portal`, from the `platform` plugin):
   `platform.get-standards-for-entity` with `component:default/${{ values.name }}`
   returns the documents that apply, in order; read them with
   `platform.get-engineering-standard` (for example
