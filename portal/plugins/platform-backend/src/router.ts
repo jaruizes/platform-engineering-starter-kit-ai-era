@@ -20,6 +20,8 @@ export async function createRouter({
     const state = await platformConsole.state();
     res.json({
       metrics: state.metrics,
+      environments: state.environments,
+      apps: state.apps,
       approvals: state.approvals,
       activity: state.activity.slice(0, 20),
     });
