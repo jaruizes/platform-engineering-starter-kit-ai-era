@@ -3,6 +3,12 @@
 # anything (password in the argocd-initial-admin-secret secret).
 dex:
   enabled: false
+# Redis from Docker Hub, like the rest of the platform: the chart's default
+# registry (ecr-public.aws.com) often answers "too many requests".
+redis:
+  image:
+    repository: docker.io/library/redis
+    tag: 8.6.4-alpine
 notifications:
   enabled: false
 configs:
