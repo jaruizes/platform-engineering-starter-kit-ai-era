@@ -1,0 +1,31 @@
+# GR-3 through GitOps: the database of a service created by an agent follows
+# the agent guardrails; one created by a person does not.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: gr-3-gitops-agent-small
+  namespace: env-payments-dev
+  annotations:
+    platform.starterkit.dev/service-created-by: agent:claude-code
+spec:
+  size: small
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: gr-3-gitops-agent-large
+  namespace: env-payments-dev
+  annotations:
+    platform.starterkit.dev/service-created-by: agent:claude-code
+spec:
+  size: large
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: gr-3-gitops-human-large
+  namespace: env-payments-dev
+  annotations:
+    platform.starterkit.dev/service-created-by: user:default/ana
+spec:
+  size: large

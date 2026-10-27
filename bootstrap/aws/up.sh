@@ -98,6 +98,8 @@ PUBLIC_HOST="$(out public_host)"
 export PUBLIC_HOST PUBLIC_SCHEME=https
 export IMAGE_REGISTRY="$registry/$(out image_repository_prefix)" IMAGE_PLATFORM="$(out image_platform)"
 export PLATFORM_CA_FILE="$STATE/ca.pem"
+# The pipelines push the service images to ECR, with the runner's Pod Identity role.
+export SERVICE_IMAGE_REPOSITORY="$(out service_image_repository)" JIB_FLAGS="-Djib.to.credHelper=ecr-login"
 "$ROOT/bootstrap/install.sh"
 
 base="https://$PUBLIC_HOST"

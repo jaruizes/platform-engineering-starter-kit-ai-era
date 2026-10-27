@@ -21,8 +21,15 @@ spec:
             {{- $name := $xr.metadata.name }}
             {{- $ns := $xr.metadata.namespace }}
             {{- $replicas := $xr.spec.replicas | default 1 }}
+            {{- $sizes := dict
+                  "small"  (dict "cpu" "250m" "memory" "256Mi")
+                  "medium" (dict "cpu" "500m" "memory" "512Mi") }}
+            {{- $size := get $sizes ($xr.spec.size | default "small") }}
+            {{- $db := $xr.spec.database | default "" }}
             {{- $deploy := dig "resources" "deployment" "resource" dict .observed }}
             {{- $available := dig "status" "availableReplicas" 0 $deploy }}
+            {{- /* No image yet: the service's pipeline has not built one. */}}
+            {{- if $xr.spec.image }}
             apiVersion: apps/v1
             kind: Deployment
             metadata:
@@ -59,6 +66,29 @@ spec:
                       ports:
                         - name: http
                           containerPort: {{ $xr.spec.port }}
+                      {{- if $db }}
+                      env:
+                        {{- range $var, $key := dict "DATABASE_HOST" "host" "DATABASE_PORT" "port" "DATABASE_NAME" "database" "DATABASE_USERNAME" "username" "DATABASE_PASSWORD" "password" }}
+                        - name: {{ $var }}
+                          valueFrom:
+                            secretKeyRef:
+                              name: {{ $db }}-connection
+                              key: {{ $key }}
+                        {{- end }}
+                        - name: SPRING_DATASOURCE_URL
+                          value: jdbc:postgresql://$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)
+                        - name: SPRING_DATASOURCE_USERNAME
+                          value: $(DATABASE_USERNAME)
+                        - name: SPRING_DATASOURCE_PASSWORD
+                          value: $(DATABASE_PASSWORD)
+                      {{- end }}
+                      # Slow starters (a JVM on a quarter of a CPU) get up to
+                      # three minutes before the liveness probe counts.
+                      startupProbe:
+                        tcpSocket:
+                          port: http
+                        periodSeconds: 5
+                        failureThreshold: 36
                       readinessProbe:
                         tcpSocket:
                           port: http
@@ -70,13 +100,14 @@ spec:
                           cpu: 50m
                           memory: 64Mi
                         limits:
-                          cpu: 250m
-                          memory: 256Mi
+                          cpu: {{ $size.cpu }}
+                          memory: {{ $size.memory }}
                       securityContext:
                         allowPrivilegeEscalation: false
                         capabilities:
                           drop: [ALL]
             ---
+            {{- end }}
             apiVersion: v1
             kind: Service
             metadata:

@@ -25,19 +25,31 @@ spec:
       expression: "'system:serviceaccount:platform-system:platform-console'"
     - name: portalIdentity
       expression: "'system:serviceaccount:platform-system:portal'"
+    # GitOps (Argo CD) delivers what a service repository declares. The
+    # requester is whoever created the service, recorded in the repository
+    # by the Spring service template; the commits are the rest of the trail.
+    - name: gitopsIdentity
+      expression: "'system:serviceaccount:argocd:argocd-application-controller'"
+    - name: serviceCreatedBy
+      expression: >-
+        object.metadata.?annotations[?'platform.starterkit.dev/service-created-by'].orValue('')
     - name: requesterType
       expression: >-
-        request.userInfo.username in [variables.agentIdentity, variables.approverIdentity] ? 'agent' : 'human'
+        request.userInfo.username in [variables.agentIdentity, variables.approverIdentity] ? 'agent' :
+        request.userInfo.username == variables.gitopsIdentity && variables.serviceCreatedBy.startsWith('agent:') ? 'agent' :
+        'human'
     # Agents identify themselves through the MCP server, which runs with its
     # own identity. A human approving in the console keeps the agent as requester.
     # The portal acts on behalf of the signed-in person, whose user it passes on.
     - name: requestedBy
       expression: >-
-        variables.requesterType == 'agent'
-          ? object.metadata.?annotations[?'platform.starterkit.dev/agent'].orValue(request.userInfo.username)
-          : request.userInfo.username == variables.portalIdentity
-            ? object.metadata.?annotations[?'platform.starterkit.dev/on-behalf-of'].orValue(request.userInfo.username)
-            : request.userInfo.username
+        request.userInfo.username == variables.gitopsIdentity && variables.serviceCreatedBy != ''
+          ? variables.serviceCreatedBy.replace('agent:', '')
+          : variables.requesterType == 'agent'
+            ? object.metadata.?annotations[?'platform.starterkit.dev/agent'].orValue(request.userInfo.username)
+            : request.userInfo.username == variables.portalIdentity
+              ? object.metadata.?annotations[?'platform.starterkit.dev/on-behalf-of'].orValue(request.userInfo.username)
+              : request.userInfo.username
   mutations:
     - patchType: ApplyConfiguration
       applyConfiguration:
@@ -46,7 +58,9 @@ spec:
             metadata: Object.metadata{
               annotations: {
                 "platform.starterkit.dev/requested-by": string(variables.requestedBy),
-                "platform.starterkit.dev/requester-type": string(variables.requesterType)
+                "platform.starterkit.dev/requester-type": string(variables.requesterType),
+                "platform.starterkit.dev/delivered-by":
+                  request.userInfo.username == variables.gitopsIdentity ? 'gitops' : 'api'
               }
             }
           }

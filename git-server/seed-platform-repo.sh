@@ -22,6 +22,8 @@ if api "$GIT_URL/api/v1/repos/$REPO" >/dev/null 2>&1; then
 fi
 api -X POST "$GIT_URL/api/v1/orgs/platform/repos" \
   -d '{"name":"platform-starter-kit","description":"The platform: Golden Paths, capabilities and guardrails","default_branch":"main"}' >/dev/null
+# Its GitHub workflows are not for the pipelines of the Git server.
+api -X PATCH "$GIT_URL/api/v1/repos/$REPO" -d '{"has_actions":false}' >/dev/null
 
 # One commit with the files of this checkout, without its history and without
 # what .gitignore leaves out (dependencies, build output). tar copies them

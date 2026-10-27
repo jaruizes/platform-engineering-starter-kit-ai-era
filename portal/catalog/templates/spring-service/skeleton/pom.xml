@@ -21,6 +21,7 @@
         <java.version>21</java.version>
         <archunit.version>1.5.1</archunit.version>
         <springdoc.version>3.1.1</springdoc.version>
+        <jib.version>3.5.2</jib.version>
     </properties>
 
     <dependencies>
@@ -89,6 +90,27 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- Builds the container image without Docker, for amd64 and arm64.
+                 The platform pipeline runs `./mvnw compile jib:build -Dimage=...`. -->
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+                <version>${jib.version}</version>
+                <configuration>
+                    <from>
+                        <image>eclipse-temurin:21-jre-noble</image>
+                        <platforms>
+                            <platform><architecture>amd64</architecture><os>linux</os></platform>
+                            <platform><architecture>arm64</architecture><os>linux</os></platform>
+                        </platforms>
+                    </from>
+                    <container>
+                        <user>10001</user>
+                        <ports><port>8080</port></ports>
+                        <jvmFlags><jvmFlag>-XX:MaxRAMPercentage=75</jvmFlag></jvmFlags>
+                    </container>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

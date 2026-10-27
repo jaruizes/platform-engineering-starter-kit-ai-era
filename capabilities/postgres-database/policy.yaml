@@ -62,7 +62,11 @@ spec:
         resources: [postgresdatabases]
   matchConditions:
     - name: requested-by-an-agent
-      expression: request.userInfo.username == 'system:serviceaccount:platform-system:platform-mcp'
+      # The platform MCP server, or GitOps delivering a service an agent created.
+      expression: >-
+        request.userInfo.username == 'system:serviceaccount:platform-system:platform-mcp' ||
+        (request.userInfo.username == 'system:serviceaccount:argocd:argocd-application-controller' &&
+         object.metadata.?annotations[?'platform.starterkit.dev/service-created-by'].orValue('').startsWith('agent:'))
   validations:
     - expression: object.spec.?size.orValue('small') == 'small'
       messageExpression: >-

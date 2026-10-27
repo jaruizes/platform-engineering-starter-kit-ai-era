@@ -1,0 +1,7 @@
+# k3s registry configuration of the local cluster: the nodes pull service
+# images from the registry in the cluster (delivery/registry.yaml), over
+# plain HTTP at its fixed address.
+mirrors:
+  "10.43.0.200:5000":
+    endpoint:
+      - http://10.43.0.200:5000

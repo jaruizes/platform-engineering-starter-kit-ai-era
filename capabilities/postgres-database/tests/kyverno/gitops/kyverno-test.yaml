@@ -1,0 +1,28 @@
+# Policy tests for GR-3 when GitOps delivers a service's database.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: postgres-database-gitops-guardrails
+policies:
+  - ../../../policy.yaml
+resources:
+  - resources.yaml
+clusterResources:
+  - cluster.yaml
+userinfo: user-info.yaml
+results:
+  - policy: postgres-database-agent-guardrails
+    isValidatingPolicy: true
+    resources: [env-payments-dev/gr-3-gitops-agent-small]
+    kind: PostgresDatabase
+    result: pass
+  - policy: postgres-database-agent-guardrails
+    isValidatingPolicy: true
+    resources: [env-payments-dev/gr-3-gitops-agent-large]
+    kind: PostgresDatabase
+    result: fail
+  - policy: postgres-database-agent-guardrails
+    isValidatingPolicy: true
+    resources: [env-payments-dev/gr-3-gitops-human-large]
+    kind: PostgresDatabase
+    result: skip

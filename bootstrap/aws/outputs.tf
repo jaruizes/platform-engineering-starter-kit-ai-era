@@ -16,6 +16,11 @@ output "image_repository_prefix" {
   value = var.name
 }
 
+output "service_image_repository" {
+  description = "Where the pipelines push the images of the services."
+  value       = aws_ecr_repository.images["services"].repository_url
+}
+
 output "image_platform" {
   description = "Platform of the images, from the architecture of the nodes."
   value       = startswith(var.node_ami_type, "AL2023_ARM") ? "linux/arm64" : "linux/amd64"

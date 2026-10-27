@@ -1,0 +1,44 @@
+# The platform pipeline (Gitea Actions, on the platform runner). On every
+# push to main it runs the checks, builds the image with Jib and deploys it
+# with GitOps: it writes the image into deploy/app.yaml and Argo CD applies
+# the change to the environment. Changes to deploy/ alone are applied by
+# Argo CD without a new build.
+name: deliver
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["deploy/**"]
+jobs:
+  deliver:
+    runs-on: platform
+    steps:
+      - name: Check out
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          find . -mindepth 1 -delete
+          git clone -q "http://pipeline:${TOKEN}@${{ vars.PLATFORM_GIT_HOST }}/${GITHUB_REPOSITORY}.git" .
+          git checkout -q "$GITHUB_SHA"
+
+      # Integration tests need Docker (Testcontainers), which the runner does
+      # not have: they run with ./mvnw verify on a laptop.
+      - name: Unit tests and architecture rules
+        run: ./mvnw -B -ntp verify -DskipITs
+
+      - name: Build and push the image
+        run: |
+          IMAGE="${{ vars.SERVICE_IMAGE_REPOSITORY }}:${GITHUB_REPOSITORY#*/}-${GITHUB_SHA:0:12}"
+          ./mvnw -B -ntp -DskipTests compile jib:build -Dimage="$IMAGE" ${{ vars.JIB_FLAGS }}
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy (GitOps)
+        run: |
+          if ! grep -q '^  image:' deploy/app.yaml; then
+            echo "deploy/app.yaml has no environment: the image is built but not deployed."
+            exit 0
+          fi
+          sed -i "s|^  image:.*|  image: $IMAGE|" deploy/app.yaml
+          git -c user.name="Platform pipeline" -c user.email=pipeline@starterkit.local \
+            commit -qam "Deploy $IMAGE"
+          git push -q origin HEAD:main
+          echo "Deployed $IMAGE: Argo CD applies it to the environment."

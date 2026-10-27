@@ -23,7 +23,11 @@ spec:
         resources: ["*"]
   matchConditions:
     - name: requested-by-an-agent
-      expression: request.userInfo.username == 'system:serviceaccount:platform-system:platform-mcp'
+      # The platform MCP server, or GitOps delivering a service an agent created.
+      expression: >-
+        request.userInfo.username == 'system:serviceaccount:platform-system:platform-mcp' ||
+        (request.userInfo.username == 'system:serviceaccount:argocd:argocd-application-controller' &&
+         object.metadata.?annotations[?'platform.starterkit.dev/service-created-by'].orValue('').startsWith('agent:'))
   validations:
     - expression: object.kind != 'Environment' || object.spec.size == 'small'
       messageExpression: >-
@@ -65,7 +69,8 @@ spec:
     - name: keys
       expression: >-
         ['platform.starterkit.dev/requested-by', 'platform.starterkit.dev/requester-type',
-         'platform.starterkit.dev/approved-by', 'platform.starterkit.dev/on-behalf-of']
+         'platform.starterkit.dev/approved-by', 'platform.starterkit.dev/on-behalf-of',
+         'platform.starterkit.dev/delivered-by']
     - name: annotations
       expression: object.metadata.?annotations.orValue({})
     - name: oldAnnotations

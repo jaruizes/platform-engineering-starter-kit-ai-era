@@ -1,0 +1,7 @@
+# Requests delivered by GitOps (Argo CD) from a service repository.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: UserInfo
+metadata:
+  name: gitops
+userInfo:
+  username: system:serviceaccount:argocd:argocd-application-controller

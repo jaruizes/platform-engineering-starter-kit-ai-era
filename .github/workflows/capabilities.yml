@@ -73,8 +73,8 @@ jobs:
           curl -sSL "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_CLI_VERSION}/kyverno-cli_${KYVERNO_CLI_VERSION}_linux_x86_64.tar.gz" \
             | tar xz -C /usr/local/bin kyverno
           curl -sSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-      - name: Create the platform (without the portal)
-        run: PORTAL=false make up
+      - name: Create the platform (without the portal or delivery)
+        run: PORTAL=false DELIVERY=false make up
       - name: Run the acceptance tests, as a person and as an agent
         run: |
           failed=0

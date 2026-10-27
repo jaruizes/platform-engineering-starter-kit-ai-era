@@ -121,18 +121,22 @@ GOLDEN_PATHS = [
         "description": (
             "Creates the repository of a new Spring Boot service that follows the engineering "
             "standards: module-first hexagonal packages, Maven, JPA with Flyway, OpenAPI, "
-            "Testcontainers, ArchUnit rules and an AGENTS.md. It is registered in the catalog."
+            "Testcontainers, ArchUnit rules and an AGENTS.md. It is registered in the catalog and, "
+            "with an environment, built and deployed on every push to main."
         ),
         "parameters": {
             "name": "Service and repository name, for example orders-service",
             "description": "What the service does, in the domain language",
             "team": "Team that owns the service",
             "module": "First functional module, for example orders",
+            "environment": "Environment to deliver it to, with its PostgreSQL (optional)",
             "base_package": "Base Java package (default com.starterkit)",
         },
         "guardrails": [
             "The architecture rules run in ./mvnw verify for every change, human or AI-written.",
             "Read the engineering standards (portal MCP server) before designing or writing code.",
+            "Delivery is GitOps: a push to main is built by the platform pipeline and deployed by Argo CD, "
+            "into ephemeral environments only. Follow it with get_service_status.",
         ],
         "tool": "create_service",
     },

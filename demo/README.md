@@ -56,6 +56,12 @@ Ask the agent, in plain language:
 4. **"And one that stays for two weeks."**
    - Stopped by the cost guardrail that applies to everyone, humans included: environments live at most 72 hours. Approval cannot bypass it.
 
+5. **"Implement the spec demo/example/specs/loyalty-points.md and deploy it in that environment."**
+   - *Golden Path:* the agent calls `create_service` with the environment: a repository from the Spring service template, with its pipeline and its `deploy/` folder (the `App` and its PostgreSQL database).
+   - *Delivery:* the agent implements the spec and pushes to `main`. The pipeline (Gitea Actions) runs the tests and the architecture rules, builds the image with Jib and writes it into `deploy/app.yaml`; Argo CD applies `deploy/` to the environment ([localhost:8082](http://localhost:8082)).
+   - *Guardrails:* Argo CD deploys with its own identity, but the platform still knows the agent asked for it, so the agent guardrails apply too.
+   - *Observe:* the agent follows `get_service_status` (pipeline, Argo CD and pods, with the logs if it does not start) until it is ready, and gives you the `kubectl port-forward` and `curl` to try it.
+
 With the scripted agent, `make demo-agent` runs steps 1 to 4 in one go; then approve the load test in the portal.
 
 **The contrast to tell:** without a platform, the agent writes its own infrastructure code, with its own credentials, outside any standard. Nobody knows what was created, by whom, or how much it costs.
@@ -110,6 +116,7 @@ The checks run with `make capability NAME=<name>` and in CI ([`.github/workflows
 | Portal | Backstage: [Software Templates](../portal/catalog/templates) that call the Golden Paths on behalf of the signed-in person, a [catalog provider](../portal/plugins/platform-backend/src/catalog.ts) that brings environments and services from the cluster, and MCP actions for agents |
 | Engineering standards | [`standards/`](../standards): four architectures with their versions ([`architectures.yaml`](../standards/architectures.yaml)), TechDocs built into the portal image, an `AiResource` per architecture, sample services on each one ([`portal/catalog/services.yaml`](../portal/catalog/services.yaml)), and MCP actions that tell agents which rules apply to a service, serve the Markdown and search it by architecture |
 | Spring service | A [template](../portal/catalog/templates/spring-service) that publishes to the local Git server ([Gitea](../git-server/gitea.yaml)); the catalog discovers every repository of the `platform` organization. `create_service` in the platform MCP server runs the same template with a token that only reaches the scaffolder and the catalog |
+| Delivery | Each service repository has a pipeline ([Gitea Actions](../portal/catalog/templates/spring-service/skeleton/.gitea/workflows/deliver.yaml), run by a [runner](../delivery/runner) in the cluster) that builds the image with Jib, pushes it to the [service image registry](../delivery/registry.yaml) (ECR on AWS) and commits it into `deploy/`. An [Argo CD ApplicationSet](../delivery/argocd/services.yaml) deploys the `deploy/` folder of every repository; [`identify-requester`](../policies/10-identify-requester.yaml) records who created the service, so the guardrails still apply |
 | Human in the loop | The console creates approved requests with its own identity and records the approver; the portal passes on who is signed in. [`protect-audit-trail`](../policies/30-agent-guardrails.yaml) stops anyone else from doing so |
 | Platform capabilities | [`capabilities/`](../capabilities): a definition per capability, what the agent generated from it (XRD, composition, policies, tests) and the checks; the portal and the platform MCP server discover them from the label `platform.starterkit.dev/capability` on the XRD |
 | Time to live | Kyverno deletes environments when their time to live is over |

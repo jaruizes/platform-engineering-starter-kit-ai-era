@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Installs the platform on the cluster of the current kubectl context:
 # Crossplane v2, Kyverno, Golden Paths, policies, capabilities, platform MCP
-# server, console, Git server and developer portal.
+# server, console, Git server, delivery pipeline (Gitea Actions runner and
+# Argo CD) and developer portal.
 #
 # The same for every way of running the kit. bootstrap/local/up.sh runs it on
 # a k3d cluster and bootstrap/aws/up.sh on Amazon EKS, with these settings:
@@ -21,7 +22,11 @@
 #   PLATFORM_CA_FILE            CA the pods must trust to reach PUBLIC_HOST.
 #   GIT_URL                     where this script reaches the Git server
 #                               (default http://localhost:3000).
-#   PORTAL=false                skips the Git server and the portal.
+#   SERVICE_IMAGE_REPOSITORY    where pipelines push service images, with
+#                               JIB_FLAGS (default: a registry in the cluster).
+#   PORTAL=false                skips the portal.
+#   DELIVERY=false              skips the pipelines and Argo CD.
+#                               With both, the Git server is skipped too.
 #   BRANDING_DIR                logos, title and texts of the portal.
 set -euo pipefail
 
@@ -34,7 +39,12 @@ KYVERNO_CHART="${KYVERNO_CHART:-kyverno/kyverno}"
 FUNCTION_REGISTRY="${FUNCTION_REGISTRY:-xpkg.crossplane.io}"
 MCP_IMAGE="${MCP_IMAGE:-platform-starter-kit/platform-mcp:dev}"
 PORTAL_IMAGE="${PORTAL_IMAGE:-platform-starter-kit/portal:dev}"
+RUNNER_IMAGE="${RUNNER_IMAGE:-platform-starter-kit/ci-runner:dev}"
 PORTAL="${PORTAL:-true}"
+DELIVERY="${DELIVERY:-true}"
+ARGOCD_CHART="${ARGOCD_CHART:-argo/argo-cd}"
+SERVICE_IMAGE_REPOSITORY="${SERVICE_IMAGE_REPOSITORY:-}"
+JIB_FLAGS="${JIB_FLAGS:-}"
 BRANDING_DIR="${BRANDING_DIR:-$ROOT/portal/branding}"
 PUBLIC_HOST="${PUBLIC_HOST:-localhost}"
 PUBLIC_SCHEME="${PUBLIC_SCHEME:-http}"
@@ -53,6 +63,11 @@ if [[ "$CROSSPLANE_CHART" == crossplane-stable/* || "$KYVERNO_CHART" == kyverno/
   step "Adding Helm repositories"
   helm repo add crossplane-stable https://charts.crossplane.io/stable --force-update >/dev/null
   helm repo add kyverno https://kyverno.github.io/kyverno --force-update >/dev/null
+fi
+if [[ "$DELIVERY" == "true" && "$ARGOCD_CHART" == argo/* ]]; then
+  helm repo add argo https://argoproj.github.io/argo-helm --force-update >/dev/null
+fi
+if [[ "$CROSSPLANE_CHART" == crossplane-stable/* || "$KYVERNO_CHART" == kyverno/* || "$ARGOCD_CHART" == argo/* ]]; then
   helm repo update >/dev/null
 fi
 
@@ -152,6 +167,17 @@ kubectl apply -f "$ROOT/mcp-server/deploy/00-namespace.yaml"
 secret portal-mcp-token --from-literal=token="$PORTAL_MCP_TOKEN"
 secret platform-mcp-portal-token --from-literal=token="$PLATFORM_MCP_PORTAL_TOKEN"
 secret platform-mcp-token --from-literal=token="$PLATFORM_MCP_TOKEN"
+# The Git server's accounts and the registration token of the pipeline runner.
+random() { LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$1"; }
+if ! kubectl -n platform-system get secret gitea-admin >/dev/null 2>&1; then
+  secret gitea-admin --from-literal=username=platform-admin --from-literal=password="$(random 20)"
+fi
+if ! kubectl -n platform-system get secret gitea-developer >/dev/null 2>&1; then
+  secret gitea-developer --from-literal=username=developer --from-literal=password="$(random 20)"
+fi
+if ! kubectl -n platform-system get secret gitea-runner-token >/dev/null 2>&1; then
+  secret gitea-runner-token --from-literal=token="$(random 40)"
+fi
 if [[ -n "$PLATFORM_CA_FILE" ]]; then
   # The pods that call PUBLIC_HOST trust its certificate.
   kubectl -n platform-system create configmap platform-ca --from-file=ca.crt="$PLATFORM_CA_FILE" \
@@ -164,25 +190,50 @@ deploy "$ROOT/mcp-server/deploy" platform-starter-kit/platform-mcp:dev "$IMAGE"
 kubectl -n platform-system rollout status deployment/platform-mcp --timeout=180s || diagnose platform-mcp
 kubectl -n platform-system rollout status deployment/platform-console --timeout=180s || diagnose platform-console
 
-if [[ "$PORTAL" == "true" ]]; then
-  step "Deploying the Git server (Gitea): service repositories and the platform repository"
-  if ! kubectl -n platform-system get secret gitea-admin >/dev/null 2>&1; then
-    secret gitea-admin --from-literal=username=platform-admin \
-      --from-literal=password="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)"
-  fi
+if [[ "$PORTAL" == "true" || "$DELIVERY" == "true" ]]; then
+  step "Deploying the Git server (Gitea): service repositories, their pipelines and the platform repository"
   publish < "$ROOT/git-server/gitea.yaml" | kubectl apply -f -
   kubectl -n platform-system rollout status deployment/gitea --timeout=180s || diagnose gitea
-  # Where the portal proposes new capabilities as pull requests. Off
-  # localhost, this script reaches the Git server through a port-forward.
+  # Off localhost, this script reaches the Git server through a port-forward.
   forward=""
   if [[ -z "${GIT_URL:-}" && "$PUBLIC_HOST" != localhost ]]; then
     kubectl -n platform-system port-forward svc/gitea 13000:3000 >/dev/null 2>&1 &
     forward=$!
     export GIT_URL=http://localhost:13000
+    sleep 2
   fi
+  # Where the portal proposes new capabilities as pull requests.
   "$ROOT/git-server/seed-platform-repo.sh"
-  if [[ -n "$forward" ]]; then kill "$forward" 2>/dev/null || true; unset GIT_URL; fi
+  # The account people and agents push service changes with.
+  "$ROOT/git-server/create-developer.sh"
 
+  if [[ "$DELIVERY" == "true" ]]; then
+    step "Installing the delivery pipeline: Gitea Actions runner and service image registry"
+    if [[ -z "$SERVICE_IMAGE_REPOSITORY" ]]; then
+      kubectl apply -f "$ROOT/delivery/registry.yaml"
+      kubectl -n platform-system rollout status deployment/service-images --timeout=120s || diagnose service-images
+      SERVICE_IMAGE_REPOSITORY=10.43.0.200:5000/services
+      JIB_FLAGS="${JIB_FLAGS:--Djib.allowInsecureRegistries=true}"
+    fi
+    # What the pipelines of every service repository read (vars.* in .gitea/workflows).
+    "$ROOT/delivery/set-pipeline-variables.sh" \
+      PLATFORM_GIT_HOST=gitea.platform-system.svc:3000 \
+      SERVICE_IMAGE_REPOSITORY="$SERVICE_IMAGE_REPOSITORY" \
+      JIB_FLAGS="$JIB_FLAGS"
+    IMAGE="$(load_image "$RUNNER_IMAGE" "$ROOT/delivery/runner" "${RUNNER_BUILD_ARGS:-}")"
+    deploy "$ROOT/delivery/deploy" platform-starter-kit/ci-runner:dev "$IMAGE"
+    kubectl -n platform-system rollout status deployment/platform-ci-runner --timeout=180s || diagnose platform-ci-runner
+
+    step "Installing Argo CD (chart $ARGOCD_CHART_VERSION): GitOps for the service repositories"
+    helm upgrade --install argocd "$ARGOCD_CHART" --version "$ARGOCD_CHART_VERSION" \
+      --namespace argocd --create-namespace --wait \
+      -f "$ROOT/delivery/argocd/values.yaml" ${ARGOCD_HELM_ARGS:-}
+    kubectl apply -f "$ROOT/delivery/argocd/services.yaml"
+  fi
+  if [[ -n "$forward" ]]; then kill "$forward" 2>/dev/null || true; unset GIT_URL; fi
+fi
+
+if [[ "$PORTAL" == "true" ]]; then
   step "Building and deploying the developer portal (Backstage, the first build takes several minutes)"
   [[ -f "$BRANDING_DIR/branding.yaml" ]] || { echo "No branding.yaml in BRANDING_DIR=$BRANDING_DIR" >&2; exit 1; }
   BRANDING_DIR="$(cd "$BRANDING_DIR" && pwd)"
@@ -199,5 +250,9 @@ cat <<MSG
   MCP server for agents:              $(public_url 8081)/mcp
   Portal MCP server (context):        $(public_url 7007)/api/mcp-actions/v1/context
   Git server (repositories):          $(public_url 3000) (read-only without signing in)
+  Argo CD (GitOps, read-only):        $(public_url 8082)
   Platform repository (capabilities): $(public_url 3000)/platform/platform-starter-kit
+
+  Push to the service repositories as "developer"; its password:
+    kubectl -n platform-system get secret gitea-developer -o jsonpath='{.data.password}' | base64 -d
 MSG
