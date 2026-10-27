@@ -48,8 +48,12 @@ spec:
         repoURL: "http://gitea.platform-system.svc:3000/platform/{{ .repository }}.git"
         targetRevision: "{{ .branch }}"
         path: deploy
+      # Every manifest in deploy/ names its environment's namespace. Argo CD
+      # still needs a destination namespace allowed by the project, so it
+      # gets one that is never created: a manifest without a namespace fails.
       destination:
         server: https://kubernetes.default.svc
+        namespace: env-namespace-not-set
       syncPolicy:
         automated:
           prune: true
