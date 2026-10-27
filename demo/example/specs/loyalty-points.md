@@ -32,4 +32,6 @@ Canjear puntos, caducidad y eventos. Para esta versión basta con guardar los da
 
 ## Cómo construirlo
 
-El servicio debe seguir arquitectura Spring y sigue los estándares de ingeniería de la empresa.
+El servicio debe seguir arquitectura Spring y sigue los estándares de ingeniería de la empresa. 
+Se debe subir al repositorio de la empresa.
+Se debe crear un entorno de pruebas efímero, de tamaño pequeño, y desplegar ahí el servicio para que se pueda probar y validar por un humano
