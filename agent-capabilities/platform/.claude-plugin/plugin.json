@@ -1,0 +1,9 @@
+{
+  "name": "platform",
+  "version": "0.1.0",
+  "description": "Connects the agent to the platform (platform and portal MCP servers) and teaches it the Golden Paths, the engineering standards and the platform capabilities.",
+  "author": {
+    "name": "Platform team"
+  },
+  "keywords": ["platform", "golden-paths", "engineering-standards"]
+}

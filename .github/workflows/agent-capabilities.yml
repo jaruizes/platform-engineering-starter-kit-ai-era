@@ -1,0 +1,47 @@
+# Checks what the platform offers coding agents: the marketplace and its
+# plugins load in Claude Code, and the platform plugin's hook stops only the
+# commands it should.
+name: Agent capabilities
+
+on:
+  pull_request:
+    paths:
+      - .claude-plugin/**
+      - agent-capabilities/**
+      - capabilities/*/SKILL.md
+      - .github/workflows/agent-capabilities.yml
+  push:
+    branches: [main]
+    paths:
+      - .claude-plugin/**
+      - agent-capabilities/**
+      - .github/workflows/agent-capabilities.yml
+
+permissions:
+  contents: read
+
+jobs:
+  plugins:
+    name: Marketplace, plugins and hook
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Validate the marketplace and its plugins
+        run: |
+          claude plugin validate .
+          for plugin in agent-capabilities/*/; do
+            if [[ -f "$plugin/.claude-plugin/plugin.json" ]]; then claude plugin validate "$plugin"; fi
+          done
+      - name: Install them as a team would
+        run: |
+          export HOME="$RUNNER_TEMP/home" && mkdir -p "$HOME"
+          claude plugin marketplace add "$GITHUB_WORKSPACE"
+          claude plugin install platform@platform-starter-kit
+          claude plugin install dev-team@platform-starter-kit
+          claude plugin list
+          # Skills linked from capabilities/ must arrive as real files.
+          test -f "$HOME"/.claude/plugins/cache/platform-starter-kit/platform/*/skills/postgres-database/SKILL.md
+      - name: Test the hook
+        run: agent-capabilities/tests/use-golden-paths.sh

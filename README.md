@@ -195,7 +195,9 @@ What is available today:
 .
 ├── Makefile            # up, down, aws-up, aws-down, demo-developer, demo-agent, demo-reset, status, capability, test
 ├── .mcp.json           # connects Claude Code (or any MCP client) to the platform and portal MCP servers
-├── .claude/skills/     # skills that teach coding agents to use the Golden Paths and build services
+├── .claude/skills/     # skills the platform team's own agents use (links to agent-capabilities/ and capabilities/)
+├── .claude-plugin/     # the platform marketplace of Claude Code plugins for every team
+├── agent-capabilities/ # the plugins: platform access and skills, and the development team roles
 ├── bootstrap/          # install.sh: the platform on any cluster; local/: k3d; aws/: EKS with OpenTofu
 ├── control-plane/      # Crossplane functions and permissions
 ├── golden-paths/
@@ -262,7 +264,7 @@ make down            # remove everything
 | Git server with the repositories the portal creates | <http://localhost:3000> (to sign in as `platform-admin`: `kubectl -n platform-system get secret gitea-admin -o jsonpath='{.data.password}' \| base64 -d`) |
 | Metrics in Prometheus format | <http://localhost:8080/metrics> |
 
-To connect a real agent, open this folder in Claude Code: it reads [`.mcp.json`](.mcp.json) (the `platform` and `portal` servers) and the skills in [`.claude/skills/`](.claude/skills/). Then follow [the demo script](demo/README.md).
+To connect a real agent, open this folder in Claude Code: it reads [`.mcp.json`](.mcp.json) (the `platform` and `portal` servers) and the skills in [`.claude/skills/`](.claude/skills/). Then follow [the demo script](demo/README.md). Teams get the same, plus the roles of a development team (backend, frontend, QA, architect) and commands such as `/dev-team:implement-spec`, as [Claude Code plugins](agent-capabilities/README.md) that their service repositories offer when opened.
 
 `PORTAL=false make up` skips the portal and the Git server if you only need the MCP server and the console.
 
@@ -301,6 +303,7 @@ Only your public IP can reach it. See [bootstrap/aws](bootstrap/aws/README.md) f
 - [x] **Engineering standards:** TechDocs and AI rules from one source, a Spring service template with ArchUnit checks and `AGENTS.md`, and `create_service` for agents
 - [x] **Platform capabilities:** a definition schema, a portal form that proposes them as pull requests, an agent skill that builds them, checks with a traceability matrix, and a PostgreSQL database as the first one
 - [x] **Delivery:** a pipeline per service (Gitea Actions, Jib) and GitOps with Argo CD, so an agent can implement a spec, deploy it and call it
+- [x] **Agent capabilities:** a marketplace of Claude Code plugins for every team: platform access and skills, a hook that keeps infrastructure on the Golden Paths, and the roles of a development team with spec review and implementation
 - [ ] **GitOps:** Argo CD for the platform itself
 - [ ] **Assess:** pulse check, DevEx survey and baseline scripts
 - [ ] **AWS:** the platform on EKS with OpenTofu (done); next, login with Keycloak, and RDS and EKS compositions
