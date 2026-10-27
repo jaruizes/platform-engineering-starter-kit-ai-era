@@ -76,15 +76,6 @@ subjects:
     name: portal
     namespace: platform-system
 ---
-# Token AI agents use for the portal MCP server (read-only). Local demo only.
-apiVersion: v1
-kind: Secret
-metadata:
-  name: portal-mcp-token
-  namespace: platform-system
-stringData:
-  token: platform-starter-kit-local-demo
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -108,11 +99,20 @@ spec:
         runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
+      volumes:
+        - name: platform-ca
+          configMap:
+            name: platform-ca
+            optional: true
       containers:
         - name: portal
           image: platform-starter-kit/portal:dev
           imagePullPolicy: Never
           env:
+            # Where people reach the portal. Off localhost, the start script
+            # rewrites the local addresses of its configuration and catalog.
+            - name: PUBLIC_URL
+              value: http://localhost:7007
             - name: PORTAL_MCP_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -148,6 +148,11 @@ spec:
               memory: 512Mi
             limits:
               memory: 1536Mi
+          # The CA of the public address, when it is not a public one (AWS).
+          volumeMounts:
+            - name: platform-ca
+              mountPath: /etc/platform-ca
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

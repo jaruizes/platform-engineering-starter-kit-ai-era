@@ -1,0 +1,33 @@
+# Checks the OpenTofu configuration of the platform on AWS (bootstrap/aws)
+# without an AWS account: format, validation and a test with every AWS call
+# mocked.
+name: Platform on AWS
+
+on:
+  pull_request:
+    paths:
+      - bootstrap/aws/**
+      - .github/workflows/aws.yml
+
+permissions:
+  contents: read
+
+jobs:
+  opentofu:
+    name: OpenTofu format, validate and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bootstrap/aws
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.10.7
+      - run: tofu fmt -check -recursive
+      - run: tofu init -backend=false -input=false
+      - run: tofu validate
+      - name: Test with mocked AWS
+        run: |
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/ca.key -out /tmp/ca.pem -subj /CN=test -days 1 2>/dev/null
+          TF_VAR_ca_cert_pem="$(cat /tmp/ca.pem)" TF_VAR_ca_key_pem="$(cat /tmp/ca.key)" tofu test

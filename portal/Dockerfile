@@ -82,5 +82,6 @@ COPY --from=capability-docs --chown=node:node /capability-sites ./techdocs/defau
 COPY --from=branding --chown=node:node . ./branding/
 RUN mkdir -p packages/app/dist/branding \
     && find branding -maxdepth 1 -type f ! -name '*.yaml' ! -name '*.md' -exec cp {} packages/app/dist/branding/ \;
+COPY --chown=node:node docker-entrypoint.sh ./
 EXPOSE 7007
-CMD ["node", "packages/backend", "--config", "app-config.yaml", "--config", "branding/branding.yaml"]
+CMD ["./docker-entrypoint.sh"]

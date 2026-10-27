@@ -14,10 +14,12 @@ import json
 import os
 import sys
 
+import httpx2
 from mcp import ClientSession, types
 from mcp.client.streamable_http import streamable_http_client
 
 URL = os.environ.get("MCP_URL", "http://localhost:8081/mcp")
+CONSOLE_URL = os.environ.get("CONSOLE_URL", "http://localhost:8080")
 
 STEPS = [
     ("Which Golden Paths does this platform offer?", "list_golden_paths", {}),
@@ -67,7 +69,13 @@ def _print_result(result: types.CallToolResult) -> None:
 
 
 async def main() -> None:
-    async with streamable_http_client(URL) as streams:
+    # The token of the platform MCP server, when it has one (on AWS).
+    token = os.environ.get("MCP_TOKEN")
+    client = httpx2.AsyncClient(
+        headers={"Authorization": f"Bearer {token}"} if token else None,
+        timeout=httpx2.Timeout(30, read=300),
+    )
+    async with client, streamable_http_client(URL, http_client=client) as streams:
         read, write = streams[0], streams[1]
         info = types.Implementation(name=os.environ.get("AGENT_NAME", "demo-agent"), version="1.0")
         async with ClientSession(read, write, client_info=info) as session:
@@ -76,7 +84,7 @@ async def main() -> None:
                 print(f'\nAgent: "{said}"\n-> {tool}({", ".join(f"{k}={v!r}" for k, v in args.items())})')
                 _print_result(await session.call_tool(tool, args))
                 await asyncio.sleep(1)
-    print("\nOpen the console at http://localhost:8080 to see it all, and approve or reject the load test.")
+    print(f"\nOpen the console at {CONSOLE_URL} to see it all, and approve or reject the load test.")
 
 
 if __name__ == "__main__":

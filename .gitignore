@@ -4,3 +4,8 @@ __pycache__/
 .venv/
 .pytest_cache/
 /.idea/
+
+# OpenTofu state, CA and tokens of the platform on AWS
+bootstrap/aws/.state/
+bootstrap/aws/.terraform/
+bootstrap/aws/.terraform.lock.hcl
