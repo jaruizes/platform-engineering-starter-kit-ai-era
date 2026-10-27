@@ -31,7 +31,9 @@ mcp = MCPServer(
         "Use this server to get environments and deploy services through the "
         "company's Golden Paths, and capabilities such as databases, instead of writing "
         "infrastructure code. Start with list_golden_paths. Requests are checked by policy; if one needs human "
-        "approval, tell the user and give them the approval id."
+        "approval, tell the user and give them the approval id. When you build a new service, deliver it so "
+        "the user can try it: unless they say otherwise, reuse a ready environment of the team or request a "
+        "small one for 8 hours, pass it to create_service, and finish with get_service_status."
     ),
 )
 
@@ -204,7 +206,8 @@ def create_service(
         team: Team that owns the service, for example checkout.
         module: First functional module, a business capability such as orders.
         environment: Ephemeral environment to deploy to (request_environment first).
-            Without it, only the repository is created.
+            Without it, only the repository is created and nothing is deployed, so
+            leave it out only when the user does not want to try the service.
         base_package: Base Java package; the service package adds the name without dashes.
     """
     if not re.match(r"^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$", name):
