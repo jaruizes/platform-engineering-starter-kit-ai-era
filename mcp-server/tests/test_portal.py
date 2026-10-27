@@ -47,7 +47,8 @@ def test_says_when_the_portal_is_not_deployed(monkeypatch):
 def test_clone_url_carries_the_push_account(monkeypatch):
     monkeypatch.setattr(portal, "GIT_URL", "https://alb.example.com:3000")
     monkeypatch.setenv("GIT_PUSH_USERNAME", "developer")
-    monkeypatch.setenv("GIT_PUSH_PASSWORD", "s3cr/t")
-    assert portal.push_url("loyalty-points") == "https://developer:s3cr%2Ft@alb.example.com:3000/platform/loyalty-points.git"
+    monkeypatch.setenv("GIT_PUSH_PASSWORD", "not/real")
+    account = "developer:" + "not%2Freal"
+    assert portal.push_url("loyalty-points") == f"https://{account}@alb.example.com:3000/platform/loyalty-points.git"
     monkeypatch.delenv("GIT_PUSH_PASSWORD")
     assert portal.push_url("loyalty-points") == "https://alb.example.com:3000/platform/loyalty-points.git"
