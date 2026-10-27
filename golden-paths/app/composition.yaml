@@ -44,6 +44,13 @@ spec:
                 {{- end }}
             spec:
               replicas: {{ $replicas }}
+              # Environments have a tight quota: a new version replaces the
+              # old pods instead of running next to them.
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxSurge: 0
+                  maxUnavailable: 1
               selector:
                 matchLabels:
                   app.kubernetes.io/name: {{ $name }}
