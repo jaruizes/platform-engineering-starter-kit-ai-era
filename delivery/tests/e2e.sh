@@ -15,6 +15,10 @@ SERVICE=loyalty-points
 ENVIRONMENT=checkout-e2e
 NS="env-$ENVIRONMENT"
 
+# Who commits, as an agent would.
+export GIT_AUTHOR_NAME=e2e GIT_AUTHOR_EMAIL=e2e@starterkit.local
+export GIT_COMMITTER_NAME=e2e GIT_COMMITTER_EMAIL=e2e@starterkit.local
+
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 secret() { kubectl -n platform-system get secret "$1" -o jsonpath="{.data.$2}" | base64 -d; }
 admin="$(secret gitea-admin username):$(secret gitea-admin password)"
@@ -99,7 +103,7 @@ curl -fsS -u "$admin" -H 'Content-Type: application/json' -o /dev/null \
 remote="${GIT_URL/:\/\//://$developer@}/platform/$SERVICE.git"
 git -C "$work/$SERVICE" init -q -b main
 git -C "$work/$SERVICE" add -A
-git -C "$work/$SERVICE" -c user.name=e2e -c user.email=e2e@starterkit.local commit -qm "Create $SERVICE"
+git -C "$work/$SERVICE" commit -qm "Create $SERVICE"
 git -C "$work/$SERVICE" push -q "$remote" main
 
 step "Waiting for the pipeline: tests, architecture rules and image"
@@ -135,7 +139,7 @@ assert status['state'] == 'ready', status
 
 step "Pushing a change: it is built and deployed again"
 echo "Delivered by the platform." >> "$work/$SERVICE/README.md"
-git -C "$work/$SERVICE" -c user.name=e2e -c user.email=e2e@starterkit.local commit -qam "Change the README"
+git -C "$work/$SERVICE" commit -qam "Change the README"
 git -C "$work/$SERVICE" pull -q --rebase "$remote" main
 git -C "$work/$SERVICE" push -q "$remote" main
 wait_for_pipeline "Change the README"
