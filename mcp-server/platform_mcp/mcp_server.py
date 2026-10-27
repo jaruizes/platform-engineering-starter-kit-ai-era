@@ -19,7 +19,7 @@ from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from . import platform, portal
+from . import delivery, platform, portal
 from .platform import Denied
 
 NAME_PATTERN = re.compile(r"^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$")
@@ -31,7 +31,9 @@ mcp = MCPServer(
         "Use this server to get environments and deploy services through the "
         "company's Golden Paths, and capabilities such as databases, instead of writing "
         "infrastructure code. Start with list_golden_paths. Requests are checked by policy; if one needs human "
-        "approval, tell the user and give them the approval id."
+        "approval, tell the user and give them the approval id. When you build a new service, deliver it so "
+        "the user can try it: unless they say otherwise, reuse a ready environment of the team or request a "
+        "small one for 8 hours, pass it to create_service, and finish with get_service_status."
     ),
 )
 
@@ -151,7 +153,10 @@ def deploy_service(
     replicas: int = 1,
     ctx: Context | None = None,
 ) -> dict[str, Any]:
-    """Deploys a service into an environment using the new-service Golden Path.
+    """Deploys a ready-made image into an environment using the new-service Golden Path.
+
+    Services created with create_service do not need it: every push to their
+    main branch is built and deployed by the platform (GitOps).
 
     Args:
         environment: Environment to deploy into.
@@ -183,6 +188,7 @@ def create_service(
     description: str,
     team: str,
     module: str,
+    environment: str | None = None,
     base_package: str = "com.starterkit",
     ctx: Context | None = None,
 ) -> dict[str, Any]:
@@ -190,12 +196,18 @@ def create_service(
 
     The repository follows the engineering standards from the first commit and is
     registered in the catalog. Use it instead of scaffolding a service by hand.
+    With an environment, the service is delivered there with its own PostgreSQL:
+    every push to main runs the platform pipeline (tests, architecture rules,
+    image) and Argo CD deploys it. Follow it with get_service_status.
 
     Args:
         name: Service and repository name (lowercase letters, numbers and dashes).
         description: What the service does, in the domain language.
         team: Team that owns the service, for example checkout.
         module: First functional module, a business capability such as orders.
+        environment: Ephemeral environment to deploy to (request_environment first).
+            Without it, only the repository is created and nothing is deployed, so
+            leave it out only when the user does not want to try the service.
         base_package: Base Java package; the service package adds the name without dashes.
     """
     if not re.match(r"^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$", name):
@@ -203,6 +215,13 @@ def create_service(
     if not re.match(r"^[a-z][a-z0-9]*$", module):
         raise ValueError("module must be lowercase letters and numbers, for example orders.")
     _check_name(team, "team")
+    if environment:
+        _check_name(environment, "environment")
+        if platform.get_environment(environment) is None:
+            return {
+                "status": "failed",
+                "reason": f"Environment '{environment}' does not exist. Request it with request_environment first.",
+            }
     agent = agent_name(ctx)
     values = {
         "name": name,
@@ -212,6 +231,8 @@ def create_service(
         "module": module,
         "requestedBy": f"agent:{agent}",
     }
+    if environment:
+        values["environment"] = environment
     try:
         portal.run_template("spring-service", values)
     except portal.TemplateFailed as failed:
@@ -221,18 +242,42 @@ def create_service(
     repository = portal.repository_url(name)
     platform.record("RequestAccepted", f"{agent} created service {name} for team {team} from the Spring service template",
                     name, actor=agent, kind="Component")
+    deliver = (
+        f" Then commit and push to main: the platform builds and deploys it to env-{environment} "
+        f"(the skeleton is already on its way). Follow it with get_service_status(name='{name}', "
+        f"environment='{environment}') until it is ready."
+        if environment else ""
+    )
     return {
         "status": "created",
         "repository": repository,
-        "clone": f"git clone {repository}.git",
+        # With the Git server account for agents, so a push needs no prompt.
+        "clone": f"git clone {portal.push_url(name)}",
         "catalog_entity": f"component:default/{name}",
+        "environment": environment,
         "next_step": (
             "Clone the repository, read its AGENTS.md and the engineering standards that apply to it (portal MCP "
             f"server: platform.get-standards-for-entity with component:default/{name}, architecture backend-spring-v2), "
             "implement inside the generated module, and run ./mvnw verify "
-            "before finishing: it checks the architecture rules."
+            "before finishing: it checks the architecture rules." + deliver
         ),
     }
+
+
+@mcp.tool(title="Get the status of a service")
+def get_service_status(name: str, environment: str) -> dict[str, Any]:
+    """How the delivery of a service created with create_service is going.
+
+    Puts together its pipeline (tests and image), GitOps (Argo CD) and its pods,
+    with the logs when it does not start, and says what to do next. Call it after
+    a push to main until state is ready (or something failed).
+
+    Args:
+        name: Service name.
+        environment: Environment it is deployed to.
+    """
+    _check_name(environment, "environment")
+    return delivery.status(name, environment)
 
 
 @mcp.tool(title="Request a capability")

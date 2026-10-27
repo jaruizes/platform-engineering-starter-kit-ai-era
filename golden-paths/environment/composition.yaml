@@ -90,6 +90,25 @@ spec:
                 kind: Group
                 name: team:{{ $team }}
             ---
+            # The platform MCP server tells agents how their services are
+            # doing here: pods and their logs, read-only.
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: RoleBinding
+            metadata:
+              name: platform-mcp-observer
+              namespace: {{ $ns }}
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: platform-observer
+                gotemplating.fn.crossplane.io/ready: "True"
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: platform:services:observer
+            subjects:
+              - kind: ServiceAccount
+                name: platform-mcp
+                namespace: platform-system
+            ---
             apiVersion: {{ $xr.apiVersion }}
             kind: {{ $xr.kind }}
             status:

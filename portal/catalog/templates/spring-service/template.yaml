@@ -8,7 +8,9 @@ metadata:
     module-first hexagonal packages, Maven, JPA with Flyway, OpenAPI,
     Testcontainers, ArchUnit rules that check the architecture on every build,
     and an AGENTS.md for AI agents. The repository is created in the local Git
-    server and appears in the catalog on its own.
+    server and appears in the catalog on its own. With an environment, every
+    push to main is built by the platform pipeline and deployed there with
+    GitOps (Argo CD), together with its PostgreSQL database.
   tags: [golden-path, java, spring-boot]
   links:
     - url: http://localhost:7007/docs/default/component/engineering-standards
@@ -58,6 +60,19 @@ spec:
           description: Set by the platform MCP server when an AI agent uses this template.
           type: string
           ui:widget: hidden
+    - title: Delivery
+      properties:
+        environment:
+          title: Environment
+          description: >-
+            Ephemeral environment where every push to main is deployed. Leave
+            it empty to only create the repository.
+          type: string
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: Resource
+              spec.type: environment
   steps:
     - id: fetch
       name: Generate the service from the standard skeleton
@@ -74,6 +89,10 @@ spec:
           packagePath: ${{ (parameters.basePackage + '.' + (parameters.name | replace('-', ''))) | replace('.', '/') }}
           dbName: ${{ parameters.name | replace('-', '_') }}
           requestedBy: ${{ parameters.requestedBy or user.ref }}
+          environment: ${{ (parameters.environment or '').split('/') | last }}
+        # GitHub-style expressions of the pipeline, not template values.
+        copyWithoutTemplating:
+          - .gitea/workflows/*
 
     - id: publish
       name: Create the repository
@@ -99,3 +118,5 @@ spec:
           cd ${{ parameters.name }} && ./mvnw verify
           ```
           `./mvnw verify` runs the architecture rules. AI agents read `AGENTS.md`.
+          A push to main runs the pipeline (Actions tab of the repository) and,
+          with an environment, Argo CD deploys it (http://localhost:8082).

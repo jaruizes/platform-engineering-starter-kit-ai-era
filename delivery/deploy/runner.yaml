@@ -1,0 +1,83 @@
+# The pipeline runner: runs the Gitea Actions workflows of the service
+# repositories (.gitea/workflows), one job at a time. It registers itself with
+# the Git server using the gitea-runner-token secret that make up creates.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: platform-ci-runner
+  namespace: platform-system
+# The runner does not call the Kubernetes API. On AWS it pushes images to ECR
+# with the role EKS Pod Identity gives this service account.
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: platform-ci-runner
+  namespace: platform-system
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      # Its registration, the workspaces and the Maven and Jib caches.
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-ci-runner
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/name: platform-ci-runner
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platform-ci-runner
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: platform-ci-runner
+    spec:
+      serviceAccountName: platform-ci-runner
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: runner
+          image: platform-starter-kit/ci-runner:dev
+          imagePullPolicy: Never
+          env:
+            - name: GITEA_URL
+              value: http://gitea.platform-system.svc:3000
+            - name: RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef: {name: gitea-runner-token, key: token}
+            - name: HOME
+              value: /data/home
+            - name: MAVEN_OPTS
+              value: -Xmx768m
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 3Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: platform-ci-runner

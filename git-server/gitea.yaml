@@ -1,6 +1,7 @@
 # A local Git server (Gitea) so the Spring service template can create real
-# repositories without a GitHub account. The portal publishes to the
-# "platform" organization; open http://localhost:3000 to browse it.
+# repositories without a GitHub account, with pipelines (Gitea Actions). The
+# portal publishes to the "platform" organization; open http://localhost:3000
+# to browse it.
 # The admin credentials are in the gitea-admin secret, which make up creates
 # with a random password the first time.
 apiVersion: v1
@@ -62,6 +63,13 @@ spec:
               value: "false"
             - name: GITEA__repository__DEFAULT_BRANCH
               value: main
+            # Pipelines (Gitea Actions) for the service repositories. The
+            # runner registers with this token (delivery/deploy/runner.yaml).
+            - name: GITEA__actions__ENABLED
+              value: "true"
+            - name: GITEA_RUNNER_REGISTRATION_TOKEN
+              valueFrom:
+                secretKeyRef: {name: gitea-runner-token, key: token, optional: true}
             - name: ADMIN_USER
               valueFrom:
                 secretKeyRef: {name: gitea-admin, key: username}

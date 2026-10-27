@@ -12,6 +12,7 @@ import os
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import quote
 from typing import Any
 
 PORTAL_URL = os.environ.get("PORTAL_URL", "http://portal.platform-system.svc:7007")
@@ -65,3 +66,12 @@ def run_template(template: str, values: dict[str, Any], timeout: float = 180) ->
 
 def repository_url(name: str) -> str:
     return f"{GIT_URL}/{GIT_OWNER}/{name}"
+
+
+def push_url(name: str) -> str:
+    """Clone URL with the Git server account agents push with, when there is one."""
+    user, password = os.environ.get("GIT_PUSH_USERNAME"), os.environ.get("GIT_PUSH_PASSWORD")
+    if not (user and password):
+        return f"{repository_url(name)}.git"
+    scheme, rest = GIT_URL.split("://", 1)
+    return f"{scheme}://{quote(user, safe='')}:{quote(password, safe='')}@{rest}/{GIT_OWNER}/{name}.git"

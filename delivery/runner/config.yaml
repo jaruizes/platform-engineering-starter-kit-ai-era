@@ -1,0 +1,13 @@
+# act_runner configuration: one job at a time, run on this container (host
+# mode), with the workspaces and caches (Maven, Jib) on its volume.
+log:
+  level: info
+runner:
+  file: /data/.runner
+  capacity: 1
+  timeout: 30m
+  fetch_interval: 2s
+cache:
+  enabled: false
+host:
+  workdir_parent: /data/work

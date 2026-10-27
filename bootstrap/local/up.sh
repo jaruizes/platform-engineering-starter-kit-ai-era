@@ -19,14 +19,21 @@ if k3d cluster get "$CLUSTER_NAME" >/dev/null 2>&1; then
   echo "Cluster already exists, reusing it."
   k3d cluster start "$CLUSTER_NAME" >/dev/null
   # Clusters created by older versions of the kit do not publish every port.
-  for port in 7007:30007 3000:30300; do
+  for port in 7007:30007 3000:30300 8082:30082; do
     if ! docker port "k3d-$CLUSTER_NAME-serverlb" 2>/dev/null | grep -q "^${port#*:}/"; then
       k3d cluster edit "$CLUSTER_NAME" --port-add "$port@loadbalancer"
     fi
   done
+  # Nor do they know the registry of the service images.
+  node="k3d-$CLUSTER_NAME-server-0"
+  if ! docker exec "$node" grep -q 10.43.0.200 /etc/rancher/k3s/registries.yaml 2>/dev/null; then
+    docker exec -i "$node" sh -c 'cat > /etc/rancher/k3s/registries.yaml' < "$ROOT/bootstrap/local/registries.yaml"
+    k3d cluster stop "$CLUSTER_NAME" >/dev/null && k3d cluster start "$CLUSTER_NAME" >/dev/null
+  fi
 else
   k3d cluster create "$CLUSTER_NAME" --image "$K3S_IMAGE" \
-    --config "$ROOT/bootstrap/local/k3d-config.yaml" --wait --timeout 180s
+    --config "$ROOT/bootstrap/local/k3d-config.yaml" \
+    --registry-config "$ROOT/bootstrap/local/registries.yaml" --wait --timeout 180s
 fi
 kubectl config use-context "k3d-$CLUSTER_NAME" >/dev/null
 

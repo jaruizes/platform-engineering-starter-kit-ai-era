@@ -49,6 +49,19 @@ spec:
                 secretKeyRef:
                   name: platform-mcp-portal-token
                   key: token
+            # The Git server account agents push service changes with.
+            - name: GIT_PUSH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-developer
+                  key: username
+                  optional: true
+            - name: GIT_PUSH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-developer
+                  key: password
+                  optional: true
           ports:
             - name: http
               containerPort: 8081

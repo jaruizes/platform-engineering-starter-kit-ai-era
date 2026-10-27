@@ -22,6 +22,7 @@ locals {
     console = { port = 8080, node_port = 30080, health = "/" }
     mcp     = { port = 8081, node_port = 30081, health = "/healthz" }
     git     = { port = 3000, node_port = 30300, health = "/api/healthz" }
+    argocd  = { port = 8082, node_port = 30082, health = "/healthz" }
   }
 }
 
@@ -128,12 +129,59 @@ resource "aws_iam_role_policy_attachment" "ebs_csi" {
 ################################################################################
 
 resource "aws_ecr_repository" "images" {
-  for_each = toset(["platform-mcp", "portal"])
+  # The platform's own images, and the images the pipelines build for the
+  # services (one repository, a tag per service and commit).
+  for_each = toset(["platform-mcp", "portal", "ci-runner", "services"])
 
   name                 = "${var.name}/${each.key}"
   image_tag_mutability = "MUTABLE"
   # make aws-down removes them with their images.
   force_delete = true
+}
+
+# The pipeline runner pushes the service images, with EKS Pod Identity.
+resource "aws_iam_role" "ci_runner" {
+  name = "${var.name}-ci-runner"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "pods.eks.amazonaws.com" }
+      Action    = ["sts:AssumeRole", "sts:TagSession"]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "ci_runner" {
+  name = "push-service-images"
+  role = aws_iam_role.ci_runner.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer",
+          "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload", "ecr:PutImage",
+        ]
+        Resource = aws_ecr_repository.images["services"].arn
+      },
+    ]
+  })
+}
+
+resource "aws_eks_pod_identity_association" "ci_runner" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "platform-system"
+  service_account = "platform-ci-runner"
+  role_arn        = aws_iam_role.ci_runner.arn
 }
 
 ################################################################################

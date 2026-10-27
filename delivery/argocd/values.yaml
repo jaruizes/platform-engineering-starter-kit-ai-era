@@ -1,0 +1,59 @@
+# Argo CD for the demo: GitOps for the service repositories of the Git
+# server. Read-only for anyone who opens the UI; sign in as admin to change
+# anything (password in the argocd-initial-admin-secret secret).
+dex:
+  enabled: false
+# Redis from Docker Hub, like the rest of the platform: the chart's default
+# registry (ecr-public.aws.com) often answers "too many requests".
+redis:
+  image:
+    repository: docker.io/library/redis
+    tag: 8.6.4-alpine
+notifications:
+  enabled: false
+configs:
+  params:
+    # TLS ends at the load balancer on AWS; locally it is plain HTTP.
+    server.insecure: true
+  cm:
+    # Check the repositories every 30 seconds instead of every 3 minutes.
+    timeout.reconciliation: 30s
+    users.anonymous.enabled: "true"
+    # Golden Paths and capabilities are Crossplane composite resources:
+    # healthy when Ready. An App without an image is waiting for its first build.
+    resource.customizations.health.platform.starterkit.dev_App: |
+      hs = {status = "Progressing", message = "Waiting for the service to be ready"}
+      if obj.spec ~= nil and (obj.spec.image == nil or obj.spec.image == "") then
+        hs.message = "Waiting for the first image: the pipeline has not built one yet"
+        return hs
+      end
+      if obj.status ~= nil and obj.status.conditions ~= nil then
+        for _, c in ipairs(obj.status.conditions) do
+          if c.type == "Ready" and c.status == "True" then
+            return {status = "Healthy", message = "Ready"}
+          end
+          if c.type == "Synced" and c.status == "False" then
+            return {status = "Degraded", message = c.message}
+          end
+        end
+      end
+      return hs
+    resource.customizations.health.platform.starterkit.dev_PostgresDatabase: |
+      hs = {status = "Progressing", message = "Waiting for the database to be ready"}
+      if obj.status ~= nil and obj.status.conditions ~= nil then
+        for _, c in ipairs(obj.status.conditions) do
+          if c.type == "Ready" and c.status == "True" then
+            return {status = "Healthy", message = "Ready"}
+          end
+          if c.type == "Synced" and c.status == "False" then
+            return {status = "Degraded", message = c.message}
+          end
+        end
+      end
+      return hs
+  rbac:
+    policy.default: role:readonly
+server:
+  service:
+    type: NodePort
+    nodePortHttp: 30082

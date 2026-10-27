@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 
 from platform_mcp import portal
@@ -42,3 +44,15 @@ def test_says_when_the_portal_is_not_deployed(monkeypatch):
     monkeypatch.delenv("PORTAL_TOKEN", raising=False)
     with pytest.raises(portal.TemplateFailed, match="no token"):
         portal.run_template("spring-service", {})
+
+
+def test_clone_url_carries_the_push_account(monkeypatch):
+    monkeypatch.setattr(portal, "GIT_URL", "https://alb.example.com:3000")
+    monkeypatch.setenv("GIT_PUSH_USERNAME", "developer")
+    # A value made up here, with a character that must be escaped in a URL.
+    value = f"{uuid.uuid4().hex}/x"
+    monkeypatch.setenv("GIT_PUSH_PASSWORD", value)
+    expected = f"https://developer:{value.replace('/', '%2F')}@alb.example.com:3000/platform/loyalty-points.git"
+    assert portal.push_url("loyalty-points") == expected
+    monkeypatch.delenv("GIT_PUSH_PASSWORD")
+    assert portal.push_url("loyalty-points") == "https://alb.example.com:3000/platform/loyalty-points.git"

@@ -1,0 +1,52 @@
+# Checks delivery end to end in a local platform: a service created from the
+# Spring service template is built by its pipeline (Gitea Actions), deployed
+# by Argo CD with its database, and answers when called.
+name: Delivery
+
+on:
+  pull_request:
+    paths:
+      - delivery/**
+      - golden-paths/**
+      - git-server/**
+      - policies/**
+      - control-plane/**
+      - mcp-server/**
+      - portal/catalog/templates/spring-service/**
+      - bootstrap/local/**
+      - bootstrap/install.sh
+      - .github/workflows/delivery.yml
+  push:
+    branches: [main]
+    paths:
+      - delivery/**
+      - portal/catalog/templates/spring-service/**
+      - .github/workflows/delivery.yml
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Pipeline, GitOps and a call to the service
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the tools
+        run: |
+          pip install jinja2
+          curl -sSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+      - name: Create the platform (without the portal)
+        run: PORTAL=false make up
+      - name: Deliver a service end to end
+        run: delivery/tests/e2e.sh
+      - name: Show the state of the cluster
+        if: failure()
+        run: |
+          kubectl get pods -A -o wide
+          kubectl get events -A --sort-by=.lastTimestamp | tail -60
+          kubectl -n argocd get applications -o wide || true

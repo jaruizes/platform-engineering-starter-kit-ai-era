@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import {
   Content,
   InfoCard,
@@ -6,7 +6,19 @@ import {
   ResponseErrorPanel,
 } from '@backstage/core-components';
 import { fetchApiRef, useApi } from '@backstage/frontend-plugin-api';
-import { Box, Button, Chip, Grid, Typography } from '@material-ui/core';
+import {
+  Box,
+  Button,
+  Chip,
+  Grid,
+  LinearProgress,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Typography,
+} from '@material-ui/core';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
 import useInterval from 'react-use/esm/useInterval';
 import type { Approval, Overview } from '../types';
@@ -17,6 +29,46 @@ const ago = (iso: string) => {
   if (s < 3600) return `${Math.round(s / 60)}m ago`;
   return `${Math.round(s / 3600)}h ago`;
 };
+
+const until = (iso: string) => {
+  const h = Math.round((new Date(iso).getTime() - Date.now()) / 3600000);
+  return h <= 0 ? 'expiring' : `in ${h}h`;
+};
+
+const Requester = ({ type, name }: { type?: string; name?: string }) => (
+  <>
+    <Chip
+      size="small"
+      label={type === 'agent' ? 'agent' : 'human'}
+      color={type === 'agent' ? 'secondary' : 'default'}
+    />{' '}
+    {name ?? '-'}
+  </>
+);
+
+const Rows = ({
+  columns,
+  empty,
+  children,
+}: {
+  columns: string[];
+  empty: string;
+  children: ReactNode[];
+}) =>
+  children.length === 0 ? (
+    <Typography color="textSecondary">{empty}</Typography>
+  ) : (
+    <Table size="small">
+      <TableHead>
+        <TableRow>
+          {columns.map(c => (
+            <TableCell key={c}>{c}</TableCell>
+          ))}
+        </TableRow>
+      </TableHead>
+      <TableBody>{children}</TableBody>
+    </Table>
+  );
 
 const Tile = ({ value, label }: { value: string | number; label: string }) => (
   <Grid item xs={6} md={2}>
@@ -113,7 +165,9 @@ export const AiPlatformPage = () => {
     return <Progress />;
   }
 
-  const { metrics: m, approvals, activity } = overview.value;
+  const { metrics: m, environments, apps, approvals, activity } = overview.value;
+  const costs = Object.entries(m.cost_by_team).sort((a, b) => b[1] - a[1]);
+  const maxCost = Math.max(...costs.map(([, cost]) => cost), 0.01);
   const pending = approvals.filter(a => a.status === 'pending');
   const decided = approvals.filter(a => a.status !== 'pending').slice(0, 5);
   const pass = m.agent_first_time_pass_rate === null ? '-' : `${m.agent_first_time_pass_rate}%`;
@@ -166,6 +220,83 @@ export const AiPlatformPage = () => {
                 <Typography variant="body2" color={a.warning ? 'error' : 'textPrimary'}>
                   {a.message}
                 </Typography>
+              </Box>
+            ))}
+          </InfoCard>
+        </Grid>
+        <Grid item xs={12}>
+          <InfoCard title="Environments">
+            <Rows
+              columns={[
+                'Name',
+                'Team',
+                'Size',
+                'Requested by',
+                'Approved by',
+                '€/day',
+                'Expires',
+                'Status',
+              ]}
+              empty="No environments."
+            >
+              {environments.map(e => (
+                <TableRow key={e.name}>
+                  <TableCell>
+                    <b>{e.name}</b>
+                    <Typography variant="body2" color="textSecondary">
+                      {e.purpose}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>{e.team}</TableCell>
+                  <TableCell>{e.size}</TableCell>
+                  <TableCell>
+                    <Requester type={e.requester_type} name={e.requested_by} />
+                  </TableCell>
+                  <TableCell>{e.approved_by ?? '-'}</TableCell>
+                  <TableCell>{e.estimated_daily_cost_eur.toFixed(2)}</TableCell>
+                  <TableCell>{until(e.expires_at)}</TableCell>
+                  <TableCell>{e.ready ? 'Ready' : 'Creating'}</TableCell>
+                </TableRow>
+              ))}
+            </Rows>
+          </InfoCard>
+        </Grid>
+        <Grid item xs={12} md={8}>
+          <InfoCard title="Services">
+            <Rows
+              columns={['Service', 'Environment', 'Requested by', 'Status']}
+              empty="No services."
+            >
+              {apps.map(a => (
+                <TableRow key={`${a.namespace}/${a.name}`}>
+                  <TableCell>
+                    <b>{a.name}</b>
+                    <Typography variant="body2" color="textSecondary">
+                      {a.image || 'Waiting for the first image'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>{a.namespace}</TableCell>
+                  <TableCell>
+                    <Requester type={a.requester_type} name={a.requested_by} />
+                  </TableCell>
+                  <TableCell>{a.ready ? 'Running' : 'Starting'}</TableCell>
+                </TableRow>
+              ))}
+            </Rows>
+          </InfoCard>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <InfoCard title="Estimated cost per team (EUR/day)">
+            {costs.length === 0 && <Typography color="textSecondary">Nothing running.</Typography>}
+            {costs.map(([team, cost]) => (
+              <Box key={team} mb={2}>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">{team}</Typography>
+                  <Typography variant="body2">
+                    <b>€{cost.toFixed(2)}</b>
+                  </Typography>
+                </Box>
+                <LinearProgress variant="determinate" value={(cost / maxCost) * 100} />
               </Box>
             ))}
           </InfoCard>

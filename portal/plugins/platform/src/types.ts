@@ -39,4 +39,32 @@ export type Metrics = {
   cost_by_team: Record<string, number>;
 };
 
-export type Overview = { metrics: Metrics; approvals: Approval[]; activity: Activity[] };
+export type Environment = {
+  name: string;
+  team: string;
+  size: string;
+  purpose?: string;
+  ready: boolean;
+  estimated_daily_cost_eur: number;
+  requested_by?: string;
+  requester_type?: string;
+  approved_by?: string;
+  expires_at: string;
+};
+
+export type App = {
+  name: string;
+  namespace: string;
+  image?: string;
+  ready: boolean;
+  requested_by?: string;
+  requester_type?: string;
+};
+
+export type Overview = {
+  metrics: Metrics;
+  environments: Environment[];
+  apps: App[];
+  approvals: Approval[];
+  activity: Activity[];
+};

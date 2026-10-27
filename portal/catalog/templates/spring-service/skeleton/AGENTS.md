@@ -61,11 +61,30 @@ dependency for something the stack already does.
 - Configuration comes from the environment; never commit secrets.
 - No unrelated refactoring in a feature change.
 
+## Delivery (pipeline and GitOps)
+
+A push to `main` is a deployment. The platform pipeline
+(`.gitea/workflows/deliver.yaml`) runs the unit tests and architecture rules,
+builds the image with Jib and writes it into `deploy/app.yaml`; Argo CD then
+applies `deploy/` to the environment. You do not build images, call
+`kubectl apply` or deploy by hand.
+
+- `deploy/app.yaml`: how the service runs (new-service Golden Path). Leave
+  `spec.image` to the pipeline.
+- `deploy/database.yaml`: its PostgreSQL (postgres-database capability). The
+  connection reaches the service as `SPRING_DATASOURCE_*` variables.
+- Follow a deployment with the platform MCP server: `get_service_status`
+  says whether the pipeline, Argo CD and the service are done, and shows the
+  logs when the service does not start.
+- Try it from a laptop with `kubectl -n env-<environment> port-forward
+  svc/${{ values.name }} 8080:80` and `curl http://localhost:8080/...`.
+
 ## Before you finish
 
 Run `./mvnw verify`. It runs the unit tests, the architecture rules in
 `src/test/java/**/architecture/ArchitectureTest.java` and the integration
-tests (Testcontainers needs Docker). CI runs the same command.
+tests (Testcontainers needs Docker). The pipeline runs the same command,
+without the integration tests. Then commit and push to `main` to deploy.
 
 Never weaken, skip or delete an architecture rule to make a change pass. If
 a rule cannot be met, stop and tell the user: the options are to change the

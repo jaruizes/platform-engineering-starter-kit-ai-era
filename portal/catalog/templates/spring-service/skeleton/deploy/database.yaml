@@ -1,0 +1,15 @@
+{% if values.environment -%}
+# The service's PostgreSQL, from the postgres-database capability. Its
+# connection reaches the service through the database field of deploy/app.yaml.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: ${{ values.name }}-db
+  namespace: env-${{ values.environment }}
+  annotations:
+    platform.starterkit.dev/service-created-by: ${{ values.requestedBy }}
+spec:
+  size: small
+{% else -%}
+# Not deployed: see app.yaml.
+{% endif -%}

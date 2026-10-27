@@ -3,6 +3,7 @@
 #   8081 -> platform MCP server (for AI agents)
 #   7007 -> developer portal (Backstage)
 #   3000 -> Git server (Gitea) for the repositories the portal creates
+#   8082 -> Argo CD (GitOps for those repositories)
 apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
@@ -17,6 +18,8 @@ ports:
   - port: 7007:30007
     nodeFilters: [loadbalancer]
   - port: 3000:30300
+    nodeFilters: [loadbalancer]
+  - port: 8082:30082
     nodeFilters: [loadbalancer]
 options:
   k3s:

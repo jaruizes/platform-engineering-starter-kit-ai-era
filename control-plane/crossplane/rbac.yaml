@@ -16,8 +16,9 @@ rules:
   - apiGroups: [rbac.authorization.k8s.io]
     resources: [rolebindings]
     verbs: ["*"]
-  # Needed to grant the "edit" role to teams in their environments.
+  # Needed to grant the "edit" role to teams in their environments, and to
+  # let the platform MCP server see how the services there are doing.
   - apiGroups: [rbac.authorization.k8s.io]
     resources: [clusterroles]
     verbs: [bind]
-    resourceNames: [edit]
+    resourceNames: [edit, "platform:services:observer"]

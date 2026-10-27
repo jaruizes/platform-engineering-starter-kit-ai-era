@@ -16,6 +16,13 @@ template, following the
 Integration tests start PostgreSQL with Testcontainers, so Docker must be
 running.
 
+## Delivery
+
+Every push to `main` runs the pipeline in `.gitea/workflows/deliver.yaml`
+(tests, architecture rules and an image built with Jib) and deploys it with
+GitOps: the pipeline writes the image into `deploy/app.yaml` and Argo CD
+(http://localhost:8082) applies `deploy/` to the environment.
+
 ## Structure
 
 `${{ values.rootPackage }}.${{ values.module }}` is the first functional module,

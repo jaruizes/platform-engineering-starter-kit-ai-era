@@ -1,0 +1,91 @@
+# GitOps for the services: every repository of the "platform" organization
+# with a deploy/ folder gets an Argo CD application that applies that folder.
+# The pipeline of the repository writes the image it builds into
+# deploy/app.yaml, so a push to main ends up running in the environment.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: services
+  namespace: argocd
+spec:
+  description: Service repositories, delivered into ephemeral environments only.
+  sourceRepos:
+    - http://gitea.platform-system.svc:3000/platform/*
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: env-*
+  # Only Golden Paths and capabilities: the platform decides how they run.
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: platform.starterkit.dev
+      kind: "*"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: services
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - scmProvider:
+        requeueAfterSeconds: 20
+        gitea:
+          owner: platform
+          api: http://gitea.platform-system.svc:3000
+          insecure: true
+        filters:
+          - pathsExist: [deploy]
+  template:
+    metadata:
+      name: "{{ .repository }}"
+      # Deleting the repository deletes what it deployed.
+      finalizers: [resources-finalizer.argocd.argoproj.io]
+    spec:
+      project: services
+      source:
+        repoURL: "http://gitea.platform-system.svc:3000/platform/{{ .repository }}.git"
+        targetRevision: "{{ .branch }}"
+        path: deploy
+      # Every manifest in deploy/ names its environment's namespace. Argo CD
+      # still needs a destination namespace allowed by the project, so it
+      # gets one that is never created: a manifest without a namespace fails.
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: env-namespace-not-set
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          limit: 10
+          backoff:
+            duration: 15s
+            maxDuration: 2m
+---
+# The platform MCP server reads the applications to tell agents how a
+# deployment is going.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-mcp-observer
+  namespace: argocd
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [applications]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-mcp-observer
+  namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform-mcp-observer
+subjects:
+  - kind: ServiceAccount
+    name: platform-mcp
+    namespace: platform-system
