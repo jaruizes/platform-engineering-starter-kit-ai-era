@@ -226,8 +226,13 @@ if [[ "$PORTAL" == "true" || "$DELIVERY" == "true" ]]; then
 
     step "Installing Argo CD (chart $ARGOCD_CHART_VERSION): GitOps for the service repositories"
     helm upgrade --install argocd "$ARGOCD_CHART" --version "$ARGOCD_CHART_VERSION" \
-      --namespace argocd --create-namespace --wait \
-      -f "$ROOT/delivery/argocd/values.yaml" ${ARGOCD_HELM_ARGS:-}
+      --namespace argocd --create-namespace --wait --timeout 10m \
+      -f "$ROOT/delivery/argocd/values.yaml" ${ARGOCD_HELM_ARGS:-} || {
+      echo "Argo CD did not start. This is what the cluster says:"
+      kubectl -n argocd get pods -o wide || true
+      kubectl -n argocd get events --sort-by=.lastTimestamp | tail -30 || true
+      exit 1
+    }
     kubectl apply -f "$ROOT/delivery/argocd/services.yaml"
   fi
   if [[ -n "$forward" ]]; then kill "$forward" 2>/dev/null || true; unset GIT_URL; fi

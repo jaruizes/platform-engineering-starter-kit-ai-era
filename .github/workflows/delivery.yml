@@ -44,3 +44,9 @@ jobs:
         run: PORTAL=false make up
       - name: Deliver a service end to end
         run: delivery/tests/e2e.sh
+      - name: Show the state of the cluster
+        if: failure()
+        run: |
+          kubectl get pods -A -o wide
+          kubectl get events -A --sort-by=.lastTimestamp | tail -60
+          kubectl -n argocd get applications -o wide || true
