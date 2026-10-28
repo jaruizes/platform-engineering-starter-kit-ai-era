@@ -1,0 +1,49 @@
+name: Repository structure and unit tests
+on:
+  pull_request:
+  push:
+    branches: [main, refactor/repository-structure]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check repository structure and client adapters
+        run: python3 bootstrap/check-repository.py
+      - name: Install unit test dependencies
+        run: |
+          pip install -e 'interfaces/mcp[test]' -r platform/capabilities/requirements.txt
+      - name: Run unit tests
+        run: make test
+      - name: Validate capability contracts
+        run: python3 platform/capabilities/tools/capctl.py validate
+  portal:
+    name: Backstage tests and Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test Backstage integration
+        working-directory: interfaces/portal
+        run: |
+          corepack enable
+          yarn install --immutable
+          yarn test --watch=false
+      - uses: docker/setup-buildx-action@v3
+      - name: Build portal with standards, capability docs and branding
+        run: |
+          docker buildx build --load -t platform-starter-kit/portal:refactor \
+            --build-context standards=./engineering/standards \
+            --build-context capabilities=./platform/capabilities \
+            --build-context branding=./interfaces/portal/branding ./interfaces/portal
+      - name: Build MCP server and delivery runner
+        run: |
+          docker build -t platform-starter-kit/platform-mcp:refactor ./interfaces/mcp
+          docker build -t platform-starter-kit/ci-runner:refactor ./platform/delivery/runner

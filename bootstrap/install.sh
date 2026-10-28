@@ -45,7 +45,7 @@ DELIVERY="${DELIVERY:-true}"
 ARGOCD_CHART="${ARGOCD_CHART:-argo/argo-cd}"
 SERVICE_IMAGE_REPOSITORY="${SERVICE_IMAGE_REPOSITORY:-}"
 JIB_FLAGS="${JIB_FLAGS:-}"
-BRANDING_DIR="${BRANDING_DIR:-$ROOT/portal/branding}"
+BRANDING_DIR="${BRANDING_DIR:-$ROOT/interfaces/portal/branding}"
 PUBLIC_HOST="${PUBLIC_HOST:-localhost}"
 PUBLIC_SCHEME="${PUBLIC_SCHEME:-http}"
 IMAGE_REGISTRY="${IMAGE_REGISTRY:-}"
@@ -83,22 +83,22 @@ helm upgrade --install kyverno "$KYVERNO_CHART" --version "$KYVERNO_CHART_VERSIO
   --set admissionController.crdWatcher=true ${KYVERNO_HELM_ARGS:-}
 
 step "Installing composition functions"
-kubectl apply -f "$ROOT/control-plane/crossplane/rbac.yaml"
+kubectl apply -f "$ROOT/platform/control-plane/crossplane/rbac.yaml"
 sed -e "s|xpkg.crossplane.io|$FUNCTION_REGISTRY|" \
     -e "s|\${FUNCTION_GO_TEMPLATING_VERSION}|$FUNCTION_GO_TEMPLATING_VERSION|" \
-    "$ROOT/control-plane/crossplane/functions.yaml" | kubectl apply -f -
+    "$ROOT/platform/control-plane/crossplane/functions.yaml" | kubectl apply -f -
 kubectl wait function.pkg.crossplane.io --all --for=condition=Healthy --timeout=300s
 
 step "Installing Golden Paths"
-kubectl apply -f "$ROOT/golden-paths/environment/definition.yaml" -f "$ROOT/golden-paths/app/definition.yaml"
+kubectl apply -f "$ROOT/engineering/golden-paths/environment/definition.yaml" -f "$ROOT/engineering/golden-paths/app/definition.yaml"
 kubectl wait xrd --all --for=condition=Established --timeout=120s
-kubectl apply -f "$ROOT/golden-paths/environment/composition.yaml" -f "$ROOT/golden-paths/app/composition.yaml"
+kubectl apply -f "$ROOT/engineering/golden-paths/environment/composition.yaml" -f "$ROOT/engineering/golden-paths/app/composition.yaml"
 
 step "Installing guardrails (policies for humans and agents)"
-kubectl apply -f "$ROOT/policies/"
+kubectl apply -f "$ROOT/platform/governance/"
 
-step "Installing platform capabilities (capabilities/)"
-"$ROOT/capabilities/tools/install.sh"
+step "Installing platform capabilities (platform/capabilities/)"
+"$ROOT/platform/capabilities/tools/install.sh"
 
 # Builds an image and makes it available to the cluster: pushed to
 # IMAGE_REGISTRY, or imported into k3d. No provenance attestations: with
@@ -163,7 +163,7 @@ diagnose() {
 }
 
 step "Creating the tokens of the MCP servers"
-kubectl apply -f "$ROOT/mcp-server/deploy/00-namespace.yaml"
+kubectl apply -f "$ROOT/interfaces/mcp/deploy/00-namespace.yaml"
 secret portal-mcp-token --from-literal=token="$PORTAL_MCP_TOKEN"
 secret platform-mcp-portal-token --from-literal=token="$PLATFORM_MCP_PORTAL_TOKEN"
 secret platform-mcp-token --from-literal=token="$PLATFORM_MCP_TOKEN"
@@ -185,14 +185,14 @@ if [[ -n "$PLATFORM_CA_FILE" ]]; then
 fi
 
 step "Building and deploying the platform MCP server and console"
-IMAGE="$(load_image "$MCP_IMAGE" "$ROOT/mcp-server" "${MCP_BUILD_ARGS:-}")"
-deploy "$ROOT/mcp-server/deploy" platform-starter-kit/platform-mcp:dev "$IMAGE"
+IMAGE="$(load_image "$MCP_IMAGE" "$ROOT/interfaces/mcp" "${MCP_BUILD_ARGS:-}")"
+deploy "$ROOT/interfaces/mcp/deploy" platform-starter-kit/platform-mcp:dev "$IMAGE"
 kubectl -n platform-system rollout status deployment/platform-mcp --timeout=180s || diagnose platform-mcp
 kubectl -n platform-system rollout status deployment/platform-console --timeout=180s || diagnose platform-console
 
 if [[ "$PORTAL" == "true" || "$DELIVERY" == "true" ]]; then
   step "Deploying the Git server (Gitea): service repositories, their pipelines and the platform repository"
-  publish < "$ROOT/git-server/gitea.yaml" | kubectl apply -f -
+  publish < "$ROOT/platform/delivery/git-server/gitea.yaml" | kubectl apply -f -
   kubectl -n platform-system rollout status deployment/gitea --timeout=180s || diagnose gitea
   # Off localhost, this script reaches the Git server through a port-forward.
   forward=""
@@ -203,37 +203,37 @@ if [[ "$PORTAL" == "true" || "$DELIVERY" == "true" ]]; then
     sleep 2
   fi
   # Where the portal proposes new capabilities as pull requests.
-  "$ROOT/git-server/seed-platform-repo.sh"
+  "$ROOT/platform/delivery/git-server/seed-platform-repo.sh"
   # The account people and agents push service changes with.
-  "$ROOT/git-server/create-developer.sh"
+  "$ROOT/platform/delivery/git-server/create-developer.sh"
 
   if [[ "$DELIVERY" == "true" ]]; then
     step "Installing the delivery pipeline: Gitea Actions runner and service image registry"
     if [[ -z "$SERVICE_IMAGE_REPOSITORY" ]]; then
-      kubectl apply -f "$ROOT/delivery/registry.yaml"
+      kubectl apply -f "$ROOT/platform/delivery/registry.yaml"
       kubectl -n platform-system rollout status deployment/service-images --timeout=120s || diagnose service-images
       SERVICE_IMAGE_REPOSITORY=10.43.0.200:5000/services
       JIB_FLAGS="${JIB_FLAGS:--Djib.allowInsecureRegistries=true}"
     fi
     # What the pipelines of every service repository read (vars.* in .gitea/workflows).
-    "$ROOT/delivery/set-pipeline-variables.sh" \
+    "$ROOT/platform/delivery/set-pipeline-variables.sh" \
       PLATFORM_GIT_HOST=gitea.platform-system.svc:3000 \
       SERVICE_IMAGE_REPOSITORY="$SERVICE_IMAGE_REPOSITORY" \
       JIB_FLAGS="$JIB_FLAGS"
-    IMAGE="$(load_image "$RUNNER_IMAGE" "$ROOT/delivery/runner" "${RUNNER_BUILD_ARGS:-}")"
-    deploy "$ROOT/delivery/deploy" platform-starter-kit/ci-runner:dev "$IMAGE"
+    IMAGE="$(load_image "$RUNNER_IMAGE" "$ROOT/platform/delivery/runner" "${RUNNER_BUILD_ARGS:-}")"
+    deploy "$ROOT/platform/delivery/deploy" platform-starter-kit/ci-runner:dev "$IMAGE"
     kubectl -n platform-system rollout status deployment/platform-ci-runner --timeout=180s || diagnose platform-ci-runner
 
     step "Installing Argo CD (chart $ARGOCD_CHART_VERSION): GitOps for the service repositories"
     helm upgrade --install argocd "$ARGOCD_CHART" --version "$ARGOCD_CHART_VERSION" \
       --namespace argocd --create-namespace --wait --timeout 10m \
-      -f "$ROOT/delivery/argocd/values.yaml" ${ARGOCD_HELM_ARGS:-} || {
+      -f "$ROOT/platform/delivery/argocd/values.yaml" ${ARGOCD_HELM_ARGS:-} || {
       echo "Argo CD did not start. This is what the cluster says:"
       kubectl -n argocd get pods -o wide || true
       kubectl -n argocd get events --sort-by=.lastTimestamp | tail -30 || true
       exit 1
     }
-    kubectl apply -f "$ROOT/delivery/argocd/services.yaml"
+    kubectl apply -f "$ROOT/platform/delivery/argocd/services.yaml"
   fi
   if [[ -n "$forward" ]]; then kill "$forward" 2>/dev/null || true; unset GIT_URL; fi
 fi
@@ -243,8 +243,8 @@ if [[ "$PORTAL" == "true" ]]; then
   [[ -f "$BRANDING_DIR/branding.yaml" ]] || { echo "No branding.yaml in BRANDING_DIR=$BRANDING_DIR" >&2; exit 1; }
   BRANDING_DIR="$(cd "$BRANDING_DIR" && pwd)"
   echo "Branding: $BRANDING_DIR"
-  IMAGE="$(load_image "$PORTAL_IMAGE" "$ROOT/portal" "--build-context standards=$ROOT/standards --build-context capabilities=$ROOT/capabilities --build-context branding=$BRANDING_DIR ${PORTAL_BUILD_ARGS:-}")"
-  deploy "$ROOT/portal/deploy" platform-starter-kit/portal:dev "$IMAGE"
+  IMAGE="$(load_image "$PORTAL_IMAGE" "$ROOT/interfaces/portal" "--build-context standards=$ROOT/engineering/standards --build-context capabilities=$ROOT/platform/capabilities --build-context branding=$BRANDING_DIR ${PORTAL_BUILD_ARGS:-}")"
+  deploy "$ROOT/interfaces/portal/deploy" platform-starter-kit/portal:dev "$IMAGE"
   kubectl -n platform-system rollout status deployment/portal --timeout=300s || diagnose portal
 fi
 

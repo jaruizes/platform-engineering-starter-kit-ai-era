@@ -1,0 +1,136 @@
+# A local Git server (Gitea) so the Spring service template can create real
+# repositories without a GitHub account, with pipelines (Gitea Actions). The
+# portal publishes to the "platform" organization; open http://localhost:3000
+# to browse it.
+# The admin credentials are in the gitea-admin secret, which make up creates
+# with a random password the first time.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitea-data
+  namespace: platform-system
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/name: gitea
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gitea
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gitea
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gitea
+          image: gitea/gitea:1.27.3-rootless
+          env:
+            - name: GITEA__security__INSTALL_LOCK
+              value: "true"
+            - name: GITEA__server__ROOT_URL
+              value: http://localhost:3000/
+            - name: GITEA__server__DOMAIN
+              value: localhost
+            - name: GITEA__server__HTTP_PORT
+              value: "3000"
+            - name: GITEA__server__DISABLE_SSH
+              value: "true"
+            - name: GITEA__database__DB_TYPE
+              value: sqlite3
+            - name: GITEA__service__DISABLE_REGISTRATION
+              value: "true"
+            - name: GITEA__service__REQUIRE_SIGNIN_VIEW
+              value: "false"
+            - name: GITEA__repository__DEFAULT_BRANCH
+              value: main
+            # Pipelines (Gitea Actions) for the service repositories. The
+            # runner registers with this token (platform/delivery/deploy/runner.yaml).
+            - name: GITEA__actions__ENABLED
+              value: "true"
+            - name: GITEA_RUNNER_REGISTRATION_TOKEN
+              valueFrom:
+                secretKeyRef: {name: gitea-runner-token, key: token, optional: true}
+            - name: ADMIN_USER
+              valueFrom:
+                secretKeyRef: {name: gitea-admin, key: username}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: gitea-admin, key: password}
+          lifecycle:
+            # Creates the admin user and the "platform" organization on first start.
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - |
+                    for i in $(seq 1 60); do wget -q -O /dev/null http://127.0.0.1:3000/api/healthz && break; sleep 2; done
+                    gitea admin user create --admin --username "$ADMIN_USER" --password "$ADMIN_PASSWORD" \
+                      --email "$ADMIN_USER@starterkit.local" --must-change-password=false >/dev/null 2>&1 || true
+                    AUTH=$(printf '%s:%s' "$ADMIN_USER" "$ADMIN_PASSWORD" | base64)
+                    wget -q -O /dev/null --header "Authorization: Basic $AUTH" --header 'Content-Type: application/json' \
+                      --post-data '{"username":"platform","full_name":"Platform","visibility":"public"}' \
+                      http://127.0.0.1:3000/api/v1/orgs 2>/dev/null || true
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/gitea
+            - name: config
+              mountPath: /etc/gitea
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: gitea-data
+        - name: config
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitea
+  namespace: platform-system
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: gitea
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      nodePort: 30300
