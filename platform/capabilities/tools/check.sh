@@ -46,7 +46,7 @@ if [[ "$E2E" == "true" ]]; then
     step "Installing $NAME in the cluster"
     "$ROOT/platform/capabilities/tools/install.sh" "$NAME" || failed=1
     step "Acceptance tests, as a person and as an agent"
-    python3 -m pytest "$FOLDER/tests/e2e" -v --rootdir "$ROOT/capabilities" -p no:cacheprovider \
+    python3 -m pytest "$FOLDER/tests/e2e" -v --rootdir "$ROOT/platform/capabilities" -p no:cacheprovider \
       --junitxml "$OUT/e2e.xml" || failed=1
     junit=(--junit "$OUT/e2e.xml")
   else
