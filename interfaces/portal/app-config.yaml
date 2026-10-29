@@ -87,7 +87,7 @@ mcpActions:
       description: >-
         Read-only context about the Internal Developer Platform: catalog, live
         Kubernetes status, search, team usage, agent requests waiting for a
-        human and the engineering standards services must follow.
+        human, engineering standards and commit-linked service quality status.
       instructions: >-
         Use these tools to understand the platform before acting: who owns a
         service, which environments a team has and how many slots are free,
@@ -97,8 +97,9 @@ mcpActions:
         read the engineering standards: several architectures and versions
         coexist, so call get-standards-for-entity for the service you are
         changing, read what it returns with get-engineering-standard, and
-        filter search-engineering-standards by that architecture. Never try
-        to approve requests: only people can.
+        filter search-engineering-standards by that architecture. Read service
+        quality evidence with get_quality_status. Never try to approve
+        requests: only people can.
       filter:
         include:
           - attributes:
@@ -184,6 +185,8 @@ kubernetes:
 
 platform:
   consoleUrl: http://platform-console.platform-system.svc:8080
+  quality:
+    gitUrl: http://gitea.platform-system.svc:3000
   # The engineering standards served to agents: architectures.yaml (the
   # architectures and versions that coexist) and the Markdown in docs/.
   standardsDir: ./standards

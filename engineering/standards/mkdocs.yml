@@ -23,5 +23,6 @@ nav:
       - Technology policy: common/technology-policy.md
       - Development rules: common/development-rules.md
       - Testing: common/testing.md
+      - Quality governance: common/quality-governance.md
 plugins:
   - techdocs-core

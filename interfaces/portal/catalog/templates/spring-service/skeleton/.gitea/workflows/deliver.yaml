@@ -7,7 +7,7 @@ name: deliver
 on:
   push:
     branches: [main]
-    paths-ignore: ["deploy/**"]
+    paths-ignore: ["deploy/**", ".platform/quality/results.json"]
 jobs:
   deliver:
     runs-on: platform
@@ -25,6 +25,36 @@ jobs:
       - name: Unit tests and architecture rules
         run: ./mvnw -B -ntp verify -DskipITs
 
+      - name: Optional SonarQube analysis
+        env:
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "$SONAR_HOST_URL" ]; then
+            ./mvnw -B -ntp org.sonarsource.scanner.maven:sonar-maven-plugin:5.1.0.4751:sonar -Dsonar.host.url="$SONAR_HOST_URL" -Dsonar.token="$SONAR_TOKEN" \
+              || echo "SonarQube analysis did not complete; deterministic quality policy remains authoritative."
+          else
+            echo "SonarQube is not configured; deterministic platform gate remains authoritative."
+          fi
+
+      - name: Deterministic quality gate
+        if: always()
+        run: python3 .platform/quality/gate.py --architecture backend-spring-v2
+
+      - name: Publish commit-linked quality evidence
+        if: always()
+        run: |
+          if [ ! -f .platform/quality/results.json ]; then
+            echo "No quality evidence was generated."
+            exit 0
+          fi
+          git config user.name "Platform quality gate"
+          git config user.email quality@starterkit.local
+          git checkout -B platform-quality-evidence
+          git add .platform/quality/results.json
+          git commit -m "Quality evidence for $GITHUB_SHA"
+          git push --force origin HEAD:platform-quality-evidence
+
       - name: Build and push the image
         run: |
           IMAGE="${{ vars.SERVICE_IMAGE_REPOSITORY }}:${GITHUB_REPOSITORY#*/}-${GITHUB_SHA:0:12}"
@@ -33,12 +63,16 @@ jobs:
 
       - name: Deploy (GitOps)
         run: |
-          if ! grep -q '^  image:' deploy/app.yaml; then
+          if grep -q '^  image:' deploy/app.yaml; then
+            sed -i "s|^  image:.*|  image: $IMAGE|" deploy/app.yaml
+          else
             echo "deploy/app.yaml has no environment: the image is built but not deployed."
-            exit 0
           fi
-          sed -i "s|^  image:.*|  image: $IMAGE|" deploy/app.yaml
           git -c user.name="Platform pipeline" -c user.email=pipeline@starterkit.local \
-            commit -qam "Deploy $IMAGE"
-          git push -q origin HEAD:main
-          echo "Deployed $IMAGE: Argo CD applies it to the environment."
+            add deploy/app.yaml
+          if ! git diff --cached --quiet; then
+            git -c user.name="Platform pipeline" -c user.email=pipeline@starterkit.local \
+              commit -m "Deploy $IMAGE after quality gate for $GITHUB_SHA"
+            git push -q origin HEAD:main
+            echo "Deployed $IMAGE: Argo CD applies it to the environment."
+          fi

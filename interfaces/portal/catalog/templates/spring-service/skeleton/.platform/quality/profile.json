@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "profile": "backend-spring-v2",
+  "architecture": "backend-spring-v2",
+  "version": 1,
+  "blocking": ["junit", "archunit", "coverage-report"],
+  "minimumLineCoveragePercent": 0
+}

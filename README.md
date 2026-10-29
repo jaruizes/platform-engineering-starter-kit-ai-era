@@ -6,7 +6,7 @@ This is the second generation of the [Platform Engineering Starter Kit](https://
 
 This kit turns that idea into something you can run.
 
-> **Status: work in progress.** The local demo works today: two Golden Paths, a developer portal (Backstage) for humans and agents, the platform MCP server, guardrails for humans and agents, human approvals and AI-era metrics. The rest of this README describes the target design; the [roadmap](#roadmap) shows what is available.
+> **Status: work in progress.** The local demo works today: two Golden Paths, a developer portal (Backstage) for humans and agents, the platform MCP server, guardrails for humans and agents, human approvals, AI-era metrics and a deterministic quality gate for Spring v2 services. The rest of this README describes the target design; the [roadmap](#roadmap) shows what is available.
 
 ---
 
@@ -198,12 +198,14 @@ What is available today:
 │   ├── control-plane/         # Crossplane functions and permissions
 │   ├── capabilities/          # definitions, compositions, policies and checks
 │   ├── governance/            # shared identity and guardrail policies
-│   └── delivery/              # Argo CD, runner, registry and local Git server
+│   ├── delivery/              # Argo CD, runner, registry and local Git server
+│   └── quality/               # optional SonarQube module, gate and demo
 ├── interfaces/
 │   ├── portal/                # Backstage catalog, templates, context and TechDocs
 │   └── mcp/                   # platform MCP server, console and scripted agent
 ├── engineering/
 │   ├── standards/             # shared engineering contracts and documentation
+│   ├── quality/               # architecture-specific quality profiles and gate
 │   └── golden-paths/          # Environment and App platform APIs
 ├── agents/
 │   ├── skills/                # one canonical skill library
@@ -280,6 +282,7 @@ Only your public IP can reach it. See [bootstrap/aws](bootstrap/aws/README.md) f
 - [x] **Engineering standards:** TechDocs and AI rules from one source, a Spring service template with ArchUnit checks and `AGENTS.md`, and `create_service` for agents
 - [x] **Platform capabilities:** a definition schema, a portal form that proposes them as pull requests, an agent skill that builds them, checks with a traceability matrix, and a PostgreSQL database as the first one
 - [x] **Delivery:** a pipeline per service (Gitea Actions, Jib) and GitOps with Argo CD, so an agent can implement a spec, deploy it and call it
+- [x] **Software quality & governance:** versioned Spring v2 quality profile, blocking JUnit/ArchUnit/JaCoCo gate before GitOps, commit-linked findings, read-only MCP status, Backstage service card and shared agent skill. Optional SonarQube demo: `SONARQUBE=true make up` (or `make sonar-up` after setup).
 - [ ] **GitOps:** Argo CD for the platform itself
 - [ ] **Assess:** pulse check, DevEx survey and baseline scripts
 - [ ] **AWS:** the platform on EKS with OpenTofu (done); next, login with Keycloak, and RDS and EKS compositions

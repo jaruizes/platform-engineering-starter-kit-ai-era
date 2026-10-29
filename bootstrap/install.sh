@@ -27,6 +27,7 @@
 #   PORTAL=false                skips the portal.
 #   DELIVERY=false              skips the pipelines and Argo CD.
 #                               With both, the Git server is skipped too.
+#   SONARQUBE=true              installs the optional SonarQube demo module.
 #   BRANDING_DIR                logos, title and texts of the portal.
 set -euo pipefail
 
@@ -42,6 +43,7 @@ PORTAL_IMAGE="${PORTAL_IMAGE:-platform-starter-kit/portal:dev}"
 RUNNER_IMAGE="${RUNNER_IMAGE:-platform-starter-kit/ci-runner:dev}"
 PORTAL="${PORTAL:-true}"
 DELIVERY="${DELIVERY:-true}"
+SONARQUBE="${SONARQUBE:-false}"
 ARGOCD_CHART="${ARGOCD_CHART:-argo/argo-cd}"
 SERVICE_IMAGE_REPOSITORY="${SERVICE_IMAGE_REPOSITORY:-}"
 JIB_FLAGS="${JIB_FLAGS:-}"
@@ -99,6 +101,11 @@ kubectl apply -f "$ROOT/platform/governance/"
 
 step "Installing platform capabilities (platform/capabilities/)"
 "$ROOT/platform/capabilities/tools/install.sh"
+
+if [[ "$SONARQUBE" == "true" ]]; then
+  step "Installing optional SonarQube demo module"
+  kubectl apply -f "$ROOT/platform/quality/sonarqube.yaml"
+fi
 
 # Builds an image and makes it available to the cluster: pushed to
 # IMAGE_REGISTRY, or imported into k3d. No provenance attestations: with
@@ -256,6 +263,7 @@ cat <<MSG
   Portal MCP server (context):        $(public_url 7007)/api/mcp-actions/v1/context
   Git server (repositories):          $(public_url 3000) (read-only without signing in)
   Argo CD (GitOps, read-only):        $(public_url 8082)
+  SonarQube (optional):                enable with SONARQUBE=true, then kubectl port-forward -n quality svc/sonarqube 9000:9000
   Platform repository (capabilities): $(public_url 3000)/platform/platform-starter-kit
 
   Push to the service repositories as "developer"; its password:

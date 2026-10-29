@@ -64,10 +64,12 @@ dependency for something the stack already does.
 ## Delivery (pipeline and GitOps)
 
 A push to `main` is a deployment. The platform pipeline
-(`.gitea/workflows/deliver.yaml`) runs the unit tests and architecture rules,
-builds the image with Jib and writes it into `deploy/app.yaml`; Argo CD then
-applies `deploy/` to the environment. You do not build images, call
-`kubectl apply` or deploy by hand.
+(`.gitea/workflows/deliver.yaml`) runs JUnit and ArchUnit, the deterministic
+quality profile gate, and optional SonarQube analysis before it changes
+`deploy/app.yaml`. Passing evidence is stored in
+`.platform/quality/results.json` and names the source commit and profile
+version; Argo CD then applies `deploy/` to the environment. You do not build
+images, call `kubectl apply` or deploy by hand.
 
 - `deploy/app.yaml`: how the service runs (new-service Golden Path). Leave
   `spec.image` to the pipeline.
@@ -81,10 +83,13 @@ applies `deploy/` to the environment. You do not build images, call
 
 ## Before you finish
 
-Run `./mvnw verify`. It runs the unit tests, the architecture rules in
-`src/test/java/**/architecture/ArchitectureTest.java` and the integration
-tests (Testcontainers needs Docker). The pipeline runs the same command,
-without the integration tests. Then commit and push to `main` to deploy.
+Run `./mvnw -B -ntp verify -DskipITs`, then
+`python3 .platform/quality/gate.py --architecture backend-spring-v2`. It runs
+JUnit and the architecture rules in
+`src/test/java/**/architecture/ArchitectureTest.java`, and checks the
+JaCoCo report. For integration tests, run `./mvnw verify` (Testcontainers
+needs Docker). Read the platform's `software-quality-governance` skill when
+the gate reports findings.
 
 Never weaken, skip or delete an architecture rule to make a change pass. If
 a rule cannot be met, stop and tell the user: the options are to change the

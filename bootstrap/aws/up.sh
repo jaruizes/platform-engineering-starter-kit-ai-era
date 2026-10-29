@@ -100,6 +100,7 @@ export IMAGE_REGISTRY="$registry/$(out image_repository_prefix)" IMAGE_PLATFORM=
 export PLATFORM_CA_FILE="$STATE/ca.pem"
 # The pipelines push the service images to ECR, with the runner's Pod Identity role.
 export SERVICE_IMAGE_REPOSITORY="$(out service_image_repository)" JIB_FLAGS="-Djib.to.credHelper=ecr-login"
+export SONARQUBE="${SONARQUBE:-false}"
 "$ROOT/bootstrap/install.sh"
 
 base="https://$PUBLIC_HOST"

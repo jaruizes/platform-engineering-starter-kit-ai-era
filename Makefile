@@ -42,8 +42,21 @@ capabilities: ## List the platform capabilities installed in the cluster
 	@kubectl get xrd -l platform.starterkit.dev/capability \
 	  -L platform.starterkit.dev/capability
 
+sonar-up: ## Install the optional SonarQube demo in the current cluster
+	@kubectl apply -f platform/quality/sonarqube.yaml
+	@kubectl -n quality rollout status deployment/sonarqube --timeout=600s
+	@echo "Run: kubectl -n quality port-forward svc/sonarqube 9000:9000, then open http://localhost:9000 (initial login admin/admin)."
+
+sonar-down: ## Remove the optional SonarQube demo and its data
+	@kubectl delete -f platform/quality/sonarqube.yaml --ignore-not-found
+	@kubectl delete namespace quality --ignore-not-found
+
+demo-quality: ## Demonstrate an ArchUnit violation failing and its correction passing
+	@python3 platform/quality/demo.py
+
 test: ## Run the unit tests of the MCP server, console and capability tools
 	cd interfaces/mcp && $(PYTHON) -m pytest -q tests
 	$(PYTHON) -m pytest -q platform/capabilities/tools/tests
+	$(PYTHON) -m pytest -q platform/quality/tests
 
-.PHONY: help up down aws-up aws-down demo-developer demo-agent demo-reset status capability capabilities test
+.PHONY: help up down aws-up aws-down demo-developer demo-agent demo-reset status capability capabilities sonar-up sonar-down demo-quality test

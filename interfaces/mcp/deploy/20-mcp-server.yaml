@@ -40,6 +40,8 @@ spec:
             # Where the repositories created by create_service are browsed.
             - name: GIT_URL
               value: http://localhost:3000
+            - name: QUALITY_GIT_URL
+              value: http://gitea.platform-system.svc:3000
             # Shown by the scripted agent (make demo-agent).
             - name: CONSOLE_URL
               value: http://localhost:8080

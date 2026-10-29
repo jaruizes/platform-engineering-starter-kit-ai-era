@@ -3,15 +3,18 @@ import { InputError, NotFoundError } from '@backstage/errors';
 import express from 'express';
 import Router from 'express-promise-router';
 import { ConsoleClient } from './console';
+import { readQualityResult } from './quality';
 
 export async function createRouter({
   httpAuth,
   platformConsole,
   displayName,
+  qualityGitUrl,
 }: {
   httpAuth: HttpAuthService;
   platformConsole: ConsoleClient;
   displayName: (userEntityRef: string) => Promise<string>;
+  qualityGitUrl: string;
 }): Promise<express.Router> {
   const router = Router();
   router.use(express.json());
@@ -25,6 +28,18 @@ export async function createRouter({
       approvals: state.approvals,
       activity: state.activity.slice(0, 20),
     });
+  });
+
+  router.get('/quality/:service', async (req, res) => {
+    if (!/^[a-z0-9]([-a-z0-9]{0,38}[a-z0-9])?$/.test(req.params.service)) {
+      throw new InputError('Invalid service name');
+    }
+    const result = await readQualityResult(qualityGitUrl, req.params.service);
+    if (!result) {
+      res.status(404).json({ status: 'unknown', reason: 'No committed quality evidence found.' });
+      return;
+    }
+    res.json(result);
   });
 
   // The approver is the signed-in Backstage user, not a name typed in a form.

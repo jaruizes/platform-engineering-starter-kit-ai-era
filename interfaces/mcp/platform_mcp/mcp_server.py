@@ -15,11 +15,12 @@ from typing import Any
 
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.types import ToolAnnotations
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from . import delivery, platform, portal
+from . import delivery, platform, portal, quality
 from .platform import Denied
 
 NAME_PATTERN = re.compile(r"^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$")
@@ -30,7 +31,8 @@ mcp = MCPServer(
     instructions=(
         "Use this server to get environments and deploy services through the "
         "company's Golden Paths, and capabilities such as databases, instead of writing "
-        "infrastructure code. Start with list_golden_paths. Requests are checked by policy; if one needs human "
+        "infrastructure code. Start with list_golden_paths. Use get_quality_status for read-only, "
+        "commit-linked quality evidence and findings. Requests are checked by policy; if one needs human "
         "approval, tell the user and give them the approval id. When you build a new service, deliver it so "
         "the user can try it: unless they say otherwise, reuse a ready environment of the team or request a "
         "small one for 8 hours, pass it to create_service, and finish with get_service_status."
@@ -61,6 +63,19 @@ def list_golden_paths() -> list[dict[str, Any]]:
     Capabilities (databases and the like) are all requested with request_capability.
     """
     return platform.GOLDEN_PATHS + platform.list_capabilities()
+
+
+@mcp.tool(
+    title="Get service quality status",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
+def get_quality_status(service: str) -> dict[str, Any]:
+    """Reads the latest committed quality gate evidence and findings for a service.
+
+    Args:
+        service: Service repository name, for example orders-service.
+    """
+    return quality.quality_status(service)
 
 
 @mcp.tool(title="Request an environment")
