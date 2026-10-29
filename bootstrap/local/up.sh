@@ -9,7 +9,7 @@ source "$ROOT/bootstrap/local/versions.env"
 
 export CLUSTER_NAME="${CLUSTER_NAME:-platform-starter-kit}"
 # PORTAL=false skips the developer portal (Backstage), whose first build is slow.
-# BRANDING_DIR: the logos, title and texts of the portal (portal/branding/README.md).
+# BRANDING_DIR: the logos, title and texts of the portal (interfaces/portal/branding/README.md).
 # See bootstrap/install.sh for the rest of the settings.
 
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
@@ -40,4 +40,4 @@ kubectl config use-context "k3d-$CLUSTER_NAME" >/dev/null
 "$ROOT/bootstrap/install.sh"
 
 echo
-echo "  Next: follow the demo script in demo/README.md."
+echo "  Next: follow the demo script in examples/scenarios/README.md."

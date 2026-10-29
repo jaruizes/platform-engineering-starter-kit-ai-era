@@ -120,5 +120,5 @@ cat <<MSG
   To clone the repositories of the Git server:
     git config --global http.$base:3000/.sslCAInfo $STATE/ca.pem
 
-  Next: follow the demo script in demo/README.md. When you are done: make aws-down
+  Next: follow the demo script in examples/scenarios/README.md. When you are done: make aws-down
 MSG

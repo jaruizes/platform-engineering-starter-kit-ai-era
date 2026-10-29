@@ -15,8 +15,8 @@ locals {
   azs      = slice(data.aws_availability_zones.available.names, 0, 2)
 
   # The same ports as on a laptop. The load balancer sends each one to the
-  # NodePort of its service (see the manifests in mcp-server/deploy,
-  # git-server and portal/deploy).
+  # NodePort of its service (see the manifests in interfaces/mcp/deploy,
+  # git-server and interfaces/portal/deploy).
   services = {
     portal  = { port = 7007, node_port = 30007, health = "/.backstage/health/v1/readiness" }
     console = { port = 8080, node_port = 30080, health = "/" }

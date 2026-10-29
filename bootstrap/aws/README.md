@@ -50,7 +50,7 @@ At the end it prints the URLs, which are the name AWS gives the load balancer wi
 2. **Connect Claude Code** to the two MCP servers on AWS, with their tokens. They are added with local scope, so they replace the ones of `.mcp.json` in this folder until `make aws-down`. Start Claude Code with `NODE_EXTRA_CA_CERTS=bootstrap/aws/.state/ca.pem claude` so it trusts the CA.
 3. **Let git trust the CA** to clone the repositories the portal and the agents create.
 
-After that, `kubectl` points to the EKS cluster (context `platform-starter-kit-aws`, which needs the same AWS variables in your shell), and the demo is the same as on a laptop: [demo/README.md](../../demo/README.md), with `make demo-developer`, `make demo-agent`, `make demo-reset` and `make status`.
+After that, `kubectl` points to the EKS cluster (context `platform-starter-kit-aws`, which needs the same AWS variables in your shell), and the demo is the same as on a laptop: [examples/scenarios/README.md](../../examples/scenarios/README.md), with `make demo-developer`, `make demo-agent`, `make demo-reset` and `make status`.
 
 ## Delete it
 
@@ -76,5 +76,5 @@ While it is up, about **0.35 USD per hour** in `eu-west-1`: the EKS control plan
 
 - [`main.tf`](main.tf): the VPC (two zones, one NAT gateway), EKS with a managed node group and the EBS CSI driver, ECR, and the load balancer with one HTTPS listener per port, sending traffic to the NodePorts of the services. The load balancer certificate is signed with the CA and imported into ACM.
 - [`up.sh`](up.sh): creates the CA and the tokens the first time, runs OpenTofu, connects `kubectl`, logs in to ECR and runs [`bootstrap/install.sh`](../install.sh), the same installation as `make up`, with the public address, the registry and the tokens.
-- The manifests and the portal configuration use the local addresses (`http://localhost:<port>`). The installer and the portal start script ([`portal/docker-entrypoint.sh`](../../portal/docker-entrypoint.sh)) rewrite them to the load balancer address, keeping each port. The portal reaches the Git server at that address too, as the browser does.
+- The manifests and the portal configuration use the local addresses (`http://localhost:<port>`). The installer and the portal start script ([`interfaces/portal/docker-entrypoint.sh`](../../interfaces/portal/docker-entrypoint.sh)) rewrite them to the load balancer address, keeping each port. The portal reaches the Git server at that address too, as the browser does.
 - The OpenTofu state is local, in `bootstrap/aws/.state`: one person runs the demo.

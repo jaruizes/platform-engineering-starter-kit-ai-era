@@ -1,0 +1,75 @@
+# AI resources: the rules agents follow on this platform and the skill that
+# teaches them how to use it. The rules are enforced by Kyverno policies.
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: agent-guardrails
+  title: Agent guardrails
+  description: >-
+    Agents can only request small environments on their own and only deploy
+    into ephemeral environments. Larger requests go to a human for approval.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/platform/governance/30-agent-guardrails.yaml
+spec:
+  type: rule
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+  category: security
+  rationale: >-
+    The more autonomous the consumer, the stronger the guardrails. Agents get
+    speed for low-risk requests and a human decides the expensive ones.
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: cost-guardrails
+  title: Cost guardrails
+  description: Environments live at most 72 hours and each team can have at most 3.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/platform/governance/20-cost-guardrails.yaml
+spec:
+  type: rule
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+  category: cost
+  rationale: Ephemeral environments must stay ephemeral, for humans and agents alike.
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: audit-trail
+  title: Audit trail
+  description: >-
+    Every request records who made it, human or agent, and who approved it.
+    Agents cannot approve their own requests and records cannot be changed.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/platform/governance/10-identify-requester.yaml
+spec:
+  type: rule
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+  category: governance
+  rationale: Accountability for agent actions needs an identity that agents cannot forge.
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: platform-golden-paths
+  title: Use the platform Golden Paths
+  description: >-
+    Teaches coding agents to get environments and deploy services through the
+    platform instead of writing infrastructure code.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/agents/skills/platform-golden-paths/
+spec:
+  type: skill
+  lifecycle: experimental
+  owner: platform-team
+  system: internal-developer-platform
+  disciplines: [backend, frontend]
+  categories: [platform]
+  agents: [claude-code]
+  dependsOn: [agent-guardrails, cost-guardrails, audit-trail]
