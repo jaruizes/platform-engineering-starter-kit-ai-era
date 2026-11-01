@@ -199,7 +199,7 @@ What is available today:
 │   ├── capabilities/          # definitions, compositions, policies and checks
 │   ├── governance/            # shared identity and guardrail policies
 │   ├── delivery/              # Argo CD, runner, registry and local Git server
-│   └── quality/               # optional SonarQube module, gate and demo
+│   └── quality/               # SonarQube, quality gate and demo
 ├── interfaces/
 │   ├── portal/                # Backstage catalog, templates, context and TechDocs
 │   └── mcp/                   # platform MCP server, console and scripted agent
@@ -282,7 +282,8 @@ Only your public IP can reach it. See [bootstrap/aws](bootstrap/aws/README.md) f
 - [x] **Engineering standards:** TechDocs and AI rules from one source, a Spring service template with ArchUnit checks and `AGENTS.md`, and `create_service` for agents
 - [x] **Platform capabilities:** a definition schema, a portal form that proposes them as pull requests, an agent skill that builds them, checks with a traceability matrix, and a PostgreSQL database as the first one
 - [x] **Delivery:** a pipeline per service (Gitea Actions, Jib) and GitOps with Argo CD, so an agent can implement a spec, deploy it and call it
-- [x] **Software quality & governance:** versioned Spring v2 quality profile, blocking JUnit/ArchUnit/JaCoCo gate before GitOps, commit-linked findings, read-only MCP status, Backstage service card and shared agent skill. Optional SonarQube demo: `SONARQUBE=true make up` (or `make sonar-up` after setup).
+- [x] **Software quality & governance:** versioned Spring v2 quality profile, blocking JUnit/ArchUnit/JaCoCo/SonarQube gates before image publication and GitOps, commit-linked findings, read-only MCP status, Backstage service card and shared agent skill. SonarQube is installed and started by `make up` and `make aws-up`.
+- [x] **Quality-gated Spring service demo:** product spec, Golden Path implementation flow, ephemeral delivery and black-box E2E checks: [`examples/scenarios/quality-gated-spring/`](examples/scenarios/quality-gated-spring/).
 - [ ] **GitOps:** Argo CD for the platform itself
 - [ ] **Assess:** pulse check, DevEx survey and baseline scripts
 - [ ] **AWS:** the platform on EKS with OpenTofu (done); next, login with Keycloak, and RDS and EKS compositions

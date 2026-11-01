@@ -65,8 +65,8 @@ dependency for something the stack already does.
 
 A push to `main` is a deployment. The platform pipeline
 (`.gitea/workflows/deliver.yaml`) runs JUnit and ArchUnit, the deterministic
-quality profile gate, and optional SonarQube analysis before it changes
-`deploy/app.yaml`. Passing evidence is stored in
+quality profile gate, and the required SonarQube quality gate before it builds
+an image or changes `deploy/app.yaml`. Passing evidence is stored in
 `.platform/quality/results.json` and names the source commit and profile
 version; Argo CD then applies `deploy/` to the environment. You do not build
 images, call `kubectl apply` or deploy by hand.
@@ -84,8 +84,11 @@ images, call `kubectl apply` or deploy by hand.
 ## Before you finish
 
 Run `./mvnw -B -ntp verify -DskipITs`, then
-`python3 .platform/quality/gate.py --architecture backend-spring-v2`. It runs
-JUnit and the architecture rules in
+`python3 .platform/quality/gate.py --architecture backend-spring-v2`. CI
+requires a passing SonarQube analysis as part of the profile. For local
+aggregate runs, configure `SONAR_HOST_URL` and `SONAR_TOKEN` and save the
+scanner status in `.platform/quality/sonar-status.json`. The gate runs JUnit
+and the architecture rules in
 `src/test/java/**/architecture/ArchitectureTest.java`, and checks the
 JaCoCo report. For integration tests, run `./mvnw verify` (Testcontainers
 needs Docker). Read the platform's `software-quality-governance` skill when

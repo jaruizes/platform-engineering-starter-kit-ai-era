@@ -3,6 +3,6 @@
   "profile": "backend-spring-v2",
   "architecture": "backend-spring-v2",
   "version": 1,
-  "blocking": ["junit", "archunit", "coverage-report"],
+  "blocking": ["junit", "archunit", "coverage-report", "sonar"],
   "minimumLineCoveragePercent": 0
 }

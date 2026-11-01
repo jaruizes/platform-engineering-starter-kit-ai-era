@@ -12,8 +12,9 @@ def reports(root: Path, archunit: bool = True, failures: int = 0) -> None:
     profile = root / ".platform/quality/profile.json"
     profile.parent.mkdir(parents=True)
     profile.write_text(json.dumps({"profile": "backend-spring-v2", "architecture": "backend-spring-v2",
-                                   "version": 1, "blocking": ["junit", "archunit", "coverage-report"],
+                                   "version": 1, "blocking": ["junit", "archunit", "coverage-report", "sonar"],
                                    "minimumLineCoveragePercent": 0}))
+    (root / ".platform/quality/sonar-status.json").write_text('{"status":"passed"}\n')
     sure = root / "target/surefire-reports"
     sure.mkdir(parents=True)
     classname = "sample.ArchitectureTest" if archunit else "sample.OtherTest"
@@ -42,3 +43,12 @@ def test_archunit_missing_or_failing_junit_blocks_gate(tmp_path):
     assert result["status"] == "failed"
     assert [check["id"] for check in result["checks"] if check["status"] == "failed"] == ["junit", "archunit"]
     assert result["checks"][0]["failureDetails"][0]["detail"] == "domain depends on persistence"
+
+
+def test_sonar_quality_gate_failure_blocks_profile(tmp_path):
+    reports(tmp_path)
+    (tmp_path / ".platform/quality/sonar-status.json").write_text('{"status":"failed"}\n')
+    result = gate.evaluate(tmp_path, "backend-spring-v2", "abc123")
+    assert result["status"] == "failed"
+    assert result["checks"][-1]["id"] == "sonar"
+    assert result["checks"][-1]["status"] == "failed"

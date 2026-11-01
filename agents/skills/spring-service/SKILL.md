@@ -43,3 +43,31 @@ rules that can be checked are checked by ArchUnit in `./mvnw verify`.
    fails, fix the code. Never weaken, skip or delete a rule; if the rule
    really cannot be met, stop and explain the options to the user (change
    the implementation or approve an ADR).
+
+## Deliver a spec to an ephemeral environment
+
+When a user gives you a service spec and asks to try it:
+
+1. Read the spec and extract the behavior and acceptance criteria. Read the
+   service's engineering standard and quality profile before coding.
+2. Find the owner team from the spec or portal catalog. Reuse a ready
+   environment for that team when appropriate; otherwise request a small
+   environment tied to the change with a short TTL (normally 8 hours). Wait
+   for `get_environment` to report ready.
+3. Call `create_service` with the environment so the template includes its
+   GitOps app and database capability. Implement the behavior in the generated
+   module and add unit and architecture-compatible integration tests. Do not
+   change architecture rules or quality profiles to make a gate pass.
+4. Run `./mvnw -B -ntp verify -DskipITs`. Push the implementation to the
+   service repository's `main` only after it passes locally. Gitea Actions runs
+   JUnit, ArchUnit, JaCoCo and the required SonarQube quality gate before
+   building an image or changing `deploy/app.yaml`.
+5. Poll `get_service_status` until the pipeline, GitOps sync and service are
+   ready. Read `get_quality_status` to investigate quality findings. Run the
+   spec's black-box acceptance checks against the deployed service. Report
+   the environment and expiry, repository, tested commit, quality evidence
+   and E2E results.
+
+If a required quality check fails, correct the implementation and rerun the
+same checks. A human decides acceptance questions that cannot be automated
+and approves any required ADR.

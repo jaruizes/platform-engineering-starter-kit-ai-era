@@ -42,6 +42,13 @@ spec:
               value: http://localhost:3000
             - name: QUALITY_GIT_URL
               value: http://gitea.platform-system.svc:3000
+            - name: SONAR_HOST_URL
+              value: http://sonarqube.quality.svc:9000
+            - name: SONAR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: sonar-pipeline-auth
+                  key: token
             # Shown by the scripted agent (make demo-agent).
             - name: CONSOLE_URL
               value: http://localhost:8080

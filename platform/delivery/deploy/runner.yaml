@@ -63,6 +63,11 @@ spec:
               value: /data/home
             - name: MAVEN_OPTS
               value: -Xmx768m
+            - name: SONAR_HOST_URL
+              value: http://sonarqube.quality.svc:9000
+            - name: SONAR_TOKEN
+              valueFrom:
+                secretKeyRef: {name: sonar-pipeline-auth, key: token}
           resources:
             requests:
               cpu: 500m

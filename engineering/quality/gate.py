@@ -6,6 +6,7 @@ import argparse
 import json
 import subprocess
 import sys
+import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -59,6 +60,16 @@ def evaluate(root: Path, architecture: str, commit: str | None = None) -> dict:
         {"id": "coverage-report", "status": "passed" if coverage_path.exists() and coverage >= float(profile["minimumLineCoveragePercent"]) else "failed",
          "lineCoveragePercent": coverage, "coveredLines": covered, "missedLines": missed},
     ]
+    sonar_status_path = root / ".platform/quality/sonar-status.json"
+    sonar_status = os.environ.get("SONAR_ANALYSIS_STATUS")
+    if sonar_status_path.exists():
+        sonar_status = json.loads(sonar_status_path.read_text()).get("status")
+    checks.append({
+        "id": "sonar",
+        "status": "passed" if sonar_status == "passed" else "failed",
+        "evidence": "SonarQube analysis and server quality gate" if sonar_status == "passed"
+        else "SonarQube analysis or server quality gate did not pass",
+    })
     result = {
         "schemaVersion": 1,
         "sourceCommit": commit or _commit(root),

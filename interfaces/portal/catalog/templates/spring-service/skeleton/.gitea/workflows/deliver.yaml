@@ -25,16 +25,19 @@ jobs:
       - name: Unit tests and architecture rules
         run: ./mvnw -B -ntp verify -DskipITs
 
-      - name: Optional SonarQube analysis
-        env:
-          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      - name: SonarQube analysis and quality gate
         run: |
-          if [ -n "$SONAR_HOST_URL" ]; then
-            ./mvnw -B -ntp org.sonarsource.scanner.maven:sonar-maven-plugin:5.1.0.4751:sonar -Dsonar.host.url="$SONAR_HOST_URL" -Dsonar.token="$SONAR_TOKEN" \
-              || echo "SonarQube analysis did not complete; deterministic quality policy remains authoritative."
+          mkdir -p .platform/quality
+          if [ -n "${SONAR_HOST_URL:-}" ] && [ -n "${SONAR_TOKEN:-}" ] \
+            && ./mvnw -B -ntp org.sonarsource.scanner.maven:sonar-maven-plugin:5.1.0.4751:sonar \
+              -Dsonar.projectKey="${GITHUB_REPOSITORY##*/}" -Dsonar.scm.revision="$GITHUB_SHA" \
+              -Dsonar.host.url="$SONAR_HOST_URL" -Dsonar.token="$SONAR_TOKEN" -Dsonar.qualitygate.wait=true; then
+            printf '{"status":"passed"}\n' > .platform/quality/sonar-status.json
+            echo SONAR_ANALYSIS_STATUS=passed >> "$GITHUB_ENV"
           else
-            echo "SonarQube is not configured; deterministic platform gate remains authoritative."
+            printf '{"status":"failed","reason":"SonarQube analysis or quality gate failed"}\n' > .platform/quality/sonar-status.json
+            echo SONAR_ANALYSIS_STATUS=failed >> "$GITHUB_ENV"
+            exit 1
           fi
 
       - name: Deterministic quality gate
@@ -51,7 +54,7 @@ jobs:
           git config user.name "Platform quality gate"
           git config user.email quality@starterkit.local
           git checkout -B platform-quality-evidence
-          git add .platform/quality/results.json
+          git add .platform/quality/results.json .platform/quality/sonar-status.json
           git commit -m "Quality evidence for $GITHUB_SHA"
           git push --force origin HEAD:platform-quality-evidence
 
