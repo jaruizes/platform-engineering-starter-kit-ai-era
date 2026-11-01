@@ -9,4 +9,3 @@ Read `README.md` for the layout and commands. All paths below are repository-rel
 - Store new skills in `agents/skills/<name>/SKILL.md`. Capabilities retain a relative `SKILL.md` link to that source. Client discovery directories link to `agents/skills`; do not copy skills per client.
 - Preserve `make up`, `make aws-up`, `make test` and `make capability NAME=<name>`.
 - Run `python3 bootstrap/check-repository.py`, `make test` and the relevant capability checks. Report unavailable dependencies or cluster checks honestly.
-- Do not add SonarQube. Do not merge or push changes to `main` without explicit authorization.
