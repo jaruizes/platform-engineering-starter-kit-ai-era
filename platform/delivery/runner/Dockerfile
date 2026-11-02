@@ -1,7 +1,7 @@
 # The runner of the platform pipelines (Gitea Actions, host mode): the steps
-# run in this container, which has what a service build needs: a JDK, Git and
-# the ECR credential helper Jib uses on AWS. No Docker: Jib builds images
-# without it.
+# run in this container, which has what a service build needs: a JDK, Git,
+# Python for the deterministic quality gate, and the ECR credential helper
+# Jib uses on AWS. No Docker: Jib builds images without it.
 ARG ACT_RUNNER_VERSION=0.6.1
 
 FROM gitea/act_runner:${ACT_RUNNER_VERSION} AS act-runner
@@ -15,7 +15,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
 
 FROM eclipse-temurin:21-jdk-noble
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git ca-certificates \
+    && apt-get install -y --no-install-recommends git ca-certificates python3 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 runner
 COPY --from=act-runner /usr/local/bin/act_runner /usr/local/bin/act_runner
