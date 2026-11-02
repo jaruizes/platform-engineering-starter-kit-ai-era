@@ -15,8 +15,8 @@ if [[ "$has_pipeline_secret" == true && "$has_admin_secret" == true ]]; then
   echo "SonarQube is ready; its existing CI token and admin password are retained."
   exit 0
 fi
-if [[ "$has_pipeline_secret" == true || "$has_admin_secret" == true ]]; then
-  echo "SonarQube has only one of its two credentials. Run 'make sonar-down' and then 'make up' to reinitialize it." >&2
+if [[ "$has_pipeline_secret" == true && "$has_admin_secret" == false ]]; then
+  echo "The SonarQube CI token exists, but the admin password is missing. Run 'make sonar-down' and 'make sonar-up' to reinitialize it." >&2
   exit 1
 fi
 
@@ -33,18 +33,49 @@ for _ in $(seq 1 60); do
 done
 [[ "$sonar_ready" == true ]] || { echo "SonarQube did not become ready." >&2; exit 1; }
 
-sonar_password="$(openssl rand -hex 16)"
-curl -fsS -u admin:admin -X POST \
-  --data-urlencode "login=admin" --data-urlencode "previousPassword=admin" \
-  --data-urlencode "password=$sonar_password" \
-  http://localhost:19000/api/users/change_password >/dev/null
-token_json="$(curl -fsS -u "admin:$sonar_password" -X POST \
-  --data-urlencode "name=platform-ci" http://localhost:19000/api/user_tokens/generate)"
-sonar_token="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])' <<<"$token_json")"
-kubectl -n platform-system create secret generic sonar-pipeline-auth \
-  --from-literal=token="$sonar_token" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-kubectl -n platform-system create secret generic sonar-admin-auth \
-  --from-literal=password="$sonar_password" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+sonar_api_post() {
+  local label="$1" credentials="$2" endpoint="$3" response status
+  shift 3
+  response="$(mktemp)"
+  status="$(curl -sS -u "$credentials" -o "$response" -w '%{http_code}' -X POST "$@" "http://localhost:19000$endpoint")" || {
+    rm -f "$response"
+    echo "SonarQube request failed: $label" >&2
+    return 1
+  }
+  if [[ "$status" != 2* ]]; then
+    echo "SonarQube request failed: $label (HTTP $status): $(cat "$response")" >&2
+    rm -f "$response"
+    return 1
+  fi
+  cat "$response"
+  rm -f "$response"
+}
+
+if [[ "$has_admin_secret" == true ]]; then
+  sonar_password="$(kubectl -n platform-system get secret sonar-admin-auth -o jsonpath='{.data.password}' | base64 -d)"
+else
+  # Current SonarQube Community Build enforces a mixed-character password
+  # policy. Hex-only random passwords can be rejected with HTTP 400.
+  sonar_password="S$(openssl rand -hex 16)a7!"
+  echo "Changing the default SonarQube administrator password."
+  sonar_api_post "change administrator password" admin:admin /api/users/change_password \
+    --data-urlencode "login=admin" --data-urlencode "previousPassword=admin" \
+    --data-urlencode "password=$sonar_password" >/dev/null
+  # Persist this before token creation so a transient token API failure is
+  # recoverable on the next installer run.
+  kubectl -n platform-system create secret generic sonar-admin-auth \
+    --from-literal=password="$sonar_password" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+fi
+
+if [[ "$has_pipeline_secret" == false ]]; then
+  echo "Creating the CI analysis token."
+  token_name="platform-ci-$(openssl rand -hex 4)"
+  token_json="$(sonar_api_post "create CI analysis token" "admin:$sonar_password" /api/user_tokens/generate \
+    --data-urlencode "name=$token_name")"
+  sonar_token="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])' <<<"$token_json")"
+  kubectl -n platform-system create secret generic sonar-pipeline-auth \
+    --from-literal=token="$sonar_token" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+fi
 kill "$sonar_forward" 2>/dev/null || true
 trap - EXIT
 echo "SonarQube is ready. CI token and human admin password are stored in Secrets in platform-system."
