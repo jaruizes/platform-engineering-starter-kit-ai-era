@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Short, compliant code examples for the React v1 customer-facing web architecture, plus common mistakes with the rule they break and how to fix them.
+Short, compliant code examples for the React v1 web architecture, plus common mistakes with the rule they break and how to fix them.
 
 Examples are illustrative. The rules in `architecture-rules.md` are the reference.
 
@@ -13,41 +13,41 @@ Examples are illustrative. The rules in `architecture-rules.md` are the referenc
 The hook wraps the client generated from the OpenAPI contract (FR-005, FR-006).
 
 ```ts
-// features/order-history/api/useOrders.ts
+// features/record-history/api/useRecords.ts
 import { useQuery } from '@tanstack/react-query';
-import { listOrders } from '@/shared/api';
+import { listRecords } from '@/shared/api';
 
-export const orderKeys = {
-  all: ['orders'] as const,
-  list: (page: number) => [...orderKeys.all, 'list', page] as const,
+export const recordKeys = {
+  all: ['records'] as const,
+  list: (page: number) => [...recordKeys.all, 'list', page] as const,
 };
 
-export function useOrders(page: number) {
+export function useRecords(page: number) {
   return useQuery({
-    queryKey: orderKeys.list(page),
-    queryFn: () => listOrders({ page, size: 20 }),
+    queryKey: recordKeys.list(page),
+    queryFn: () => listRecords({ page, size: 20 }),
   });
 }
 ```
 
 ```tsx
-// features/order-history/ui/OrderList.tsx
+// features/record-history/ui/RecordList.tsx
 import { useTranslation } from 'react-i18next';
 import { Alert, Skeleton } from '@/shared/ui';
-import { OrderCard } from '@/entities/order';
-import { useOrders } from '../api/useOrders';
+import { RecordCard } from '@/entities/record';
+import { useRecords } from '../api/useRecords';
 
-export function OrderList({ page }: { page: number }) {
-  const { t } = useTranslation('orders');
-  const { data, isPending, isError } = useOrders(page);
+export function RecordList({ page }: { page: number }) {
+  const { t } = useTranslation('records');
+  const { data, isPending, isError } = useRecords(page);
 
   if (isPending) return <Skeleton rows={5} />;
   if (isError) return <Alert tone="error">{t('loadError')}</Alert>;
 
   return (
     <ul aria-label={t('listLabel')}>
-      {data.items.map((order) => (
-        <li key={order.id}><OrderCard order={order} /></li>
+      {data.items.map((record) => (
+        <li key={record.id}><RecordCard record={record} /></li>
       ))}
     </ul>
   );
@@ -71,10 +71,10 @@ export const router = createBrowserRouter([
     element: <RootLayout />,
     children: [
       {
-        path: 'orders',
+        path: 'records',
         lazy: async () => {
-          const { OrderHistoryPage, loader } = await import('@/pages/order-history');
-          return { Component: OrderHistoryPage, loader: loader(queryClient) };
+          const { RecordHistoryPage, loader } = await import('@/pages/record-history');
+          return { Component: RecordHistoryPage, loader: loader(queryClient) };
         },
       },
     ],
@@ -167,19 +167,19 @@ export default [{
 The network is mocked, not the client module (FR-016).
 
 ```tsx
-// features/order-history/ui/OrderList.test.tsx
+// features/record-history/ui/RecordList.test.tsx
 import { http, HttpResponse } from 'msw';
 import { screen } from '@testing-library/react';
 import { server } from '@/shared/test/server';
 import { renderWithProviders } from '@/shared/test/render';
-import { OrderList } from './OrderList';
+import { RecordList } from './RecordList';
 
-it('shows an error when orders cannot be loaded', async () => {
-  server.use(http.get('*/api/orders', () => HttpResponse.json({}, { status: 503 })));
+it('shows an error when records cannot be loaded', async () => {
+  server.use(http.get('*/api/records', () => HttpResponse.json({}, { status: 503 })));
 
-  renderWithProviders(<OrderList page={0} />);
+  renderWithProviders(<RecordList page={0} />);
 
-  expect(await screen.findByRole('alert')).toHaveTextContent('orders:loadError');
+  expect(await screen.findByRole('alert')).toHaveTextContent('records:loadError');
 });
 ```
 
@@ -191,26 +191,26 @@ it('shows an error when orders cannot be loaded', async () => {
 
 ```tsx
 // Non-compliant
-const [orders, setOrders] = useState<any[]>([]);
+const [records, setRecords] = useState<any[]>([]);
 useEffect(() => {
-  fetch('/api/orders').then((r) => r.json()).then(setOrders);
+  fetch('/api/records').then((r) => r.json()).then(setRecords);
 }, []);
 ```
 
 **Why:** bypasses the generated client (FR-005), duplicates server state outside TanStack Query (FR-006), uses `any` (FR-004), and has no loading or error state.
 
-**Fix:** use the `useOrders` hook shown above, built on the generated `listOrders` function.
+**Fix:** use the `useRecords` hook shown above, built on the generated `listRecords` function.
 
 ### 2. Feature importing another feature's internals
 
 ```ts
-// features/checkout/ui/Summary.tsx — non-compliant
-import { CartLine } from '@/features/cart/ui/CartLine';
+// features/records/ui/RecordSummary.tsx — non-compliant
+import { RecordItem } from '@/features/record/ui/RecordItem';
 ```
 
 **Why:** a feature imports another feature on the same layer (FR-002) and reaches into an internal path (FR-003). ESLint boundaries fails the build.
 
-**Fix:** move `CartLine` to `entities/cart` and export it from its `index.ts`, or compose cart and checkout in the page.
+**Fix:** move `RecordItem` to `entities/record` and export it from its `index.ts`, or compose record and records in the page.
 
 ### 3. Token in localStorage and raw HTML
 
@@ -222,4 +222,4 @@ localStorage.setItem('access_token', token);
 
 **Why:** tokens in browser storage are readable by any injected script, and unsanitized HTML opens an XSS path (FR-015).
 
-**Fix:** use the BFF session cookie or keep the token in memory in the auth module; render the description as text, or through the ADR-approved sanitizing wrapper if rich text is required.
+**Fix:** use the approved session mechanism or keep the token in memory in the auth module; render the description as text, or through the ADR-approved sanitizing wrapper if rich text is required.

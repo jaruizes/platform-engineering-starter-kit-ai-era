@@ -31,7 +31,7 @@ architectures:
     layer: frontend
     version: 1
     lifecycle: production
-    useFor: Internal back-office and operations applications.
+    useFor: Angular frontend applications where the team selects this architecture.
     checkedBy: ESLint boundary rules and performance budgets in CI.
 
   - id: frontend-react-v1
@@ -39,5 +39,5 @@ architectures:
     layer: frontend
     version: 1
     lifecycle: production
-    useFor: Customer-facing web applications.
+    useFor: React frontend applications where the team selects this architecture.
     checkedBy: ESLint boundary rules, Lighthouse CI and bundle budgets in CI.

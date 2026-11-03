@@ -2,7 +2,7 @@
 
 ## Purpose
 
-These are the verifiable acceptance criteria for an Angular v1 back-office application: what must be true for a frontend implementation to be architecture-compliant.
+These are the verifiable acceptance criteria for an Angular v1 application: what must be true for a frontend implementation to be architecture-compliant.
 
 This document does not restate the architecture. The intent, structure and rationale are in `architecture.md` of this architecture. Shared implementation discipline is in `common/development-rules.md` and applies in addition to these rules.
 
@@ -62,11 +62,11 @@ Verified by: **[ESLint]** boundary rules plus `no-restricted-imports` on `@angul
 
 ---
 
-## FA-004 — Backend Access Only Through the Business API or BFF
+## FA-004 — Backend Access Through Approved Contracts
 
 **MANDATORY**
 
-The browser calls only the Business API or the application's BFF, through the gateway.
+The browser calls approved API contracts through the configured application entry point.
 
 Direct access to databases, message brokers, internal services, third-party data providers or LLM providers is forbidden.
 
@@ -78,7 +78,7 @@ Verified by: review of runtime `config.json` origins and the CSP `connect-src` d
 
 **MANDATORY**
 
-HTTP clients are generated from the backend OpenAPI contract with `openapi-generator` into `src/app/api/`. Generated code is not edited by hand. Hand-written HTTP calls to Business API endpoints are not allowed.
+HTTP clients are generated from the backend OpenAPI contract with `openapi-generator` into `src/app/api/`. Generated code is not edited by hand. Hand-written HTTP calls to API endpoints are not allowed.
 
 Verified by: CI regenerates clients from the pinned contract version and fails on diff.
 
@@ -213,4 +213,4 @@ Verified by: review.
 
 # Governing Principle
 
-> **A back-office frontend is a thin, fast, accessible client of the Business API: features stay isolated, HTTP stays in data-access, and every checkable rule is checked by the build.**
+> **An Angular frontend is an accessible client of approved application contracts: features stay isolated, HTTP stays in data-access, and every checkable rule is checked by the build.**

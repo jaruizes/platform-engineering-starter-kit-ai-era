@@ -19,8 +19,8 @@ metadata:
 |---|---|---|
 | [Backend v2 (hexagonal Spring)](backend-spring-v2/architecture.md) | production | New backend services and new modules in v2 services. Template: **Spring service**. |
 | [Backend v1 (layered Spring)](backend-spring-v1/architecture.md) | deprecated | Existing layered services only: bug fixes and small features. Migrate to v2 module by module. |
-| [Frontend Angular v1](frontend-angular-v1/architecture.md) | production | Internal back-office and operations applications. |
-| [Frontend React v1](frontend-react-v1/architecture.md) | production | Customer-facing web applications. |
+| [Frontend Angular v1](frontend-angular-v1/architecture.md) | production | Angular frontend applications. |
+| [Frontend React v1](frontend-react-v1/architecture.md) | production | React frontend applications. |
 
 Each architecture has three documents: **architecture** (how it is structured
 and why), **architecture rules** (what must be true to be compliant, with

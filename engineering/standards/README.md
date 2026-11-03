@@ -10,8 +10,8 @@ Several architectures coexist, as in any organization with some history:
 |---|---|---|
 | `backend-spring-v2` (hexagonal Spring) | production | New backend services |
 | `backend-spring-v1` (layered Spring) | deprecated | Changes to existing layered services |
-| `frontend-angular-v1` | production | Internal back-office applications |
-| `frontend-react-v1` | production | Customer-facing web applications |
+| `frontend-angular-v1` | production | Angular frontend applications |
+| `frontend-react-v1` | production | React frontend applications |
 
 [`architectures.yaml`](architectures.yaml) lists them. Each one has its
 `architecture.md`, `architecture-rules.md` and `examples.md` in
@@ -19,10 +19,9 @@ Several architectures coexist, as in any organization with some history:
 service declares the one it follows with the label
 `platform.starterkit.dev/architecture: <id>` in its `catalog-info.yaml`.
 
-Backend v2 and the common documents are taken from the
-[My-FinAI-Manager](https://github.com/jaruizes/My-FinAI-Manager/tree/main/reference/engineering)
-project; the other architectures are examples written for the demo. Replace
-them with your own.
+These standards describe the technology and engineering constraints of this
+starter kit. Product terminology and capability-specific requirements belong
+to each service's product definition and approved domain model, not here.
 
 | Who | How they use them |
 |---|---|

@@ -38,7 +38,7 @@ The governing rule is:
 | Spring Build Tool | Maven | REQUIRED | Gradle requires an approved architectural exception |
 | Python Backend / AI / Data | Python | ALLOWED | Use only when capability characteristics justify it |
 | Python API Framework | FastAPI | ALLOWED | Preferred option when Python exposes HTTP APIs |
-| External Business API | REST | PREFERRED | Default external synchronous interaction style |
+| External API | REST | PREFERRED | Default external synchronous interaction style |
 | REST Contract | OpenAPI | REQUIRED | Required for externally exposed REST APIs |
 | Asynchronous Messaging | Kafka | CONDITIONAL | Use only when asynchronous decoupling or streaming provides concrete value |
 | Event Contract | AsyncAPI | PREFERRED | Use for externally exposed asynchronous contracts where applicable |
@@ -113,8 +113,8 @@ Provider-specific SDKs and payloads must stay inside adapters or equivalent infr
 This applies especially to:
 
 - AI/LLM providers;
-- market-data providers;
-- news providers;
+- third-party APIs;
+- identity systems, model providers, or other external services;
 - identity providers;
 - cloud-managed external services.
 
@@ -191,7 +191,8 @@ This document defines approved testing tools only.
 What must be tested, required test levels, E2E scope, coverage expectations, AI evaluation strategy, and validation evidence belong in:
 
 ```text
-product/reference/engineering/testing-strategy.md
+testing.md
+quality-governance.md
 ```
 
 A technology choice must not weaken those requirements.

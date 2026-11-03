@@ -2,7 +2,7 @@
 
 ## Purpose
 
-These are the verifiable acceptance rules for customer-facing web applications built on the React v1 architecture (React 19, TypeScript, Vite, feature-sliced structure).
+These are the verifiable acceptance rules for web applications built on the React v1 architecture (React 19, TypeScript, Vite, feature-sliced structure).
 
 They do not restate the architecture. Intent, structure and rationale are in `architecture.md`. Rules shared by all architectures are in `../common/development-rules.md`.
 
@@ -57,7 +57,7 @@ Imports follow `app → pages → features → entities → shared`. A layer nev
 
 **MANDATORY**
 
-Each slice exposes what it shares through its `index.ts`. Imports from outside the slice target the slice root, never internal paths such as `features/checkout/ui/Summary`.
+Each slice exposes what it shares through its `index.ts`. Imports from outside the slice target the slice root, never internal paths such as `features/records/ui/RecordSummary`.
 
 *Enforced by:* ESLint boundaries (entry-point rule).
 
@@ -79,7 +79,7 @@ Each slice exposes what it shares through its `index.ts`. Imports from outside t
 
 **MANDATORY**
 
-The frontend calls only the Business API or the team's BFF, through the client generated from the OpenAPI contract in `shared/api/generated`. Hand-written `fetch`/`axios` calls to backend endpoints, and direct access to databases, topics or internal services, are not allowed. Generated files are not edited by hand.
+The frontend calls approved API contracts through the client generated from the OpenAPI contract in `shared/api/generated`. Direct access to databases, internal messaging, or provider integrations is not allowed. Generated files are not edited by hand.
 
 *Enforced by:* ESLint (`no-restricted-globals`/`no-restricted-imports` for `fetch` and `axios` outside `shared/api`) and a CI check that regenerating the client produces no diff.
 
@@ -211,7 +211,7 @@ Components and hooks are tested with Vitest and React Testing Library. Network c
 
 **MANDATORY**
 
-The app initializes OpenTelemetry Web with trace propagation to the Business API, reports unhandled errors and error boundary events with private source maps, and sends Core Web Vitals to real user monitoring. Telemetry contains no personal data.
+The app initializes OpenTelemetry Web with trace propagation across API boundaries, reports unhandled errors and error boundary events with private source maps, and sends relevant field metrics to real user monitoring. Telemetry contains no personal data.
 
 *Enforced by:* review and deployment smoke test.
 
