@@ -20,8 +20,8 @@ configs:
     timeout.reconciliation: 30s
     users.anonymous.enabled: "true"
     # Golden Paths and capabilities are Crossplane composite resources:
-    # healthy when Ready. An App without an image is waiting for its first build.
-    resource.customizations.health.platform.starterkit.dev_App: |
+    # healthy when Ready. A SpringService without an image awaits its first build.
+    resource.customizations.health.platform.starterkit.dev_SpringService: |
       hs = {status = "Progressing", message = "Waiting for the service to be ready"}
       if obj.spec ~= nil and (obj.spec.image == nil or obj.spec.image == "") then
         hs.message = "Waiting for the first image: the pipeline has not built one yet"

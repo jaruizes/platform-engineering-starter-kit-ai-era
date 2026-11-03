@@ -165,7 +165,7 @@ catalog:
     - type: file
       target: ./catalog/templates/service/template.yaml
     - type: file
-      target: ./catalog/templates/spring-service/template.yaml
+      target: ./golden-paths/spring-service/template.yaml
     # The engineering standards: documentation and AI rules.
     - type: file
       target: ./standards/catalog-info.yaml

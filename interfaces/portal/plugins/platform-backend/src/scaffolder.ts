@@ -86,7 +86,7 @@ export function createEnvironmentAction(platform: PlatformClient) {
 export function createServiceAction(platform: PlatformClient) {
   return createTemplateAction({
     id: 'platform:service:deploy',
-    description: 'Deploys a service into an environment through the new-service Golden Path.',
+    description: 'Deploys a service into an environment through the SpringService Golden Path.',
     schema: {
       input: {
         environment: z => z.string().describe('Environment to deploy into (name or entity ref)'),
@@ -107,7 +107,7 @@ export function createServiceAction(platform: PlatformClient) {
       const { name, image, replicas } = ctx.input;
       ctx.logger.info(`Deploying ${name} into environment ${environment}`);
       try {
-        await platform.createApp({ environment, name, image, replicas, onBehalfOf });
+        await platform.createSpringService({ environment, name, image, replicas, onBehalfOf });
       } catch (error) {
         friendly(error);
       }

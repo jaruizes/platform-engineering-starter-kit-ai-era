@@ -1,10 +1,10 @@
 {% if values.environment -%}
-# How this service runs in its environment, through the new-service Golden
+# How this service runs in its environment, through the Spring service Golden
 # Path. Argo CD applies this folder (GitOps): change it with a commit. The
 # pipeline writes the image on every build of main; until the first build
 # there is none, and nothing runs.
 apiVersion: platform.starterkit.dev/v1alpha1
-kind: App
+kind: SpringService
 metadata:
   name: ${{ values.name }}
   namespace: env-${{ values.environment }}
@@ -17,6 +17,6 @@ spec:
   database: ${{ values.name }}-db
 {% else -%}
 # Not deployed: the service was created without an environment. To deploy
-# it, write here an App of the new-service Golden Path (see the Spring
-# service template of the platform) and push to main.
+# it, write here a SpringService resource (see the Spring service
+# template of the platform) and push to main.
 {% endif -%}

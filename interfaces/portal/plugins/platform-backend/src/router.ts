@@ -24,7 +24,7 @@ export async function createRouter({
     res.json({
       metrics: state.metrics,
       environments: state.environments,
-      apps: state.apps,
+      services: state.services,
       approvals: state.approvals,
       activity: state.activity.slice(0, 20),
     });

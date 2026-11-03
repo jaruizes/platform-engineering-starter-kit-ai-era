@@ -42,6 +42,7 @@ jobs:
           docker buildx build --load -t platform-starter-kit/portal:refactor \
             --build-context standards=./engineering/standards \
             --build-context capabilities=./platform/capabilities \
+            --build-context spring-service=./engineering/golden-paths/spring-service \
             --build-context branding=./interfaces/portal/branding ./interfaces/portal
       - name: Build MCP server and delivery runner
         run: |

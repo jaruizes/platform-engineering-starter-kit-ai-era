@@ -2,7 +2,7 @@
 delivered: its pipeline (Gitea Actions), GitOps (Argo CD) and its pods.
 
 A push to main of the service repository builds an image and writes it into
-deploy/app.yaml; Argo CD applies deploy/ to the environment. This module puts
+deploy/spring-service.yaml; Argo CD applies deploy/ to the environment. This module puts
 the three steps together so an agent knows when the service is up, and why
 not when it is not.
 """
@@ -104,16 +104,16 @@ def _logs(core: Any, namespace: str, pod: str, previous: bool) -> str:
 
 
 def summarize(service: str, environment: str, run: dict[str, Any], argo: dict[str, Any],
-              app: dict[str, Any] | None, replicas: list[dict[str, Any]]) -> tuple[str, str]:
+              service_resource: dict[str, Any] | None, replicas: list[dict[str, Any]]) -> tuple[str, str]:
     """(state, what to do next) from the three steps, in the order they happen."""
     namespace = f"env-{environment}"
     if run["status"] in ("failure", "cancelled"):
         return "pipeline_failed", f"The pipeline failed: read the failed step at {run['url']}, fix it and push to main again."
     if run["status"] in ("running", "waiting", "blocked") or run["status"] == "none":
         return "building", "The pipeline is building the image. Call get_service_status again in a minute."
-    if app is None:
+    if service_resource is None:
         return "deploying", "Argo CD has not created the service yet. Call get_service_status again in a moment."
-    if not app.get("image"):
+    if not service_resource.get("image"):
         return "deploying", "The pipeline has not written the image yet. Call get_service_status again in a moment."
     if argo.get("message"):
         return "gitops_failed", f"Argo CD could not apply deploy/: {argo['message']}"
@@ -122,9 +122,9 @@ def summarize(service: str, environment: str, run: dict[str, Any], argo: dict[st
         reason = stuck[0].get("waiting_reason") or stuck[0].get("last_exit")
         return "failing", (
             f"The service does not start ({reason}). Read the logs in pods[].logs, fix the code or "
-            "deploy/app.yaml, and push to main."
+            "deploy/spring-service.yaml, and push to main."
         )
-    if not app.get("ready"):
+    if not service_resource.get("ready"):
         return "starting", "The service is starting. Call get_service_status again in a moment."
     return "ready", (
         f"Ready. Try it from the user's laptop: kubectl -n {namespace} port-forward svc/{service} 8080:80, "
@@ -138,24 +138,24 @@ def status(service: str, environment: str) -> dict[str, Any]:
     argo = gitops(service)
     try:
         resource = platform._custom().get_namespaced_custom_object(
-            platform.GROUP, platform.VERSION, namespace, "apps", service)
-        app = platform.summarize_app(resource)
+            platform.GROUP, platform.VERSION, namespace, "springservices", service)
+        service_resource = platform.summarize_spring_service(resource)
     except ApiException as err:
         if err.status != 404:
             raise
-        app = None
+        service_resource = None
     try:
-        replicas = pods(namespace, service) if app else []
+        replicas = pods(namespace, service) if service_resource else []
     except ApiException as err:
         replicas = [{"error": f"The pods could not be read ({err.status})."}]
-    state, next_step = summarize(service, environment, run, argo, app, replicas)
+    state, next_step = summarize(service, environment, run, argo, service_resource, replicas)
     return {
         "service": service,
         "environment": environment,
         "state": state,
         "pipeline": run,
         "gitops": argo,
-        "app": app,
+        "service_resource": service_resource,
         "pods": replicas,
         "next_step": next_step,
     }

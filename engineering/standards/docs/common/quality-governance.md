@@ -16,6 +16,6 @@ SonarQube is an optional advisory analysis. Its absence or unavailability does n
 
 ## Delivery and evidence
 
-The Gitea Actions pipeline evaluates the deterministic gate after Maven verification and before building/deploying. A failed check prevents any image reference from being written to `deploy/app.yaml`. The pipeline writes structured JSON with the source commit, architecture, profile version, each check, and findings. It publishes this file to the service branch `platform-quality-evidence` on pass and failure.
+The Gitea Actions pipeline evaluates the deterministic gate after Maven verification and before building/deploying. A failed check prevents any image reference from being written to `deploy/spring-service.yaml`. The pipeline writes structured JSON with the source commit, architecture, profile version, each check, and findings. It publishes this file to the service branch `platform-quality-evidence` on pass and failure.
 
 The platform MCP tool `get_quality_status` is read-only and returns the latest evidence and failed checks. The Backstage service page shows the same result. An agent should use the check findings and JUnit/ArchUnit output to fix the code, rerun the gate, and report the tested commit. Editing result files, relaxing a profile, suppressing tests, or bypassing the gate is not a valid correction.

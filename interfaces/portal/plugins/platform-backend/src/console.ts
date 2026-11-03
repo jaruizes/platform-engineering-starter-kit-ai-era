@@ -6,7 +6,7 @@
  */
 export type ConsoleState = {
   environments: Array<Record<string, any>>;
-  apps: Array<Record<string, any>>;
+  services: Array<Record<string, any>>;
   approvals: Array<{
     id: string;
     status: string;

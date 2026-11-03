@@ -1,6 +1,6 @@
 # The platform pipeline (Gitea Actions, on the platform runner). On every
 # push to main it runs the checks, builds the image with Jib and deploys it
-# with GitOps: it writes the image into deploy/app.yaml and Argo CD applies
+# with GitOps: it writes the image into deploy/spring-service.yaml and Argo CD applies
 # the change to the environment. Changes to deploy/ alone are applied by
 # Argo CD without a new build.
 name: deliver
@@ -66,13 +66,13 @@ jobs:
 
       - name: Deploy (GitOps)
         run: |
-          if grep -q '^  image:' deploy/app.yaml; then
-            sed -i "s|^  image:.*|  image: $IMAGE|" deploy/app.yaml
+          if grep -q '^  image:' deploy/spring-service.yaml; then
+            sed -i "s|^  image:.*|  image: $IMAGE|" deploy/spring-service.yaml
           else
-            echo "deploy/app.yaml has no environment: the image is built but not deployed."
+            echo "deploy/spring-service.yaml has no environment: the image is built but not deployed."
           fi
           git -c user.name="Platform pipeline" -c user.email=pipeline@starterkit.local \
-            add deploy/app.yaml
+            add deploy/spring-service.yaml
           if ! git diff --cached --quiet; then
             git -c user.name="Platform pipeline" -c user.email=pipeline@starterkit.local \
               commit -m "Deploy $IMAGE after quality gate for $GITHUB_SHA"

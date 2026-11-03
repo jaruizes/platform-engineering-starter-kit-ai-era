@@ -206,7 +206,7 @@ What is available today:
 ├── engineering/
 │   ├── standards/             # shared engineering contracts and documentation
 │   ├── quality/               # architecture-specific quality profiles and gate
-│   └── golden-paths/          # Environment and App platform APIs
+│   └── golden-paths/          # Environment and SpringService platform APIs
 ├── agents/
 │   ├── skills/                # one canonical skill library
 │   ├── instructions/          # shared guidance

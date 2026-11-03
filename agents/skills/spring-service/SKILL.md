@@ -61,7 +61,7 @@ When a user gives you a service spec and asks to try it:
 4. Run `./mvnw -B -ntp verify -DskipITs`. Push the implementation to the
    service repository's `main` only after it passes locally. Gitea Actions runs
    JUnit, ArchUnit, JaCoCo and the required SonarQube quality gate before
-   building an image or changing `deploy/app.yaml`.
+   building an image or changing `deploy/spring-service.yaml`.
 5. Poll `get_service_status` until the pipeline, GitOps sync and service are
    ready. Read `get_quality_status` to investigate quality findings. Run the
    spec's black-box acceptance checks against the deployed service. Report

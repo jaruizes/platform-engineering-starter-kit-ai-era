@@ -21,7 +21,7 @@ running.
 Every push to `main` runs the pipeline in `.gitea/workflows/deliver.yaml`
 (tests, architecture rules, the aggregate quality gate and required SonarQube
 analysis before an image is built with Jib) and deploys it with
-GitOps: the pipeline writes the image into `deploy/app.yaml` and Argo CD
+GitOps: the pipeline writes the image into `deploy/spring-service.yaml` and Argo CD
 (http://localhost:8082) applies `deploy/` to the environment.
 
 ## Structure

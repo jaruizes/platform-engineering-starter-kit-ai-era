@@ -73,7 +73,7 @@ def get_quality_status(service: str) -> dict[str, Any]:
     """Reads the latest committed quality gate evidence and findings for a service.
 
     Args:
-        service: Service repository name, for example orders-service.
+        service: Service repository name, for example inventory-service.
     """
     return quality.quality_status(service)
 
@@ -168,7 +168,7 @@ def deploy_service(
     replicas: int = 1,
     ctx: Context | None = None,
 ) -> dict[str, Any]:
-    """Deploys a ready-made image into an environment using the new-service Golden Path.
+    """Deploys a ready-made image into an environment using the SpringService runtime Golden Path.
 
     Services created with create_service do not need it: every push to their
     main branch is built and deployed by the platform (GitOps).
@@ -188,7 +188,7 @@ def deploy_service(
             "reason": f"Environment '{environment}' does not exist or is not ready yet. Check it with get_environment.",
         }
     try:
-        platform.create_app(namespace, name, image, replicas, agent)
+        platform.create_spring_service(namespace, name, image, replicas, agent)
     except Denied as denied:
         platform.record("RequestDenied", f"{agent} tried to deploy {name} in {namespace}: {denied.reason}",
                         environment, warning=True, actor=agent)
@@ -218,8 +218,8 @@ def create_service(
     Args:
         name: Service and repository name (lowercase letters, numbers and dashes).
         description: What the service does, in the domain language.
-        team: Team that owns the service, for example checkout.
-        module: First functional module, a business capability such as orders.
+        team: Team that owns the service, for example platform-team.
+        module: First functional module, a business capability such as records.
         environment: Ephemeral environment to deploy to (request_environment first).
             Without it, only the repository is created and nothing is deployed, so
             leave it out only when the user does not want to try the service.
@@ -228,7 +228,7 @@ def create_service(
     if not re.match(r"^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$", name):
         raise ValueError("name must be lowercase letters, numbers and dashes (max 40 characters).")
     if not re.match(r"^[a-z][a-z0-9]*$", module):
-        raise ValueError("module must be lowercase letters and numbers, for example orders.")
+        raise ValueError("module must be lowercase letters and numbers, for example records.")
     _check_name(team, "team")
     if environment:
         _check_name(environment, "environment")

@@ -21,7 +21,7 @@ demo-developer: ## Act 1: a developer requests an environment and deploys a serv
 	kubectl apply -f examples/scenarios/developer/environment.yaml
 	kubectl wait environments.platform.starterkit.dev/payments-dev --for=condition=Ready --timeout=120s
 	kubectl apply -f examples/scenarios/developer/service.yaml
-	kubectl get environments.platform.starterkit.dev,apps.platform.starterkit.dev -A
+	kubectl get environments.platform.starterkit.dev,springservices.platform.starterkit.dev -A
 
 demo-agent: ## Act 2 without an AI agent: a scripted agent talks to the MCP server
 	kubectl -n platform-system exec deploy/platform-mcp -- python -m platform_mcp.simulate_agent
@@ -31,7 +31,7 @@ demo-reset: ## Back to a clean state before the next demo
 
 status: ## Show environments, services and pending approvals
 	@kubectl get environments.platform.starterkit.dev
-	@kubectl get apps.platform.starterkit.dev -A
+	@kubectl get springservices.platform.starterkit.dev -A
 	@kubectl -n platform-system get configmaps -l platform.starterkit.dev/approval-request \
 	  -L platform.starterkit.dev/approval-status
 

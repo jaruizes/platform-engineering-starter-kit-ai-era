@@ -13,7 +13,7 @@ from pathlib import Path
 import jinja2
 
 ROOT = Path(__file__).resolve().parents[3]
-SKELETON = ROOT / "interfaces/portal/catalog/templates/spring-service/skeleton"
+SKELETON = ROOT / "engineering/golden-paths/spring-service/skeleton"
 # The template's copyWithoutTemplating.
 VERBATIM = [".gitea/workflows/*"]
 

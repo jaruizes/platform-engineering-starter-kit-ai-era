@@ -1,4 +1,4 @@
-import { appEntity, environmentEntity } from './catalog';
+import { springServiceEntity, environmentEntity } from './catalog';
 import { denialReason } from './kubernetes';
 
 const environment = {
@@ -39,12 +39,12 @@ describe('catalog entities', () => {
   });
 
   it('turns a service into a Component that depends on its environment', () => {
-    const app = {
+    const service = {
       metadata: { name: 'checkout-api', namespace: 'env-load-test' },
       spec: { image: 'podinfo', replicas: 1 },
       status: { url: 'http://checkout-api.env-load-test.svc.cluster.local' },
     };
-    const entity = appEntity(app, new Map([['load-test', 'checkout']]));
+    const entity = springServiceEntity(service, new Map([['load-test', 'checkout']]));
     expect(entity.metadata.name).toBe('checkout-api.load-test');
     expect(entity.spec).toMatchObject({
       owner: 'group:default/checkout',

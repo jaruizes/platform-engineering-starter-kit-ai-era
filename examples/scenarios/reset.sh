@@ -5,7 +5,7 @@
 set -euo pipefail
 
 echo "Deleting environments and services..."
-kubectl delete apps.platform.starterkit.dev --all -A --wait=false >/dev/null 2>&1 || true
+kubectl delete springservices.platform.starterkit.dev --all -A --wait=false >/dev/null 2>&1 || true
 kubectl delete environments.platform.starterkit.dev --all --wait=false >/dev/null 2>&1 || true
 for plural in $(kubectl get xrd -l platform.starterkit.dev/capability -o jsonpath='{.items[*].spec.names.plural}' 2>/dev/null); do
   kubectl delete "$plural.platform.starterkit.dev" --all -A --wait=false >/dev/null 2>&1 || true

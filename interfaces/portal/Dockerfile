@@ -5,6 +5,7 @@
 # (branding/README.md) as extra contexts:
 #   docker build --build-context standards=../../engineering/standards \
 #     --build-context capabilities=../../platform/capabilities \
+#     --build-context spring-service=../../engineering/golden-paths/spring-service \
 #     --build-context branding=branding -t portal .
 # The branding is the last layer, so changing it alone rebuilds in seconds.
 
@@ -72,6 +73,7 @@ RUN --mount=type=cache,target=/home/node/.cache/yarn,sharing=locked,uid=1000,gid
 COPY --from=build --chown=node:node /app/packages/backend/dist/bundle/ ./
 COPY --chown=node:node app-config.yaml ./
 COPY --chown=node:node catalog ./catalog
+COPY --from=spring-service --chown=node:node . ./golden-paths/spring-service
 COPY --from=standards --chown=node:node docs ./standards/docs
 COPY --from=standards --chown=node:node catalog-info.yaml architectures.yaml ./standards/
 COPY --from=techdocs --chown=node:node /site ./techdocs/default/component/engineering-standards

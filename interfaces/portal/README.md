@@ -4,7 +4,8 @@
 
 | Piece | What it does |
 |---|---|
-| [`catalog/`](catalog) | Sample organization, services on each of the coexisting architectures, the platform components, the two MCP servers as APIs, the AI resources (rules and skill) and the Software Templates, including the [Spring service](catalog/templates/spring-service) template that creates repositories following the engineering standards |
+| [`catalog/`](catalog) | Sample organization, services on each of the coexisting architectures, the platform components, the two MCP servers as APIs, and AI resources |
+| [Spring service Golden Path](../../engineering/golden-paths/spring-service) | Backstage template, service skeleton, and Crossplane runtime resource/composition in one place |
 | [`plugins/platform-backend`](plugins/platform-backend) | Brings environments, services and [platform capabilities](../../platform/capabilities) from the cluster into the catalog (with a request form per capability, built from its XRD), builds the **New platform capability** form from the definition schema and opens the proposal as a pull request in the platform repository, runs the Golden Paths from the templates on behalf of the signed-in person, serves agent approvals and metrics, and adds read-only context tools for agents (`get-team-usage`, `list-pending-approvals`, `list-engineering-standards`, `get-standards-for-entity`, `get-engineering-standard`, `search-engineering-standards`) |
 | [`plugins/platform`](plugins/platform) | The **AI Platform** page (metrics and approvals) and the **Golden Path request** card on environments and services |
 | [`app-config.yaml`](app-config.yaml) | Configuration in the local cluster, including the MCP actions server for agents |
@@ -15,6 +16,7 @@
 
 ```bash
 docker build --build-context standards=../../engineering/standards --build-context capabilities=../../platform/capabilities \
+  --build-context spring-service=../../engineering/golden-paths/spring-service \
   --build-context branding=branding -t platform-starter-kit/portal:dev .
 ```
 

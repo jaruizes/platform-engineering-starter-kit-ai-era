@@ -34,7 +34,7 @@ spec:
         'Human approval required: agents can only request small environments on their own, requested ' +
         object.spec.size + '.'
       reason: Forbidden
-    - expression: object.kind != 'App' || object.metadata.namespace.startsWith('env-')
+    - expression: object.kind != 'SpringService' || object.metadata.namespace.startsWith('env-')
       message: Agents can only deploy services into ephemeral environments (env-* namespaces).
       reason: Forbidden
     - expression: >-

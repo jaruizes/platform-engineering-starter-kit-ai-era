@@ -100,8 +100,8 @@ GOLDEN_PATHS = [
         "tool": "request_environment",
     },
     {
-        "name": "new-service",
-        "kind": "App",
+        "name": "spring-service-runtime",
+        "kind": "SpringService",
         "description": (
             "Deploys a service the standard way: health probes, resource limits, "
             "hardened security context, ownership labels and an internal URL."
@@ -125,10 +125,10 @@ GOLDEN_PATHS = [
             "with an environment, built and deployed on every push to main."
         ),
         "parameters": {
-            "name": "Service and repository name, for example orders-service",
+            "name": "Service and repository name, for example inventory-service",
             "description": "What the service does, in the domain language",
             "team": "Team that owns the service",
-            "module": "First functional module, for example orders",
+            "module": "First functional module, for example records",
             "environment": "Environment to deliver it to, with its PostgreSQL (optional)",
             "base_package": "Base Java package (default com.starterkit)",
         },
@@ -187,18 +187,18 @@ def delete_environment(name: str) -> None:
     _custom().delete_cluster_custom_object(GROUP, VERSION, "environments", name)
 
 
-def create_app(namespace: str, name: str, image: str | None, replicas: int, agent: str | None) -> dict[str, Any]:
+def create_spring_service(namespace: str, name: str, image: str | None, replicas: int, agent: str | None) -> dict[str, Any]:
     spec: dict[str, Any] = {"replicas": replicas}
     if image:
         spec["image"] = image
     manifest = {
         "apiVersion": f"{GROUP}/{VERSION}",
-        "kind": "App",
+        "kind": "SpringService",
         "metadata": {"name": name, "annotations": {f"{PREFIX}/agent": agent} if agent else {}},
         "spec": spec,
     }
     try:
-        return _custom().create_namespaced_custom_object(GROUP, VERSION, namespace, "apps", manifest)
+        return _custom().create_namespaced_custom_object(GROUP, VERSION, namespace, "springservices", manifest)
     except ApiException as err:
         if is_policy_denial(err):
             raise Denied(denial_reason(err)) from err
@@ -207,8 +207,8 @@ def create_app(namespace: str, name: str, image: str | None, replicas: int, agen
         raise
 
 
-def list_apps() -> list[dict[str, Any]]:
-    return _custom().list_cluster_custom_object(GROUP, VERSION, "apps")["items"]
+def list_spring_services() -> list[dict[str, Any]]:
+    return _custom().list_cluster_custom_object(GROUP, VERSION, "springservices")["items"]
 
 
 def summarize_environment(env: dict[str, Any]) -> dict[str, Any]:
@@ -234,8 +234,8 @@ def summarize_environment(env: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def summarize_app(app: dict[str, Any]) -> dict[str, Any]:
-    meta, spec, status = app["metadata"], app.get("spec", {}), app.get("status", {})
+def summarize_spring_service(service: dict[str, Any]) -> dict[str, Any]:
+    meta, spec, status = service["metadata"], service.get("spec", {}), service.get("status", {})
     annotations = meta.get("annotations") or {}
     ready = any(
         c.get("type") == "Ready" and c.get("status") == "True" for c in status.get("conditions", [])

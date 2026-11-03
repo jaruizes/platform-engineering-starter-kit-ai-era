@@ -22,14 +22,14 @@ INDEX = (Path(__file__).parent / "static" / "index.html").read_text()
 
 def _state() -> dict:
     environments = [platform.summarize_environment(e) for e in platform.list_environments()]
-    apps = [platform.summarize_app(a) for a in platform.list_apps()]
+    services = [platform.summarize_spring_service(service) for service in platform.list_spring_services()]
     approvals = platform.list_approvals()
     for approval in approvals:
         approval.pop("manifest", None)
     activity = platform.list_activity()
     return {
         "environments": sorted(environments, key=lambda e: e["created_at"], reverse=True),
-        "apps": apps,
+        "services": services,
         "approvals": approvals,
         "activity": activity,
         "metrics": platform.compute_metrics(environments, approvals, activity),

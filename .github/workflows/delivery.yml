@@ -12,7 +12,7 @@ on:
       - platform/governance/**
       - platform/control-plane/**
       - interfaces/mcp/**
-      - interfaces/portal/catalog/templates/spring-service/**
+      - engineering/golden-paths/spring-service/**
       - bootstrap/local/**
       - bootstrap/install.sh
       - .github/workflows/delivery.yml
@@ -20,7 +20,7 @@ on:
     branches: [main]
     paths:
       - platform/delivery/**
-      - interfaces/portal/catalog/templates/spring-service/**
+      - engineering/golden-paths/spring-service/**
       - .github/workflows/delivery.yml
 
 permissions:

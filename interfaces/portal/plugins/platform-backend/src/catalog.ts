@@ -22,7 +22,7 @@ import {
   KubeObject,
   PlatformClient,
   PREFIX,
-  summarizeApp,
+  summarizeSpringService,
   summarizeEnvironment,
 } from './kubernetes';
 import { capabilitySettings } from './settings';
@@ -55,11 +55,11 @@ export class PlatformEntityProvider implements EntityProvider {
       return;
     }
     let environments: KubeObject[];
-    let apps: KubeObject[];
+    let springServices: KubeObject[];
     try {
-      [environments, apps] = await Promise.all([
+      [environments, springServices] = await Promise.all([
         this.platform.listEnvironments(),
-        this.platform.listApps(),
+        this.platform.listSpringServices(),
       ]);
     } catch (error) {
       this.logger.warn(`Could not read the Golden Paths from the cluster: ${error}`);
@@ -68,7 +68,7 @@ export class PlatformEntityProvider implements EntityProvider {
     const teams = new Map(environments.map(e => [e.metadata.name, e.spec?.team]));
     const entities = [
       ...environments.map(environmentEntity),
-      ...apps.map(app => appEntity(app, teams)),
+      ...springServices.map(service => springServiceEntity(service, teams)),
     ];
     await this.connection.applyMutation({
       type: 'full',
@@ -197,8 +197,8 @@ export function environmentEntity(env: KubeObject): Entity {
   };
 }
 
-export function appEntity(app: KubeObject, teams: Map<string, string | undefined>): Entity {
-  const s = summarizeApp(app);
+export function springServiceEntity(service: KubeObject, teams: Map<string, string | undefined>): Entity {
+  const s = summarizeSpringService(service);
   const team = teams.get(s.environment);
   return {
     apiVersion: 'backstage.io/v1alpha1',
@@ -208,11 +208,11 @@ export function appEntity(app: KubeObject, teams: Map<string, string | undefined
       name: `${s.name}.${s.environment}`,
       title: `${s.name} (${s.environment})`,
       description:
-        `Deployed through the new-service Golden Path by ${s.requesterType ?? 'unknown'} ` +
+        `Deployed through the Spring service Golden Path by ${s.requesterType ?? 'unknown'} ` +
         `${s.requestedBy ?? ''}. Internal URL: ${s.url ?? 'pending'}.`,
       annotations: {
         ...base(`${s.environment}/${s.name}`),
-        ...platformAnnotations(app),
+        ...platformAnnotations(service),
         [`${PREFIX}/status`]: s.ready ? 'Running' : 'Starting',
         'backstage.io/kubernetes-id': s.name,
         'backstage.io/kubernetes-namespace': s.namespace,

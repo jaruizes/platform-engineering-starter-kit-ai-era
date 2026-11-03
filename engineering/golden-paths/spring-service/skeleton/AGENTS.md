@@ -66,12 +66,12 @@ dependency for something the stack already does.
 A push to `main` is a deployment. The platform pipeline
 (`.gitea/workflows/deliver.yaml`) runs JUnit and ArchUnit, the deterministic
 quality profile gate, and the required SonarQube quality gate before it builds
-an image or changes `deploy/app.yaml`. Passing evidence is stored in
+an image or changes `deploy/spring-service.yaml`. Passing evidence is stored in
 `.platform/quality/results.json` and names the source commit and profile
 version; Argo CD then applies `deploy/` to the environment. You do not build
 images, call `kubectl apply` or deploy by hand.
 
-- `deploy/app.yaml`: how the service runs (new-service Golden Path). Leave
+- `deploy/spring-service.yaml`: how the service runs (SpringService runtime Golden Path). Leave
   `spec.image` to the pipeline.
 - `deploy/database.yaml`: its PostgreSQL (postgres-database capability). The
   connection reaches the service as `SPRING_DATASOURCE_*` variables.
