@@ -92,7 +92,7 @@ spec:
         content: |
           ```bash
           git clone ${{ steps.publish.output.remoteUrl }}
-          cd ${{ parameters.name }} && npm install && npm test && npm run build
+          cd ${{ parameters.name }} && npm install && npm run lint && npm test && npm run build
           ```
           A push to main builds the container and, with an environment, Argo CD
           deploys the `App` resource into Kubernetes.

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "profile": "frontend-angular-v1",
+  "architecture": "frontend-angular-v1",
+  "version": 1,
+  "blocking": ["eslint", "architecture-boundaries", "unit-tests", "coverage-report", "production-build", "sonar"],
+  "coverageReport": "coverage/lcov.info",
+  "minimumLineCoveragePercent": 70,
+  "minimumBranchCoveragePercent": 60
+}

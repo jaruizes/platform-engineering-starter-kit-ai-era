@@ -24,12 +24,15 @@ it generates a standalone Angular repository and a namespaced Crossplane `App`.
 
 ## Verify and deploy
 
-1. Run `npm install`, `npm test` and `npm run build`. Keep the Angular bundle
-   budgets in `angular.json` and fix failures rather than weakening checks.
+1. Run `npm install`, `npm run lint`, `npm test` and `npm run build`. Keep the
+   Angular bundle budgets and coverage thresholds; fix failures rather than
+   weakening checks.
 2. Push to the generated repository's `main` only after local checks pass. Its
-   pipeline runs tests and the production build, publishes a static Nginx image,
-   then updates `deploy/app.yaml`. Argo CD applies `App`; Crossplane reconciles
-   its Kubernetes Deployment and internal Service.
+   pipeline runs the same lint, boundary, test/coverage, build-budget and Sonar
+   gates, publishes commit-linked evidence, then publishes a static Nginx image
+   and updates `deploy/app.yaml`. A failed gate prevents the image and manifest
+   update. Argo CD applies `App`; Crossplane reconciles its Kubernetes
+   Deployment and internal Service.
 3. Poll `get_service_status(name, environment, resource_kind="App")` until
    ready. Run the specification's browser acceptance checks against the
    deployed frontend and report its repository, tested commit, environment and
@@ -38,3 +41,8 @@ it generates a standalone Angular repository and a namespaced Crossplane `App`.
 Do not write Kubernetes resources directly or bypass the Golden Path. Keep
 frontend API calls on relative `/api/` routes so the platform proxy and browser
 same-origin policy continue to apply.
+
+After deployment, use the platform's read-only quality status MCP tool to
+inspect the result for the source commit. The deployed smoke/E2E acceptance
+checks are still run as a separate verification step; the current Angular
+pipeline does not claim to automate Playwright/axe yet.

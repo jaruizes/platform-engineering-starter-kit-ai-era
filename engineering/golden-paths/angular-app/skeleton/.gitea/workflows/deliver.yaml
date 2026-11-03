@@ -16,11 +16,54 @@ jobs:
           find . -mindepth 1 -delete
           git clone -q "http://pipeline:${TOKEN}@${{ vars.PLATFORM_GIT_HOST }}/${GITHUB_REPOSITORY}.git" .
           git checkout -q "$GITHUB_SHA"
-      - name: Unit tests and production build
+      - name: Install dependencies and lint
         run: |
           npm install
-          npm test
-          npm run build
+          mkdir -p .platform/quality
+          python3 .platform/quality/check.py lint npm run lint
+
+      - name: Architecture boundaries
+        if: always()
+        run: python3 .platform/quality/check.py boundaries python3 .platform/quality/check_architecture.py
+
+      - name: Unit tests with coverage
+        if: always()
+        run: python3 .platform/quality/check.py unit-tests npm test
+
+      - name: Production build and bundle budgets
+        if: always()
+        run: python3 .platform/quality/check.py production-build npm run build
+
+      - name: SonarQube analysis and quality gate
+        if: always()
+        run: |
+          if [ -n "${SONAR_HOST_URL:-}" ] && [ -n "${SONAR_TOKEN:-}" ] \
+            && npx @sonar/scan -Dsonar.projectKey="${GITHUB_REPOSITORY##*/}" \
+              -Dsonar.scm.revision="$GITHUB_SHA" -Dsonar.host.url="$SONAR_HOST_URL" \
+              -Dsonar.token="$SONAR_TOKEN" -Dsonar.qualitygate.wait=true \
+              -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info; then
+            printf '{"status":"passed"}\n' > .platform/quality/sonar-status.json
+          else
+            printf '{"status":"failed","reason":"SonarQube analysis or quality gate failed"}\n' > .platform/quality/sonar-status.json
+          fi
+
+      - name: Deterministic quality gate
+        if: always()
+        run: python3 .platform/quality/gate.py --architecture frontend-angular-v1
+
+      - name: Publish commit-linked quality evidence
+        if: always()
+        run: |
+          if [ ! -f .platform/quality/results.json ]; then
+            echo "No quality evidence was generated."
+            exit 0
+          fi
+          git config user.name "Platform quality gate"
+          git config user.email quality@starterkit.local
+          git checkout -B platform-quality-evidence
+          git add .platform/quality/results.json .platform/quality/sonar-status.json
+          git commit -m "Quality evidence for $GITHUB_SHA" || true
+          git push --force origin HEAD:platform-quality-evidence
       - name: Publish the static application image
         run: |
           IMAGE="${{ vars.SERVICE_IMAGE_REPOSITORY }}:${GITHUB_REPOSITORY#*/}-${GITHUB_SHA:0:12}"
