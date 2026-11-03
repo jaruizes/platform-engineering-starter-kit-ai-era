@@ -6,7 +6,7 @@ This is the second generation of the [Platform Engineering Starter Kit](https://
 
 This kit turns that idea into something you can run.
 
-> **Status: work in progress.** The local demo works today: two Golden Paths, a developer portal (Backstage) for humans and agents, the platform MCP server, guardrails for humans and agents, human approvals, AI-era metrics and a deterministic quality gate for Spring v2 services. The rest of this README describes the target design; the [roadmap](#roadmap) shows what is available.
+> **Status: work in progress.** The local demo includes Spring service and Angular application Golden Paths, a developer portal (Backstage), the platform MCP server, guardrails for humans and agents, human approvals, AI-era metrics and a deterministic quality gate for Spring v2 services. The rest of this README describes the target design; the [roadmap](#roadmap) shows what is available.
 
 ---
 
@@ -79,9 +79,9 @@ Most organizations have documents that say how a service must be built: architec
 | | Humans | AI agents |
 |---|---|---|
 | **Read** | TechDocs in the portal (*Engineering standards*), one section per architecture and version | `platform.get-standards-for-entity` (which architecture and version a service follows, and what to read), `platform.get-engineering-standard` and `platform.search-engineering-standards` (filtered by architecture) in the portal MCP server, and an `AiResource` per architecture in the catalog |
-| **Create** | The **Spring service** template: a repository that follows the standards from the first commit | `create_service` in the platform MCP server runs the same template; the [spring-service skill](agents/skills/spring-service/SKILL.md) tells agents to use it instead of scaffolding by hand |
+| **Create** | The **Spring service** and **Angular application** templates: repositories that follow their architecture standards from the first commit | `create_service` and `create_angular_app` in the platform MCP server run the same templates; the [spring-service](agents/skills/spring-service/SKILL.md) and [angular-app](agents/skills/angular-app/SKILL.md) skills explain their paths |
 | **Change** | The repository's README | The repository's `AGENTS.md` (and `CLAUDE.md`), with the essentials and links to the full documents |
-| **Check** | `./mvnw verify` locally and in CI | The same command: ArchUnit tests for the package structure, dependency direction, framework-free domain and module ownership |
+| **Check** | `./mvnw verify` for Spring, `npm test && npm run build` for Angular | The same project checks run in CI before the image is published and GitOps is updated |
 
 Nobody has to remember the rules: the ones that can be checked are checked, the same way for human and AI-written code.
 
@@ -129,6 +129,7 @@ The kit is opinionated so it works out of the box, and modular so each piece can
 | Golden Path | What you get | Interfaces |
 |---|---|---|
 | **New service** | Repository from a template (Java/Spring Boot, Node.js, Python), CI pipeline, deployment through GitOps, observability and catalog entry | Portal · CLI · MCP |
+| **Angular frontend** | Angular repository, frontend test/build pipeline, static image, Crossplane `App` resource and Kubernetes Deployment/Service; optional `/api/` proxy to a SpringService in the same environment | Portal · MCP |
 | **Ephemeral environment** | An isolated environment (vcluster or namespace) to test a change, with a time to live and a cost budget | Portal · CLI · MCP |
 | **Database** | A PostgreSQL database (in-cluster locally, Amazon RDS on AWS) with credentials delivered as secrets. The first [platform capability](platform/capabilities/postgres-database) built by an agent from its definition | Portal · CLI · MCP |
 | **Agent-ready repository** | A repository prepared to work with coding agents: `AGENTS.md`, MCP configuration and verification checks in CI | Portal · CLI |
@@ -206,7 +207,7 @@ What is available today:
 ├── engineering/
 │   ├── standards/             # shared engineering contracts and documentation
 │   ├── quality/               # architecture-specific quality profiles and gate
-│   └── golden-paths/          # Environment and SpringService platform APIs
+│   └── golden-paths/          # Environment, SpringService, and Angular App APIs
 ├── agents/
 │   ├── skills/                # one canonical skill library
 │   ├── instructions/          # shared guidance
@@ -280,6 +281,7 @@ Only your public IP can reach it. See [bootstrap/aws](bootstrap/aws/README.md) f
 - [x] **Demo MVP:** local setup, *new service* and *ephemeral environment* Golden Paths, platform MCP server, cost and human approval policies, first dashboard
 - [x] **Portal:** Backstage with templates on top of the same Golden Paths, live catalog of what humans and agents created, approvals, AI resources and MCP actions for agents
 - [x] **Engineering standards:** TechDocs and AI rules from one source, a Spring service template with ArchUnit checks and `AGENTS.md`, and `create_service` for agents
+- [x] **Angular frontend Golden Path:** Angular template and skeleton, `App` Crossplane runtime, Kubernetes delivery with GitOps, and `create_angular_app` for agents with optional same-environment SpringService proxy
 - [x] **Platform capabilities:** a definition schema, a portal form that proposes them as pull requests, an agent skill that builds them, checks with a traceability matrix, and a PostgreSQL database as the first one
 - [x] **Delivery:** a pipeline per service (Gitea Actions, Jib) and GitOps with Argo CD, so an agent can implement a spec, deploy it and call it
 - [x] **Software quality & governance:** versioned Spring v2 quality profile, blocking JUnit/ArchUnit/JaCoCo/SonarQube gates before image publication and GitOps, commit-linked findings, read-only MCP status, Backstage service card and shared agent skill. SonarQube is installed and started by `make up` and `make aws-up`.

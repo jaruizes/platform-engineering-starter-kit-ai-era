@@ -1,0 +1,19 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: ${{ values.description }}
+  labels:
+    platform.starterkit.dev/architecture: frontend-angular-v1
+  annotations:
+    platform.starterkit.dev/requested-by: ${{ values.requestedBy }}
+    platform.starterkit.dev/template: angular-app
+    backstage.io/kubernetes-label-selector: app.kubernetes.io/name=${{ values.name }}
+  tags: [angular, typescript, frontend]
+spec:
+  type: website
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+{% if values.backendService %}  dependsOn:
+    - component:default/${{ values.backendService }}
+{% endif %}

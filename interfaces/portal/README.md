@@ -6,6 +6,7 @@
 |---|---|
 | [`catalog/`](catalog) | Sample organization, services on each of the coexisting architectures, the platform components, the two MCP servers as APIs, and AI resources |
 | [Spring service Golden Path](../../engineering/golden-paths/spring-service) | Backstage template, service skeleton, and Crossplane runtime resource/composition in one place |
+| [Angular app Golden Path](../../engineering/golden-paths/angular-app) | Backstage template, Angular skeleton, and Crossplane `App` runtime resource/composition |
 | [`plugins/platform-backend`](plugins/platform-backend) | Brings environments, services and [platform capabilities](../../platform/capabilities) from the cluster into the catalog (with a request form per capability, built from its XRD), builds the **New platform capability** form from the definition schema and opens the proposal as a pull request in the platform repository, runs the Golden Paths from the templates on behalf of the signed-in person, serves agent approvals and metrics, and adds read-only context tools for agents (`get-team-usage`, `list-pending-approvals`, `list-engineering-standards`, `get-standards-for-entity`, `get-engineering-standard`, `search-engineering-standards`) |
 | [`plugins/platform`](plugins/platform) | The **AI Platform** page (metrics and approvals) and the **Golden Path request** card on environments and services |
 | [`app-config.yaml`](app-config.yaml) | Configuration in the local cluster, including the MCP actions server for agents |
@@ -17,6 +18,7 @@
 ```bash
 docker build --build-context standards=../../engineering/standards --build-context capabilities=../../platform/capabilities \
   --build-context spring-service=../../engineering/golden-paths/spring-service \
+  --build-context angular-app=../../engineering/golden-paths/angular-app \
   --build-context branding=branding -t platform-starter-kit/portal:dev .
 ```
 
@@ -24,7 +26,7 @@ docker build --build-context standards=../../engineering/standards --build-conte
 
 Agents get the portal as a read-only MCP server (`/api/mcp-actions/v1/context`): catalog, Kubernetes status, search, team usage, pending approvals and the engineering standards. The Software Templates are not exposed to agents on purpose, and the environment and service template actions refuse to run without a signed-in person. Agents act through the platform MCP server, with their own identity, so the agent guardrails always apply to them.
 
-The Spring service template is the one code Golden Path agents can run, through `create_service` in the platform MCP server. It uses its own token, limited to the scaffolder and the catalog, and the generated service records the agent as its requester. The repository goes to the local Git server, and the catalog discovers it there (`catalog.providers.gitea`), so services survive portal restarts.
+Agents can create a backend through `create_service` or an Angular frontend through `create_angular_app` in the platform MCP server. Both run the same Backstage templates humans use, record the agent as requester, and publish repositories to the local Git server. The catalog discovers repositories there (`catalog.providers.gitea`), so they survive portal restarts.
 
 ## Platform capabilities
 

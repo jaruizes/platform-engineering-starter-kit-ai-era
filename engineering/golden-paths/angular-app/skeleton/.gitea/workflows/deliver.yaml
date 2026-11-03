@@ -1,0 +1,50 @@
+# Build and verify the Angular frontend, publish a static Nginx image, and
+# update the App resource. The runner uses Node plus crane (daemonless OCI).
+name: deliver
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["deploy/**"]
+jobs:
+  deliver:
+    runs-on: platform
+    steps:
+      - name: Check out
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          find . -mindepth 1 -delete
+          git clone -q "http://pipeline:${TOKEN}@${{ vars.PLATFORM_GIT_HOST }}/${GITHUB_REPOSITORY}.git" .
+          git checkout -q "$GITHUB_SHA"
+      - name: Unit tests and production build
+        run: |
+          npm install
+          npm test
+          npm run build
+      - name: Publish the static application image
+        run: |
+          IMAGE="${{ vars.SERVICE_IMAGE_REPOSITORY }}:${GITHUB_REPOSITORY#*/}-${GITHUB_SHA:0:12}"
+          REGISTRY="${IMAGE%%/*}"
+          if [[ "$REGISTRY" == *.dkr.ecr.*.amazonaws.com ]]; then
+            mkdir -p "$HOME/.docker"
+            printf '{"credHelpers":{"%s":"ecr-login"}}\n' "$REGISTRY" > "$HOME/.docker/config.json"
+          fi
+          mkdir -p /tmp/angular-image/usr/share/nginx/html
+          cp -a dist/. /tmp/angular-image/usr/share/nginx/html/
+          tar -C /tmp/angular-image -cf /tmp/angular-image.tar .
+          crane append --base nginxinc/nginx-unprivileged:1.27-alpine \
+            --file /tmp/angular-image.tar --tag "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+      - name: Deploy (GitOps)
+        run: |
+          if grep -q '^  image:' deploy/app.yaml; then
+            sed -i "s|^  image:.*|  image: $IMAGE|" deploy/app.yaml
+          else
+            echo "deploy/app.yaml has no environment: the image is built but not deployed."
+          fi
+          git -c user.name="Platform pipeline" -c user.email=pipeline@starterkit.local add deploy/app.yaml
+          if ! git diff --cached --quiet; then
+            git -c user.name="Platform pipeline" -c user.email=pipeline@starterkit.local \
+              commit -m "Deploy $IMAGE after frontend checks for $GITHUB_SHA"
+            git push -q origin HEAD:main
+          fi

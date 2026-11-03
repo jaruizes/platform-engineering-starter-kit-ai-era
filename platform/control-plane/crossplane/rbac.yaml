@@ -8,7 +8,7 @@ metadata:
     rbac.crossplane.io/aggregate-to-crossplane: "true"
 rules:
   - apiGroups: [""]
-    resources: [namespaces, resourcequotas, limitranges, services, serviceaccounts]
+    resources: [configmaps, namespaces, resourcequotas, limitranges, services, serviceaccounts]
     verbs: ["*"]
   - apiGroups: [apps]
     resources: [deployments]

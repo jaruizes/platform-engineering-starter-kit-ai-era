@@ -1,0 +1,98 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: angular-app
+  title: Angular application
+  description: >-
+    Creates a standalone Angular frontend, container build and Kubernetes
+    GitOps manifest. Optionally routes /api/ requests to a SpringService in the
+    same ephemeral environment.
+  tags: [golden-path, angular, frontend]
+spec:
+  owner: platform-team
+  type: website
+  parameters:
+    - title: Application
+      required: [name, description, owner]
+      properties:
+        name:
+          title: Name
+          description: Repository and application name, for example inventory-web.
+          type: string
+          pattern: '^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$'
+        description:
+          title: Description
+          type: string
+        owner:
+          title: Owner team
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+    - title: Integration
+      properties:
+        backendService:
+          title: Spring service name
+          description: >-
+            Optional SpringService in the same environment. The generated Nginx
+            configuration forwards /api/ requests to it.
+          type: string
+          pattern: '^$|^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$'
+        requestedBy:
+          title: Requested by
+          description: Set by the platform MCP server when an AI agent uses this template.
+          type: string
+          ui:widget: hidden
+    - title: Delivery
+      properties:
+        environment:
+          title: Environment
+          description: >-
+            Ephemeral environment where every push to main is deployed. Leave
+            empty to only create the repository.
+          type: string
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: Resource
+              spec.type: environment
+  steps:
+    - id: fetch
+      name: Generate the Angular application
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          backendService: ${{ parameters.backendService or '' }}
+          requestedBy: ${{ parameters.requestedBy or user.ref }}
+          environment: ${{ (parameters.environment or '').split('/') | last }}
+        copyWithoutTemplating:
+          - .gitea/workflows/*
+    - id: publish
+      name: Create the repository
+      action: publish:gitea
+      input:
+        repoUrl: localhost:3000?owner=platform&repo=${{ parameters.name }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: public
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open the application in the catalog
+        icon: catalog
+        entityRef: component:default/${{ parameters.name }}
+    text:
+      - title: Next steps
+        content: |
+          ```bash
+          git clone ${{ steps.publish.output.remoteUrl }}
+          cd ${{ parameters.name }} && npm install && npm test && npm run build
+          ```
+          A push to main builds the container and, with an environment, Argo CD
+          deploys the `App` resource into Kubernetes.

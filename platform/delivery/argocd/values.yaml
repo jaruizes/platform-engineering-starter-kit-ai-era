@@ -38,6 +38,23 @@ configs:
         end
       end
       return hs
+    resource.customizations.health.platform.starterkit.dev_App: |
+      hs = {status = "Progressing", message = "Waiting for the application image and replicas"}
+      if obj.spec == nil or obj.spec.image == nil or obj.spec.image == "" then
+        hs.message = "Waiting for the frontend pipeline to build its first image"
+        return hs
+      end
+      if obj.status ~= nil and obj.status.conditions ~= nil then
+        for _, c in ipairs(obj.status.conditions) do
+          if c.type == "Ready" and c.status == "True" then
+            return {status = "Healthy", message = "Ready"}
+          end
+          if c.type == "Synced" and c.status == "False" then
+            return {status = "Degraded", message = c.message}
+          end
+        end
+      end
+      return hs
     resource.customizations.health.platform.starterkit.dev_PostgresDatabase: |
       hs = {status = "Progressing", message = "Waiting for the database to be ready"}
       if obj.status ~= nil and obj.status.conditions ~= nil then

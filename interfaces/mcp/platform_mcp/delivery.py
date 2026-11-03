@@ -104,7 +104,8 @@ def _logs(core: Any, namespace: str, pod: str, previous: bool) -> str:
 
 
 def summarize(service: str, environment: str, run: dict[str, Any], argo: dict[str, Any],
-              service_resource: dict[str, Any] | None, replicas: list[dict[str, Any]]) -> tuple[str, str]:
+              service_resource: dict[str, Any] | None, replicas: list[dict[str, Any]],
+              resource_kind: str = "SpringService") -> tuple[str, str]:
     """(state, what to do next) from the three steps, in the order they happen."""
     namespace = f"env-{environment}"
     if run["status"] in ("failure", "cancelled"):
@@ -121,8 +122,8 @@ def summarize(service: str, environment: str, run: dict[str, Any], argo: dict[st
     if stuck and not any(p["ready"] for p in replicas):
         reason = stuck[0].get("waiting_reason") or stuck[0].get("last_exit")
         return "failing", (
-            f"The service does not start ({reason}). Read the logs in pods[].logs, fix the code or "
-            "deploy/spring-service.yaml, and push to main."
+            f"The workload does not start ({reason}). Read the logs in pods[].logs, fix the code or "
+            f"deploy/{'app.yaml' if resource_kind == 'App' else 'spring-service.yaml'}, and push to main."
         )
     if not service_resource.get("ready"):
         return "starting", "The service is starting. Call get_service_status again in a moment."
@@ -132,14 +133,22 @@ def summarize(service: str, environment: str, run: dict[str, Any], argo: dict[st
     )
 
 
-def status(service: str, environment: str) -> dict[str, Any]:
+def status(service: str, environment: str, resource_kind: str = "SpringService") -> dict[str, Any]:
     namespace = f"env-{environment}"
     run = pipeline(service)
     argo = gitops(service)
     try:
+        plural = "apps" if resource_kind == "App" else "springservices"
         resource = platform._custom().get_namespaced_custom_object(
-            platform.GROUP, platform.VERSION, namespace, "springservices", service)
-        service_resource = platform.summarize_spring_service(resource)
+            platform.GROUP, platform.VERSION, namespace, plural, service)
+        service_resource = platform.summarize_spring_service(resource) if resource_kind != "App" else {
+            "name": service,
+            "namespace": namespace,
+            "image": resource.get("spec", {}).get("image", ""),
+            "ready": any(c.get("type") == "Ready" and c.get("status") == "True"
+                         for c in resource.get("status", {}).get("conditions", [])),
+            "url": resource.get("status", {}).get("url"),
+        }
     except ApiException as err:
         if err.status != 404:
             raise
@@ -148,9 +157,10 @@ def status(service: str, environment: str) -> dict[str, Any]:
         replicas = pods(namespace, service) if service_resource else []
     except ApiException as err:
         replicas = [{"error": f"The pods could not be read ({err.status})."}]
-    state, next_step = summarize(service, environment, run, argo, service_resource, replicas)
+    state, next_step = summarize(service, environment, run, argo, service_resource, replicas, resource_kind)
     return {
         "service": service,
+        "resource_kind": resource_kind,
         "environment": environment,
         "state": state,
         "pipeline": run,

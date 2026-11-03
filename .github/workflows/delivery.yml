@@ -13,6 +13,7 @@ on:
       - platform/control-plane/**
       - interfaces/mcp/**
       - engineering/golden-paths/spring-service/**
+      - engineering/golden-paths/angular-app/**
       - bootstrap/local/**
       - bootstrap/install.sh
       - .github/workflows/delivery.yml
@@ -21,6 +22,7 @@ on:
     paths:
       - platform/delivery/**
       - engineering/golden-paths/spring-service/**
+      - engineering/golden-paths/angular-app/**
       - .github/workflows/delivery.yml
 
 permissions:

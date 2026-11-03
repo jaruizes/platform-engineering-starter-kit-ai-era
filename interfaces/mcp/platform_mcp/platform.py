@@ -140,6 +140,28 @@ GOLDEN_PATHS = [
         ],
         "tool": "create_service",
     },
+    {
+        "name": "angular-app",
+        "kind": "Repository",
+        "description": (
+            "Creates an Angular frontend repository from the frontend-angular-v1 Golden Path, "
+            "with a static Nginx image build and a Crossplane App resource for Kubernetes. "
+            "An optional SpringService name configures the /api/ reverse proxy."
+        ),
+        "parameters": {
+            "name": "Frontend and repository name, for example inventory-web",
+            "description": "What the frontend lets its users do",
+            "team": "Team that owns the application",
+            "environment": "Ephemeral environment to deliver it to",
+            "backend_service": "Optional SpringService name in the same environment",
+        },
+        "guardrails": [
+            "Agents can only deploy App resources into ephemeral environments.",
+            "The pipeline runs frontend unit tests and production build before deploying.",
+            "Backend calls use the same-origin /api/ path and remain inside the environment.",
+        ],
+        "tool": "create_angular_app",
+    },
 ]
 
 SIZES = {"small", "medium", "large"}
