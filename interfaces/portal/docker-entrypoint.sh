@@ -1,13 +1,14 @@
 #!/bin/sh
 # Starts the portal. Its configuration and catalog use the local addresses
 # (http://localhost:<port>); when PUBLIC_URL is another address, as on AWS,
-# they are rewritten to it, keeping each port.
+# they are rewritten to it, keeping each port. This includes the Golden Path
+# templates so their publish:gitea repoUrl matches the configured integration.
 set -e
 origin="${PUBLIC_URL%:*}"
 if [ -n "$PUBLIC_URL" ] && [ "$origin" != "http://localhost" ]; then
   host="${origin#*://}"
   # The configuration, the catalog and the files the templates generate.
-  find app-config.yaml catalog standards/catalog-info.yaml -type f \( -name '*.yaml' -o -name '*.md' \) \
+  find app-config.yaml catalog golden-paths standards/catalog-info.yaml -type f \( -name '*.yaml' -o -name '*.md' \) \
     -exec sed -i -e "s|http://localhost:|$origin:|g" -e "s|localhost:3000|$host:3000|g" {} +
 fi
 if [ -f /etc/platform-ca/ca.crt ]; then
