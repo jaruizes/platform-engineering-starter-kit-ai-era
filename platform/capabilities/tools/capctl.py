@@ -24,6 +24,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parents[1]
+CAPABILITIES = ROOT / "infrastructure"
 SCHEMA = ROOT / "schema" / "capability-definition.schema.json"
 GROUP = "platform.starterkit.dev"
 PREFIX = "platform.starterkit.dev"
@@ -46,11 +47,11 @@ def load_yaml_documents(path: Path) -> list[dict[str, Any]]:
 
 
 def definition_path(name: str) -> Path:
-    return ROOT / name / "capability.yaml"
+    return CAPABILITIES / name / "capability.yaml"
 
 
 def all_capabilities() -> list[str]:
-    return sorted(p.parent.name for p in ROOT.glob("*/capability.yaml"))
+    return sorted(p.parent.name for p in CAPABILITIES.glob("*/capability.yaml"))
 
 
 # --- Definition --------------------------------------------------------------
@@ -219,7 +220,7 @@ def acceptance_errors(definition: dict[str, Any], folder: Path) -> list[str]:
 
 
 def generated_errors(name: str, definition: dict[str, Any]) -> list[str]:
-    folder = ROOT / name
+    folder = CAPABILITIES / name
     missing = [f"{path} is missing ({what})." for path, what in GENERATED.items() if not (folder / path).exists()]
     if not list((folder / "tests" / "kyverno").rglob("kyverno-test.yaml")):
         missing.append("tests/kyverno/ needs at least one kyverno-test.yaml (policy tests).")
@@ -244,7 +245,7 @@ def validate(names: list[str], definition_only: bool) -> int:
             continue
         definition = yaml.safe_load(path.read_text())
         errors = definition_errors(name, definition)
-        built = (ROOT / name / "definition.yaml").exists()
+        built = (CAPABILITIES / name / "definition.yaml").exists()
         if not errors and not definition_only and built:
             errors = generated_errors(name, definition)
         state = "definition" if definition_only or not built else "definition and generated files"
@@ -282,7 +283,7 @@ def _mark(outcome: str | None) -> str:
 
 
 def trace(name: str, junit: Path | None, kyverno: str | None, render: str | None) -> int:
-    folder = ROOT / name
+    folder = CAPABILITIES / name
     definition = yaml.safe_load(definition_path(name).read_text())
     spec = definition["spec"]
     results = junit_results(junit)

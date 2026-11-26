@@ -6,16 +6,16 @@ help: ## Show the available commands
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
 
 up: ## Create the local platform (k3d, Crossplane, Kyverno, MCP server, console, portal)
-	@bootstrap/local/up.sh
+	@deploy/local/up.sh
 
 down: ## Delete the local platform
-	@bootstrap/local/down.sh
+	@deploy/local/down.sh
 
 aws-up: ## Create the platform on AWS for a demo (AWS credentials in environment variables)
-	@bootstrap/aws/up.sh
+	@deploy/aws/up.sh
 
 aws-down: ## Delete the platform on AWS
-	@bootstrap/aws/down.sh
+	@deploy/aws/down.sh
 
 demo-developer: ## Act 1: a developer requests an environment and deploys a service
 	kubectl apply -f examples/scenarios/developer/environment.yaml
@@ -44,22 +44,22 @@ capabilities: ## List the platform capabilities installed in the cluster
 	  -L platform.starterkit.dev/capability
 
 sonar-up: ## Reapply SonarQube manifests (it is installed by default with make up / make aws-up)
-	@platform/quality/install.sh
+	@platform/capabilities/quality/runtime/install.sh
 
 sonar-down: ## Remove SonarQube and its data from the current cluster
-	@kubectl delete -f platform/quality/sonarqube.yaml --ignore-not-found
+	@kubectl delete -f platform/capabilities/quality/runtime/sonarqube.yaml --ignore-not-found
 	@kubectl delete namespace quality --ignore-not-found
 	@kubectl -n platform-system delete secret sonar-pipeline-auth sonar-admin-auth --ignore-not-found
 
 demo-quality: ## Demonstrate an ArchUnit violation failing and its correction passing
-	@python3 platform/quality/demo.py
+	@python3 platform/capabilities/quality/runtime/demo.py
 
 demo-spring-e2e: ## Run discount-service black-box acceptance checks in an ephemeral environment
 	@examples/scenarios/quality-gated-spring/run-e2e.sh $(or $(SERVICE),discount-service) $(ENVIRONMENT)
 
 test: ## Run the unit tests of the MCP server, console and capability tools
-	cd interfaces/mcp && $(PYTHON) -m pytest -q tests
+	$(PYTHON) -m pytest -q platform/access/mcp/tests
 	$(PYTHON) -m pytest -q platform/capabilities/tools/tests
-	$(PYTHON) -m pytest -q platform/quality/tests
+	$(PYTHON) -m pytest -q platform/capabilities/quality/runtime/tests
 
 .PHONY: help up down aws-up aws-down demo-developer demo-agent demo-reset status capability capabilities sonar-up sonar-down demo-quality demo-spring-e2e test

@@ -10,11 +10,11 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-source "$ROOT/bootstrap/local/versions.env"
+source "$ROOT/deploy/local/versions.env"
 NAME="${1:?usage: check.sh NAME [--no-e2e]}"
 E2E=true
 [[ "${2:-}" == "--no-e2e" ]] && E2E=false
-FOLDER="$ROOT/platform/capabilities/$NAME"
+FOLDER="$ROOT/platform/capabilities/infrastructure/$NAME"
 OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
@@ -25,7 +25,7 @@ python3 "$ROOT/platform/capabilities/tools/capctl.py" validate "$NAME" || exit 1
 
 step "Rendering every example with the composition"
 sed "s|\${FUNCTION_GO_TEMPLATING_VERSION}|$FUNCTION_GO_TEMPLATING_VERSION|" \
-  "$ROOT/platform/control-plane/crossplane/functions.yaml" > "$OUT/functions.yaml"
+  "$ROOT/platform/integrations/crossplane/functions.yaml" > "$OUT/functions.yaml"
 render=PASS
 for example in "$FOLDER"/examples/*.yaml; do
   # CROSSPLANE_RENDER_ARGS lets you point to mirrored images.
@@ -59,7 +59,7 @@ step "Traceability"
 python3 "$ROOT/platform/capabilities/tools/capctl.py" trace "$NAME" "${junit[@]}" --kyverno "$kyverno" --render "$render" || failed=1
 
 if [[ $failed -ne 0 ]]; then
-  printf '\n\033[1;31m%s is not ready: see the errors above and %s\033[0m\n' "$NAME" "platform/capabilities/$NAME/TRACEABILITY.md"
+  printf '\n\033[1;31m%s is not ready: see the errors above and %s\033[0m\n' "$NAME" "platform/capabilities/infrastructure/$NAME/TRACEABILITY.md"
   exit 1
 fi
 printf '\n\033[1;32m%s passed every check. Next: a person on the platform team reviews it.\033[0m\n' "$NAME"

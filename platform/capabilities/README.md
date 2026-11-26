@@ -9,7 +9,7 @@ Person (portal form)  ──>  capability.yaml  ──>  agent builds the rest  
 
 ## The definition
 
-`platform/capabilities/<name>/capability.yaml` follows the [definition schema](schema/capability-definition.schema.json) (`platform.starterkit.dev/v1alpha1`, `CapabilityDefinition`). It says **what**, never **how**:
+`platform/capabilities/infrastructure/<name>/capability.yaml` follows the [definition schema](schema/capability-definition.schema.json) (`platform.starterkit.dev/v1alpha1`, `CapabilityDefinition`). It says **what**, never **how**:
 
 | Section | Required | What it says |
 |---|---|---|
@@ -24,7 +24,7 @@ The agent never edits it. Changing a capability means a new version of its defin
 
 ## What the agent generates
 
-From the definition, the [build-platform-capability skill](../../agents/skills/build-platform-capability/SKILL.md) generates, in the same folder:
+From the definition, the [build-platform-capability skill](../ai/agent-tooling/skills/build-platform-capability/SKILL.md) generates, in the same folder:
 
 | File | From | What it is |
 |---|---|---|
@@ -35,10 +35,10 @@ From the definition, the [build-platform-capability skill](../../agents/skills/b
 | `tests/e2e/test_acceptance.py` | `acceptance` | One test per criterion (`test_ac_<n>_...`), as a person (`kubectl`) and as an agent (platform MCP server) |
 | `examples/` | `interface` | Requests used to render the composition |
 | `docs/`, `mkdocs.yml` | everything | TechDocs in the portal |
-| `SKILL.md` | `purpose`, `interface` | When and how agents should use it (linked from `agents/skills/<name>`) |
+| `SKILL.md` | `purpose`, `interface` | When and how agents should use it (linked from `platform/ai/agent-tooling/skills/<name>`) |
 | `TRACEABILITY.md` | the checks | Each criterion and guardrail, the test that proves it and its result |
 
-[`postgres-database/`](postgres-database) is the first complete example.
+[`postgres-database/`](infrastructure/postgres-database) is the first complete example.
 
 ## The checks
 
@@ -54,7 +54,7 @@ make capability NAME=postgres-database   # platform/capabilities/tools/check.sh 
 
 CI runs the same on every pull request ([`.github/workflows/capabilities.yml`](../../.github/workflows/capabilities.yml)): steps 1 to 3 first, then a local platform without the portal for the acceptance tests.
 
-Tools: Python 3.12 with [`requirements.txt`](requirements.txt), the [Crossplane CLI](https://docs.crossplane.io/latest/cli/) and the [Kyverno CLI](https://kyverno.io/docs/kyverno-cli/), in the versions of [`versions.env`](../../bootstrap/local/versions.env).
+Tools: Python 3.12 with [`requirements.txt`](requirements.txt), the [Crossplane CLI](https://docs.crossplane.io/latest/cli/) and the [Kyverno CLI](https://kyverno.io/docs/kyverno-cli/), in the versions of [`versions.env`](../../deploy/local/versions.env).
 
 ## How people and agents use a capability
 
@@ -62,7 +62,7 @@ Nothing in the portal or the MCP server is specific to a capability: both discov
 
 - **Portal:** a catalog entry with its docs, a *Create* form built from the XRD, and what each team requested, with who asked.
 - **Agents:** `list_golden_paths`, `request_capability` and `get_capability_request` in the platform MCP server. A guardrail with `enforcement: approval` turns an agent request into an approval request in the **AI Platform** page.
-- **kubectl:** `kubectl -n env-<environment> apply -f platform/capabilities/<name>/examples/<example>.yaml`.
+- **kubectl:** `kubectl -n env-<environment> apply -f platform/capabilities/infrastructure/<name>/examples/<example>.yaml`.
 
 ## Proposing a new one
 

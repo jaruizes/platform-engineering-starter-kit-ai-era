@@ -32,7 +32,7 @@ if kubectl -n platform-system get deployment gitea >/dev/null 2>&1; then
     curl -fsS -X DELETE -u "$user:$password" "$GIT_URL/api/v1/repos/$repo" >/dev/null || true
   done
   echo "Starting the platform repository again (no proposed capabilities)..."
-  "$(dirname "$0")/../../platform/delivery/git-server/seed-platform-repo.sh" --reset >/dev/null
+  "$(dirname "$0")/../../platform/capabilities/delivery/git-server/seed-platform-repo.sh" --reset >/dev/null
 fi
 
 echo "Waiting for environments to be gone..."

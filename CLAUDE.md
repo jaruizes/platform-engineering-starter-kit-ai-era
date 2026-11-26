@@ -1,1 +1,1 @@
-@agents/instructions/AGENTS.md
+@platform/ai/agent-tooling/instructions/AGENTS.md
