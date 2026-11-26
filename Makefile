@@ -58,7 +58,7 @@ demo-spring-e2e: ## Run discount-service black-box acceptance checks in an ephem
 	@examples/scenarios/quality-gated-spring/run-e2e.sh $(or $(SERVICE),discount-service) $(ENVIRONMENT)
 
 test: ## Run the unit tests of the MCP server, console and capability tools
-	$(PYTHON) -m pytest -q platform/mcp/tests
+	$(PYTHON) -m pytest -q platform/access/mcp/tests
 	$(PYTHON) -m pytest -q platform/capabilities/tools/tests
 	$(PYTHON) -m pytest -q platform/capabilities/quality/runtime/tests
 
