@@ -15,7 +15,7 @@ export type GitServerConfig = {
 
 export type PullRequest = { number: number; url: string; title: string; author: string; sha: string };
 
-export const DEFINITION_PATH = /^platform\/capabilities\/([a-z0-9-]+)\/capability\.yaml$/;
+export const DEFINITION_PATH = /^platform\/capabilities\/infrastructure\/([a-z0-9-]+)\/capability\.yaml$/;
 
 export class GitServer {
   constructor(private readonly config: GitServerConfig) {}

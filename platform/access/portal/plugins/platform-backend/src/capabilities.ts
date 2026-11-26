@@ -97,7 +97,7 @@ function costText(cost: Record<string, string>): string {
  * built into the portal image from its folder in the platform repository.
  */
 export function capabilityEntity(cap: Capability, appUrl: string, repositoryUrl?: string): Entity {
-  const source = repositoryUrl && `${repositoryUrl}/src/branch/main/platform/capabilities/${cap.name}`;
+  const source = repositoryUrl && `${repositoryUrl}/src/branch/main/platform/capabilities/infrastructure/${cap.name}`;
   return {
     apiVersion: 'backstage.io/v1alpha1',
     kind: 'Resource',
