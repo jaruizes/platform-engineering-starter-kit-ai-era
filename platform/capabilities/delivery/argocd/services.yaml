@@ -14,11 +14,17 @@ spec:
   destinations:
     - server: https://kubernetes.default.svc
       namespace: env-*
-  # Only Golden Paths and capabilities: the platform decides how they run.
+  # Narrow resource allowlist: Crossplane app resources and private MCP workloads.
   clusterResourceWhitelist: []
   namespaceResourceWhitelist:
     - group: platform.starterkit.dev
       kind: "*"
+    # Remote MCP adapters are the only Golden Path here using raw K8s
+    # workload manifests instead of a Crossplane composite resource.
+    - group: apps
+      kind: Deployment
+    - group: ""
+      kind: Service
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet

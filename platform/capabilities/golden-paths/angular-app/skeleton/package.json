@@ -5,8 +5,9 @@
   "scripts": {
     "start": "ng serve --host 0.0.0.0",
     "build": "ng build --configuration production",
-    "test": "ng test --watch=false --coverage",
-    "lint": "eslint src --format json --output-file .platform/quality/eslint.json"
+    "test": "ng test --watch=false && node tools/normalize-lcov.mjs",
+    "lint": "eslint src --format json --output-file .platform/quality/eslint.json",
+    "test:lcov": "node --test tools/normalize-lcov.test.mjs"
   },
   "dependencies": {
     "@angular/common": "^20.0.0",

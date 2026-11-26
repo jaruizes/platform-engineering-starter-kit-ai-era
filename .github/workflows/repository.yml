@@ -2,7 +2,7 @@ name: Repository structure and unit tests
 on:
   pull_request:
   push:
-    branches: [main, refactor/repository-structure]
+    branches: [main, 'feat/**']
 permissions:
   contents: read
 jobs:
@@ -30,6 +30,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Verify Angular Golden Path LCOV mapping
+        run: node --test platform/capabilities/golden-paths/angular-app/skeleton/tools/normalize-lcov.test.mjs
       - name: Test Backstage integration
         working-directory: platform/access/portal
         run: |
@@ -44,6 +46,7 @@ jobs:
             --build-context capabilities=./platform/capabilities \
             --build-context spring-service=./platform/capabilities/golden-paths/spring-service \
             --build-context angular-app=./platform/capabilities/golden-paths/angular-app \
+            --build-context api-mcp-adapter=./platform/capabilities/golden-paths/api-mcp-adapter \
             --build-context branding=./platform/access/portal/branding ./platform/access/portal
       - name: Build MCP server and delivery runner
         run: |

@@ -61,5 +61,6 @@ test: ## Run the unit tests of the MCP server, console and capability tools
 	$(PYTHON) -m pytest -q platform/access/mcp/tests
 	$(PYTHON) -m pytest -q platform/capabilities/tools/tests
 	$(PYTHON) -m pytest -q platform/capabilities/quality/runtime/tests
+	PYTHONPATH=platform/capabilities/golden-paths/api-mcp-adapter/skeleton $(PYTHON) -m pytest -q platform/capabilities/golden-paths/api-mcp-adapter/skeleton/tests examples/scenarios/example/tests
 
 .PHONY: help up down aws-up aws-down demo-developer demo-agent demo-reset status capability capabilities sonar-up sonar-down demo-quality demo-spring-e2e test

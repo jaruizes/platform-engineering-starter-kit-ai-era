@@ -39,7 +39,12 @@ spec:
                     server_name _;
                     root /usr/share/nginx/html;
                     index index.html;
-                    add_header Content-Security-Policy "default-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
+                    # $request_id contains 16 random bytes (hex); use the SAME
+                    # value in the CSP header and the HTML root ngCspNonce.
+                    # Angular/Material component <style> tags receive a nonce; never
+                    # allow all inline styles.
+                    # inherit the per-response nonce from Angular's root node.
+                    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'nonce-$request_id'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
                     add_header X-Content-Type-Options "nosniff" always;
                     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
                     location = /healthz { access_log off; return 200 "ok"; }
@@ -50,6 +55,18 @@ spec:
                         proxy_set_header X-Real-IP $remote_addr;
                     }
                     {{- end }}
+                    # Never cache HTML with a previously generated nonce.
+                    # sub_filter requires nginx http_sub_module (provided by
+                    # the selected nginx-unprivileged image).
+                    location = /index.html {
+                        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'nonce-$request_id'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
+                        add_header Cache-Control "no-store" always;
+                        add_header X-Content-Type-Options "nosniff" always;
+                        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+                        sub_filter_types text/html;
+                        sub_filter_once on;
+                        sub_filter '__CSP_NONCE__' $request_id;
+                    }
                     location / { try_files $uri $uri/ /index.html; }
                 }
             {{ if $xr.spec.image }}
@@ -111,13 +128,15 @@ spec:
                         httpGet:
                           path: /healthz
                           port: http
+                      # Static Nginx server. Reserve CPU quota for Spring, Postgres
+                      # and a remote MCP adapter sharing this small environment.
                       resources:
                         requests:
-                          cpu: 50m
-                          memory: 64Mi
+                          cpu: 25m
+                          memory: 32Mi
                         limits:
-                          cpu: 250m
-                          memory: 256Mi
+                          cpu: 100m
+                          memory: 128Mi
                       securityContext:
                         allowPrivilegeEscalation: false
                         capabilities:

@@ -1,0 +1,94 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: api-mcp-adapter
+  title: API to MCP adapter (Zero-UI)
+  description: >-
+    Creates a read-only Streamable HTTP MCP server for an existing REST API.
+    It is deployed to the same ephemeral Kubernetes namespace and is consumed
+    through a private, per-user kubectl port-forward (no public ingress).
+  tags: [golden-path, ai, mcp, zero-ui, api]
+spec:
+  owner: platform-team
+  type: service
+  parameters:
+    - title: MCP adapter
+      required: [name, description, owner, backendService]
+      properties:
+        name:
+          title: Repository name
+          type: string
+          pattern: '^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$'
+        description:
+          title: Purpose of these business tools
+          type: string
+        owner:
+          title: Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+        backendService:
+          title: Existing REST backend
+          type: string
+          pattern: '^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$'
+          description: The already deployed SpringService exposing GET endpoints.
+        requestedBy:
+          title: Requested by
+          type: string
+          ui:widget: hidden
+    - title: Remote deployment (private Kubernetes service)
+      required: [environment]
+      properties:
+        environment:
+          title: Ephemeral environment
+          description: >-
+            Required Kubernetes environment for the remote MCP Deployment.
+            The MCP service remains ClusterIP-only, accessible by port-forward.
+          type: string
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: Resource
+              spec.type: environment
+  steps:
+    - id: fetch
+      name: Generate the allowlisted REST-to-MCP adapter
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          backendService: ${{ parameters.backendService }}
+          environment: ${{ (parameters.environment or '').split('/') | last }}
+          requestedBy: ${{ parameters.requestedBy or user.ref }}
+        copyWithoutTemplating:
+          - .gitea/workflows/*
+    - id: publish
+      name: Create the MCP adapter repository
+      action: publish:gitea
+      input:
+        repoUrl: localhost:3000?owner=platform&repo=${{ parameters.name }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: public
+  output:
+    links:
+      - title: Adapter repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Adapter in catalog
+        icon: catalog
+        entityRef: component:default/${{ parameters.name }}
+    text:
+      - title: Next steps
+        content: |
+          Edit `operations.json` to enumerate your approved GET endpoints.
+          Run `pytest` and push the revised operations.json to main. Gitea Actions
+          builds a multi-architecture Python image; Argo CD deploys the MCP
+          in env-${{ (parameters.environment or '').split('/') | last }}.
+          Each user runs their own kubectl port-forward and registers:
+          claude mcp add --scope user --transport http retail-sales http://127.0.0.1:18081/mcp
+          No SQL access, public ingress or arbitrary URLs are exposed as MCP tools.

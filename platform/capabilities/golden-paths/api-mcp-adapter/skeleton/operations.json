@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "description": "Replace this safe sample with the GET /api/... operations from the backend OpenAPI contract.",
+  "operations": [
+    {
+      "name": "health",
+      "description": "Example read-only operation. Replace it with approved business queries before using the demo.",
+      "method": "GET",
+      "path": "/api/health",
+      "parameters": {}
+    }
+  ]
+}

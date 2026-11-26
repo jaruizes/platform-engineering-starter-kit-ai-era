@@ -1,0 +1,147 @@
+import json
+import pytest
+from rest_mcp_adapter.bridge import ContractError, load_contract, validate_parameters, query_api
+
+
+def contract(tmp_path):
+    path = tmp_path / "operations.json"
+    path.write_text(json.dumps({"operations": [{"name": "top_products", "method": "GET",
+        "path": "/api/insights/top-products", "parameters": {
+            "limit": {"type": "integer", "required": True},
+            "from": {"type": "string", "required": True},
+        }}]}))
+    return load_contract(path)
+
+
+def test_allowlisted_operations_and_types(tmp_path):
+    c = contract(tmp_path)
+    assert validate_parameters(c["operations"][0], {"limit": 5, "from": "2026-11-01"}) == {
+        "limit": "5", "from": "2026-11-01"}
+    with pytest.raises(ContractError):
+        validate_parameters(c["operations"][0], {"limit": "5", "from": "2026-11-01"})
+    with pytest.raises(ContractError):
+        validate_parameters(c["operations"][0], {"limit": 5, "from": "2026-11-01", "sql": "DROP"})
+
+
+@pytest.mark.parametrize("method,path", [("POST", "/api/insights"), ("GET", "http://127.0.0.1/secret"),
+    ("GET", "/admin/secrets"), ("GET", "/api/../secrets")])
+def test_reject_unsafe_contract(tmp_path, method, path):
+    f = tmp_path / "bad.json"
+    f.write_text(json.dumps({"operations": [{"name": "unsafe", "method": method,
+        "path": path, "parameters": {}}]}))
+    with pytest.raises(ContractError):
+        load_contract(f)
+
+
+def test_reject_non_allowlisted_operation(tmp_path):
+    with pytest.raises(ContractError):
+        query_api(contract(tmp_path), "execute_sql", {}, "http://127.0.0.1:18080")
+
+
+def test_reject_remote_http(tmp_path):
+    with pytest.raises(ContractError):
+        query_api(contract(tmp_path), "top_products",
+            {"limit": 5, "from": "2026-11-01"}, "http://example.org")
+
+
+def test_constructs_encoded_query_from_fixed_path(tmp_path, monkeypatch):
+    from rest_mcp_adapter import bridge
+
+    class FakeResponse:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *exc):
+            return False
+        def read(self, size):
+            return b'{"revenueCents":91641}'
+
+    received = []
+
+    def fake_open(req, timeout):
+        received.append((req.full_url, req.get_method(), req.get_header("Authorization"), timeout))
+        return FakeResponse()
+
+    monkeypatch.setattr(bridge, "urlopen", fake_open)
+    result = query_api(contract(tmp_path), "top_products",
+        {"from": "2026-11-16", "limit": 5}, "http://127.0.0.1:18080", token="test-token")
+    assert result == {"revenueCents": 91641}
+    assert received == [(
+        "http://127.0.0.1:18080/api/insights/top-products?limit=5&from=2026-11-16",
+        "GET", "Bearer test-token", 10,
+    )]
+
+
+def test_mcp_v2_server_can_be_imported():
+    from rest_mcp_adapter import server
+    assert server.mcp is not None
+    assert len(server.CONTRACT["operations"]) > 0
+
+
+def test_contract_accepts_camelcase_parameters_in_any_generated_repo(tmp_path):
+    path = tmp_path / "operations.json"
+    path.write_text(json.dumps({"operations": [{
+        "name": "compare_periods", "method": "GET", "path": "/api/insights/compare",
+        "parameters": {
+            "previousFrom": {"type": "string", "required": True},
+            "previousTo": {"type": "string", "required": True},
+        },
+    }]}))
+    c = load_contract(path)
+    assert validate_parameters(c["operations"][0], {
+        "previousFrom": "2026-11-09", "previousTo": "2026-11-15",
+    })["previousFrom"] == "2026-11-09"
+
+
+def test_tool_errors_preserve_safe_diagnostics(monkeypatch):
+    from mcp.server.mcpserver.exceptions import ToolError
+    from rest_mcp_adapter import server
+
+    monkeypatch.setattr(server, "query_api", lambda *args, **kwargs: (_ for _ in ()).throw(
+        RuntimeError("Backend unavailable; verify the port-forward and URL")))
+    with pytest.raises(ToolError, match="Backend unavailable"):
+        server.query_api_operation("health", {})
+    monkeypatch.setattr(server, "query_api", lambda *args, **kwargs: (_ for _ in ()).throw(
+        ContractError("Unknown or malformed query parameters")))
+    with pytest.raises(ToolError, match="Unknown or malformed"):
+        server.query_api_operation("health", {})
+
+
+def test_cluster_http_allowed_only_for_fixed_backend_in_kubernetes(monkeypatch, tmp_path):
+    from rest_mcp_adapter import bridge
+    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+    monkeypatch.setenv("REST_API_TRUSTED_CLUSTER_HOST", "retail-sales-insights")
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def read(self, length): return b'{"ok":true}'
+    urls = []
+    def open_url(req, timeout):
+        urls.append(req.full_url)
+        return Response()
+    monkeypatch.setattr(bridge, "urlopen", open_url)
+    params = {"limit": 5, "from": "2026-11-16"}
+    assert query_api(contract(tmp_path), "top_products", params, "http://retail-sales-insights:80") == {"ok": True}
+    assert urls[0].startswith("http://retail-sales-insights:80/api/insights/")
+    with pytest.raises(ContractError):
+        query_api(contract(tmp_path), "top_products", params, "http://other-service:80")
+    with pytest.raises(ContractError):
+        query_api(contract(tmp_path), "top_products", params, "http://169.254.169.254")
+    monkeypatch.delenv("KUBERNETES_SERVICE_HOST")
+    with pytest.raises(ContractError):
+        query_api(contract(tmp_path), "top_products", params, "http://retail-sales-insights:80")
+
+
+def test_transport_configuration(monkeypatch):
+    from rest_mcp_adapter.server import runtime_options
+    monkeypatch.delenv("MCP_TRANSPORT", raising=False)
+    assert runtime_options() == {"transport": "stdio"}
+    monkeypatch.setenv("MCP_TRANSPORT", "streamable-http")
+    assert runtime_options() == {
+        "transport": "streamable-http", "host": "0.0.0.0", "port": 8080,
+        "streamable_http_path": "/mcp", "stateless_http": True, "json_response": True,
+    }
+    monkeypatch.setenv("MCP_TRANSPORT", "sse")
+    with pytest.raises(ValueError):
+        runtime_options()

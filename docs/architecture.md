@@ -8,7 +8,7 @@ The source tree follows the [Platform Engineering 2.0 logical architecture](../R
 | Core Engineering | `platform/capabilities` | Golden Paths, infrastructure self-service, quality and delivery |
 | AI & Agent | `platform/ai/agent-tooling` | Agent clients, shared instructions and skills; externally managed agent execution |
 | Cognitive & Knowledge | `platform/cognitive/knowledge/standards` | Versioned engineering standards, architecture context and TechDocs |
-| Platform Governance | `platform/governance/policies/policies` | Kyverno identity stamping, quotas, agent guardrails and audit constraints |
+| Platform Governance | `platform/governance/policies` | Kyverno identity stamping, quotas, agent guardrails and audit constraints |
 | Technology integrations | `platform/integrations/crossplane` | Crossplane control plane support |
 | Deployment | `deploy/local`, `deploy/aws`, `deploy/install.sh` | k3d and EKS foundation, platform installation |
 
@@ -39,3 +39,27 @@ make aws-down
 ```
 
 The refactor should preserve command behavior. Runs requiring Docker, Kubernetes, or AWS must be reported separately from static validation.
+
+
+## Zero-UI business application consumption
+
+The `api-mcp-adapter` Golden Path lives in `platform/capabilities/golden-paths/api-mcp-adapter/` and is exposed by the Backstage Software Template and the platform MCP `create_api_mcp_adapter` action. It generates a Python Streamable HTTP MCP server deployed as a **private Deployment + ClusterIP Service** in the existing backend's ephemeral namespace via Gitea Actions and Argo CD. A per-user port-forward provides access to Claude Code. The server calls only approved GET endpoints through a declarative `operations.json` allowlist; Spring still owns PostgreSQL access and business logic. A local stdio fallback remains available for debugging.
+
+See the [two Retail Sales Insights specs](../examples/scenarios/example/specs/retail-sales-insights-01-app.md) and [fixture](../examples/scenarios/example/data/README.md). Production extensions (service auth, identity delegation, audit, rate limits, managed runtime) remain future architecture capabilities.
+
+
+### Private remote MCP adapter
+
+The API-to-MCP Golden Path now delivers a **namespaced Deployment and ClusterIP
+Service** with Streamable HTTP, using Gitea Actions, a multi-arch OCI image
+and Argo CD. The MCP talks only to its declared business REST service inside
+the ephemeral namespace. External clients connect through a
+**per-person Kubernetes port-forward**, registering an HTTP MCP in Claude Code
+at `--scope user`. There is no public Ingress or shared authenticated
+MCP gateway yet. The same Python runtime retains stdio for debugging.
+
+The Argo CD `services` AppProject permits Deployment and Service resources
+in `env-*` namespaces to deliver this Golden Path. That broadens what a
+service repository can deploy: a future platform iteration should enforce
+stronger admission controls and owner validation for raw workloads and migrate
+to a dedicated Crossplane composite if the capability becomes production-ready.

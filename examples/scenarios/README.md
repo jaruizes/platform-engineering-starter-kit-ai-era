@@ -131,3 +131,29 @@ The checks run with `make capability NAME=<name>` and in CI ([`.github/workflows
 - **The Spring service does not appear in the catalog:** it is discovered from the Git server every 15 seconds. Check the repository exists at <http://localhost:3000/platform>.
 - **"The repository with the same name already exists":** pick another name, or run `make demo-reset`, which also deletes the repositories created from templates.
 - **The agent does not see the `platform` or `portal` server:** check <http://localhost:8081/healthz> answers `ok` and the portal opens, then restart the agent.
+
+
+## Retail Sales Insights: two product specs, one demo
+
+This example deliberately keeps **product specifications** separate from
+**platform execution instructions**. It uses a fixed synthetic dataset
+(12 products, 3 stores, 196 sales) for repeatable results.
+
+- [Spec 01 — Business API and polished, responsive dashboard](example/specs/retail-sales-insights-01-app.md).
+- [Spec 02 — Consult the same business insights using natural language](example/specs/retail-sales-insights-02-zero-ui.md).
+- [Start here: demo overview](example/demo/README.md).
+- [Presenter's runbook](example/demo/execution-guide.md): prompts, example tool sequence, port-forward, API checks and Zero-UI verification.
+- [Dataset and expected numbers](example/data/README.md).
+
+For the AI-native SDLC demonstration, give the agent only the corresponding
+spec and dataset. Do not copy the technical runbook into the product requirements:
+discovery of Golden Paths, platform APIs and governance rules is part of what
+the demo evaluates.
+
+The remote adapter is deployed in the **same namespace** as the backend;
+multiple attendees can use their own port-forward with a `--scope user`
+Claude Code MCP registration, independent of the current directory.
+
+The visual acceptance criteria in Spec 01 explicitly reject an unstyled HTML
+page even if the backend responds correctly. A previously generated Angular
+repository must be updated separately; editing a spec does not change it.

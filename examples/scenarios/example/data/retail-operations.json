@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "description": "Retail Sales Insights REST to MCP allowlist",
+  "operations": [
+    {
+      "name": "sales_summary",
+      "description": "Total revenue, sales count and units in a fixed inclusive date range",
+      "method": "GET",
+      "path": "/api/insights/summary",
+      "parameters": {
+        "from": {
+          "type": "string",
+          "required": true
+        },
+        "to": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "top_products",
+      "description": "Rank products by revenue in a fixed inclusive date range",
+      "method": "GET",
+      "path": "/api/insights/top-products",
+      "parameters": {
+        "from": {
+          "type": "string",
+          "required": true
+        },
+        "to": {
+          "type": "string",
+          "required": true
+        },
+        "limit": {
+          "type": "integer",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "sales_by_category",
+      "description": "Rank retail categories by revenue in a fixed inclusive date range",
+      "method": "GET",
+      "path": "/api/insights/by-category",
+      "parameters": {
+        "from": {
+          "type": "string",
+          "required": true
+        },
+        "to": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "compare_sales_periods",
+      "description": "Compare revenue between two explicitly selected inclusive periods",
+      "method": "GET",
+      "path": "/api/insights/compare",
+      "parameters": {
+        "from": {
+          "type": "string",
+          "required": true
+        },
+        "to": {
+          "type": "string",
+          "required": true
+        },
+        "previousFrom": {
+          "type": "string",
+          "required": true
+        },
+        "previousTo": {
+          "type": "string",
+          "required": true
+        }
+      }
+    }
+  ]
+}

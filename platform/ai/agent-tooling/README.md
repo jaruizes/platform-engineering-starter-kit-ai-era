@@ -15,3 +15,20 @@ The platform server handles actions; the portal server supplies context and engi
 For new capability skills, create `platform/ai/agent-tooling/skills/<name>/SKILL.md` and link `platform/capabilities/infrastructure/<name>/SKILL.md` to it with `../../../ai/agent-tooling/skills/<name>/SKILL.md`. The client skill directory links expose it automatically.
 
 Configuration references: [Claude Code MCP](https://code.claude.com/docs/en/mcp), [Codex MCP](https://developers.openai.com/codex/mcp), [Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/).
+
+## REST-to-MCP Zero-UI Golden Path
+
+The `api-to-mcp` skill complements Spring/Angular generation:
+create a deployed Spring REST service first; then use the platform MCP
+`create_api_mcp_adapter` tool. Edit the new repository's approved
+`operations.json` and push to main to deploy a **remote Streamable HTTP MCP** server in the
+same ephemeral namespace as the backend. Each person opens their own
+Kubernetes port-forward and registers it in Claude Code with `--scope user`,
+so it can be used from any folder. Local stdio remains an optional fallback.
+The Retail specs describe **expected product behavior**, not a prescribed
+MCP workflow. See [Retail Spec 01](../../../examples/scenarios/example/specs/retail-sales-insights-01-app.md)
+and [Retail Spec 02](../../../examples/scenarios/example/specs/retail-sales-insights-02-zero-ui.md).
+The tool-by-tool demo path is intentionally isolated in the
+[presenter's runbook](../../../examples/scenarios/example/demo/execution-guide.md).
+Keep platform discovery and execution rules in these agent instructions and
+skills, not in product specifications.

@@ -1,0 +1,55 @@
+# Reusable remote MCP pipeline. Runs on the existing platform host-mode runner.
+# No Docker daemon required: Python wheels are cross-resolved and crane
+# creates linux/amd64 and linux/arm64 images. Argo CD watches deploy/.
+name: deliver-mcp
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["deploy/**"]
+jobs:
+  deliver:
+    runs-on: platform
+    steps:
+      - name: Check out
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          find . -mindepth 1 -delete
+          git clone -q "http://pipeline:${TOKEN}@${{ vars.PLATFORM_GIT_HOST }}/${GITHUB_REPOSITORY}.git" .
+          git checkout -q "$GITHUB_SHA"
+
+      - name: Unit tests and approved operations
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check -e '.[test]'
+          .venv/bin/python -m pytest -q
+          .venv/bin/python - <<'PY'
+          from rest_mcp_adapter.bridge import load_contract
+          from pathlib import Path
+          contract = load_contract(Path("operations.json"))
+          assert contract["operations"], "No approved REST operations"
+          assert not any(op["path"] == "/api/health" for op in contract["operations"]), (
+              "Replace the sample health operation with your reviewed business GET endpoints"
+          )
+          PY
+
+      - name: Build and publish multi-architecture MCP image
+        run: |
+          IMAGE="${{ vars.SERVICE_IMAGE_REPOSITORY }}:${GITHUB_REPOSITORY#*/}-${GITHUB_SHA:0:12}"
+          bash scripts/build-image.sh "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Update deployment image for GitOps
+        run: |
+          # Template can only be deployed into a real ephemeral environment.
+          test -f deploy/mcp.yaml
+          grep -q '^kind: Deployment$' deploy/mcp.yaml
+          # Match only the image field of the generated Deployment container.
+          sed -i "s|^          image:.*|          image: $IMAGE|" deploy/mcp.yaml
+          git -c user.name="Platform pipeline" -c user.email=pipeline@starterkit.local \
+            add deploy/mcp.yaml
+          if ! git diff --cached --quiet; then
+            git -c user.name="Platform pipeline" -c user.email=pipeline@starterkit.local \
+              commit -m "Deploy MCP $IMAGE after tests for $GITHUB_SHA"
+            git push -q origin HEAD:main
+          fi

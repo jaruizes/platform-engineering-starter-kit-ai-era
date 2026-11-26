@@ -15,20 +15,49 @@
             "browser": "src/main.ts",
             "index": "src/index.html",
             "tsConfig": "tsconfig.app.json",
-            "polyfills": ["zone.js"],
+            "polyfills": [
+              "zone.js"
+            ],
             "assets": [],
-            "styles": ["src/styles.css"],
-            "outputPath": { "base": "dist", "browser": "" },
+            "styles": [
+              "src/styles.css"
+            ],
+            "outputPath": {
+              "base": "dist",
+              "browser": ""
+            },
             "budgets": [
-              { "type": "initial", "maximumWarning": "500kb", "maximumError": "800kb" },
-              { "type": "anyScript", "maximumWarning": "300kb", "maximumError": "500kb" },
-              { "type": "anyComponentStyle", "maximumWarning": "6kb", "maximumError": "10kb" }
+              {
+                "type": "initial",
+                "maximumWarning": "500kb",
+                "maximumError": "800kb"
+              },
+              {
+                "type": "anyScript",
+                "maximumWarning": "300kb",
+                "maximumError": "500kb"
+              },
+              {
+                "type": "anyComponentStyle",
+                "maximumWarning": "6kb",
+                "maximumError": "10kb"
+              }
             ]
           },
           "configurations": {
-            "development": { "optimization": false, "sourceMap": true },
+            "development": {
+              "optimization": false,
+              "sourceMap": true
+            },
             "production": {
-              "optimization": true,
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
+                "fonts": true
+              },
               "sourceMap": false,
               "outputHashing": "all"
             }
@@ -41,8 +70,11 @@
             "tsConfig": "tsconfig.spec.json",
             "runner": "vitest",
             "buildTarget": "${{ values.name }}:build:development",
-            "coverage": true,
-            "coverageReporters": ["lcov", "text-summary"]
+            "codeCoverage": true,
+            "codeCoverageReporters": [
+              "lcov",
+              "text-summary"
+            ]
           }
         }
       }
