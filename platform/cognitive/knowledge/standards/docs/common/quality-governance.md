@@ -4,7 +4,7 @@ This policy defines the evidence a change must produce before the platform can u
 
 ## Architecture-specific profiles
 
-Each architecture and version has a versioned profile under `engineering/quality/profiles/`. A service declares its architecture in the catalog; the Golden Path copies the matching profile into `.platform/quality/profile.json` in the service repository. The first profile is `backend-spring-v2`, version 1.
+Each architecture and version has a versioned profile under `platform/capabilities/quality/profiles/`. A service declares its architecture in the catalog; the Golden Path copies the matching profile into `.platform/quality/profile.json` in the service repository. The first profile is `backend-spring-v2`, version 1.
 
 The profile defines blocking checks. For Spring v2 they are:
 
