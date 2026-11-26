@@ -26,7 +26,7 @@ to each service's product definition and approved domain model, not here.
 | Who | How they use them |
 |---|---|
 | People | Read them in the portal (TechDocs, *Engineering standards*) and create services from the **Spring service** template, which already follows them. |
-| AI agents | Use the portal MCP server: `platform.get-standards-for-entity` says which architecture and version a service follows and which documents to read; `platform.get-engineering-standard` returns a whole document; `platform.search-engineering-standards` finds a topic, filtered by architecture so versions never mix. The [engineering-standards skill](../../platform/ai/agent-tooling/skills/engineering-standards/SKILL.md) tells them to do it in that order. |
+| AI agents | Use the portal MCP server: `platform.get-standards-for-entity` says which architecture and version a service follows and which documents to read; `platform.get-engineering-standard` returns a whole document; `platform.search-engineering-standards` finds a topic, filtered by architecture so versions never mix. The [engineering-standards skill](../../../ai/agent-tooling/skills/engineering-standards/SKILL.md) tells them to do it in that order. |
 | CI | Runs the checks of each architecture (ArchUnit for the backends, ESLint boundary rules and budgets for the frontends), so the rules that can be checked are checked for everyone. |
 
 [`catalog-info.yaml`](catalog-info.yaml) registers the documentation, one

@@ -5,20 +5,20 @@
 | Piece | What it does |
 |---|---|
 | [`catalog/`](catalog) | Sample organization, services on each of the coexisting architectures, the platform components, the two MCP servers as APIs, and AI resources |
-| [Spring service Golden Path](../../platform/capabilities/golden-paths/spring-service) | Backstage template, service skeleton, and Crossplane runtime resource/composition in one place |
-| [Angular app Golden Path](../../platform/capabilities/golden-paths/angular-app) | Backstage template, Angular skeleton, and Crossplane `App` runtime resource/composition |
+| [Spring service Golden Path](../../capabilities/golden-paths/spring-service) | Backstage template, service skeleton, and Crossplane runtime resource/composition in one place |
+| [Angular app Golden Path](../../capabilities/golden-paths/angular-app) | Backstage template, Angular skeleton, and Crossplane `App` runtime resource/composition |
 | [`plugins/platform-backend`](plugins/platform-backend) | Brings environments, services and [platform capabilities](../../capabilities) from the cluster into the catalog (with a request form per capability, built from its XRD), builds the **New platform capability** form from the definition schema and opens the proposal as a pull request in the platform repository, runs the Golden Paths from the templates on behalf of the signed-in person, serves agent approvals and metrics, and adds read-only context tools for agents (`get-team-usage`, `list-pending-approvals`, `list-engineering-standards`, `get-standards-for-entity`, `get-engineering-standard`, `search-engineering-standards`) |
 | [`plugins/platform`](plugins/platform) | The **AI Platform** page (metrics and approvals) and the **Golden Path request** card on environments and services |
 | [`app-config.yaml`](app-config.yaml) | Configuration in the local cluster, including the MCP actions server for agents |
 | [`branding/`](branding) | Title, organization name, logos, favicon and texts of the sign-in and home pages. `BRANDING_DIR=<folder> make up` brands the portal for another company without changing code |
 | [`deploy/`](deploy) | Identity, permissions and deployment in the cluster |
 
-`make up` at the root of the repository builds it with the [`Dockerfile`](Dockerfile) and deploys it at <http://localhost:7007>. The image also carries the [engineering standards](../../platform/cognitive/knowledge/standards) and the documentation of each capability, built as TechDocs, and the capability definition schema:
+`make up` at the root of the repository builds it with the [`Dockerfile`](Dockerfile) and deploys it at <http://localhost:7007>. The image also carries the [engineering standards](../../cognitive/knowledge/standards) and the documentation of each capability, built as TechDocs, and the capability definition schema:
 
 ```bash
-docker build --build-context standards=../../platform/cognitive/knowledge/standards --build-context capabilities=../../platform/capabilities \
-  --build-context spring-service=../../platform/capabilities/golden-paths/spring-service \
-  --build-context angular-app=../../platform/capabilities/golden-paths/angular-app \
+docker build --build-context standards=../../cognitive/knowledge/standards --build-context capabilities=../../platform/capabilities \
+  --build-context spring-service=../../capabilities/golden-paths/spring-service \
+  --build-context angular-app=../../capabilities/golden-paths/angular-app \
   --build-context branding=branding -t platform-starter-kit/portal:dev .
 ```
 
