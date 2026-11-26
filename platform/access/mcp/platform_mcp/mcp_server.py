@@ -36,7 +36,7 @@ mcp = MCPServer(
         "approval, tell the user and give them the approval id. When you build a new service, deliver it so "
         "the user can try it: unless they say otherwise, reuse a ready environment of the team or request a "
         "small one for 8 hours. Use create_service for a Spring backend and create_angular_app for an Angular frontend, "
-        "then follow deployment with get_service_status."
+        "then follow deployment with get_service_status. For an existing read-only REST API use create_api_mcp_adapter to publish an API-to-MCP adapter."
     ),
 )
 
@@ -366,6 +366,70 @@ def create_angular_app(
         "next_step": (
             "Read AGENTS.md and the frontend-angular-v1 architecture rules from the portal MCP server, "
             "implement the user journeys and tests, then run npm install, npm test and npm run build." + deliver
+        ),
+    }
+
+
+@mcp.tool(title="Create an API-to-MCP adapter")
+def create_api_mcp_adapter(
+    name: str,
+    description: str,
+    team: str,
+    backend_service: str,
+    environment: str,
+    ctx: Context | None = None,
+) -> dict[str, Any]:
+    """Creates a separate MCP adapter repository for a deployed REST backend.
+
+    This Zero-UI Golden Path NEVER creates a second database or deploys a new
+    backend. The generated adapter is a local stdio process calling an approved
+    set of read-only GET endpoints via a laptop port-forward.
+
+    After generation: clone repo, replace operations.json with reviewed backend
+    GET operations, run pytest, then register its stdio executable in Claude Code.
+    """
+    for field, value in (("name", name), ("backend_service", backend_service)):
+        if not re.fullmatch(r"[a-z]([-a-z0-9]{0,38}[a-z0-9])?", value):
+            raise ValueError(f"{field} must be a DNS-safe lowercase name (max 40 characters).")
+    _check_name(team, "team")
+    _check_name(environment, "environment")
+    if platform.get_environment(environment) is None:
+        return {"status": "failed", "reason": f"Environment '{environment}' does not exist."}
+    # Avoid falsely claiming backend exists if the Golden Path wasn't deployed.
+    if not any(s.get("metadata", {}).get("name") == backend_service
+               and s.get("metadata", {}).get("namespace") == f"env-{environment}"
+               for s in platform.list_spring_services()):
+        return {"status": "failed", "reason": (
+            f"SpringService '{backend_service}' not found in env-{environment}. "
+            "Complete the REST application spec first."
+        )}
+    agent = agent_name(ctx)
+    try:
+        portal.run_template("api-mcp-adapter", {
+            "name": name,
+            "description": description,
+            "owner": f"group:default/{team}",
+            "backendService": backend_service,
+            "environment": environment,
+            "requestedBy": f"agent:{agent}",
+        })
+    except portal.TemplateFailed as failed:
+        platform.record("RequestFailed", f"{agent} could not create API MCP adapter {name}: {failed}",
+                        name, warning=True, actor=agent, kind="Component")
+        return {"status": "failed", "reason": str(failed)}
+    platform.record("RequestAccepted", f"{agent} created read-only API MCP adapter {name}",
+                    name, actor=agent, kind="Component")
+    return {
+        "status": "created",
+        "repository": portal.repository_url(name),
+        "clone": f"git clone {portal.push_url(name)}",
+        "catalog_entity": f"component:default/{name}",
+        "backend_service": backend_service,
+        "environment": environment,
+        "next_step": (
+            "Clone the adapter, edit operations.json using the reviewed backend OpenAPI GET "
+            "operations, run pytest, port-forward the existing backend service to localhost:18080 "
+            "and add the generated stdio MCP server to Claude Code. Read the repo README."
         ),
     }
 

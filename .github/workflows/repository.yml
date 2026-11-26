@@ -2,7 +2,7 @@ name: Repository structure and unit tests
 on:
   pull_request:
   push:
-    branches: [main, refactor/repository-structure]
+    branches: [main, feat/zeroui-use-case]
 permissions:
   contents: read
 jobs:
@@ -44,6 +44,7 @@ jobs:
             --build-context capabilities=./platform/capabilities \
             --build-context spring-service=./platform/capabilities/golden-paths/spring-service \
             --build-context angular-app=./platform/capabilities/golden-paths/angular-app \
+            --build-context api-mcp-adapter=./platform/capabilities/golden-paths/api-mcp-adapter \
             --build-context branding=./platform/access/portal/branding ./platform/access/portal
       - name: Build MCP server and delivery runner
         run: |

@@ -7,6 +7,7 @@
 #     --build-context capabilities=../../platform/capabilities \
 #     --build-context spring-service=../../capabilities/golden-paths/spring-service \
 #     --build-context angular-app=../../capabilities/golden-paths/angular-app \
+#     --build-context api-mcp-adapter=../../capabilities/golden-paths/api-mcp-adapter \
 #     --build-context branding=branding -t portal .
 # The branding is the last layer, so changing it alone rebuilds in seconds.
 
@@ -76,6 +77,7 @@ COPY --chown=node:node app-config.yaml ./
 COPY --chown=node:node catalog ./catalog
 COPY --from=spring-service --chown=node:node . ./golden-paths/spring-service
 COPY --from=angular-app --chown=node:node . ./golden-paths/angular-app
+COPY --from=api-mcp-adapter --chown=node:node . ./golden-paths/api-mcp-adapter
 COPY --from=standards --chown=node:node docs ./standards/docs
 COPY --from=standards --chown=node:node catalog-info.yaml architectures.yaml ./standards/
 COPY --from=techdocs --chown=node:node /site ./techdocs/default/component/engineering-standards

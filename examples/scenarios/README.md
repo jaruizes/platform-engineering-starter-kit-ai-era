@@ -131,3 +131,14 @@ The checks run with `make capability NAME=<name>` and in CI ([`.github/workflows
 - **The Spring service does not appear in the catalog:** it is discovered from the Git server every 15 seconds. Check the repository exists at <http://localhost:3000/platform>.
 - **"The repository with the same name already exists":** pick another name, or run `make demo-reset`, which also deletes the repositories created from templates.
 - **The agent does not see the `platform` or `portal` server:** check <http://localhost:8081/healthz> answers `ok` and the portal opens, then restart the agent.
+
+
+## Act 5: Retail Sales Insights — UI first, then Zero-UI
+
+This scenario has **two sequential implementation specs** and a deterministic 196-row PostgreSQL fixture.
+
+1. Execute [Retail Spec 01](example/specs/retail-sales-insights-01-app.md) with Claude Code, using the existing platform MCP and Golden Paths to generate the Spring service and Angular frontend, then deploy them in `retail-demo`. The app uses the seeded [Flyway SQL](example/data/README.md).
+2. Port-forward `svc/retail-sales-web 18090:80` in `env-retail-demo` and show the browser dashboard.
+3. Execute [Retail Spec 02](example/specs/retail-sales-insights-02-zero-ui.md) in the same Claude Code session. It calls `create_api_mcp_adapter`, generates an adapter repo, configures [approved GET endpoints](example/data/retail-operations.json), and queries the existing service via local MCP stdio and a backend port-forward.
+
+The adapter **does not** generate SQL, host another database, implement business metrics or expose a public HTTP MCP server. The first spec must be completed before the second can be demonstrated.
