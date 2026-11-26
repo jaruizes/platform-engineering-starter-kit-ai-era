@@ -142,6 +142,45 @@ kubectl auth can-i create pods/portforward -n env-retail-demo
 kubectl -n env-retail-demo get svc/retail-sales-mcp
 ~~~
 
+Si el invitado tiene acceso a EKS pero carece de RBAC en el namespace,
+un administrador puede conceder un rol específico para la demo. Este ejemplo
+**no crea ningún usuario ni distribuye credenciales**: se sustituye el grupo
+por uno ya autenticado/autorizado en el cluster y se aplica como administrador.
+
+~~~yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: retail-mcp-demo-consumer
+  namespace: env-retail-demo
+rules:
+  - apiGroups: [""]
+    resources: [pods, services]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods/portforward]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: retail-mcp-demo-consumer
+  namespace: env-retail-demo
+subjects:
+  - kind: Group
+    name: REEMPLAZAR-POR-GRUPO-AUTORIZADO
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: retail-mcp-demo-consumer
+  apiGroup: rbac.authorization.k8s.io
+~~~
+
+El rol es válido solo para `env-retail-demo`; no implica acceso de login
+a AWS/EKS. **No aplicar el RoleBinding con un grupo genérico como
+`system:authenticated`**. La identidad y el grupo real se configuran
+mediante el proveedor de identidad y el acceso Kubernetes correspondiente.
+
 Si está autorizado, **en el portátil del invitado**:
 
 ~~~bash
