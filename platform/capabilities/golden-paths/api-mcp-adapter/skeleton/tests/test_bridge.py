@@ -70,3 +70,9 @@ def test_constructs_encoded_query_from_fixed_path(tmp_path, monkeypatch):
         "http://127.0.0.1:18080/api/insights/top-products?limit=5&from=2026-11-16",
         "GET", "Bearer test-token", 10,
     )]
+
+
+def test_mcp_v2_server_can_be_imported():
+    from rest_mcp_adapter import server
+    assert server.mcp is not None
+    assert server.CONTRACT["operations"][0]["name"] == "health"

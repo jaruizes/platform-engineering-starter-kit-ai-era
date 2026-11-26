@@ -15,3 +15,12 @@ The platform server handles actions; the portal server supplies context and engi
 For new capability skills, create `platform/ai/agent-tooling/skills/<name>/SKILL.md` and link `platform/capabilities/infrastructure/<name>/SKILL.md` to it with `../../../ai/agent-tooling/skills/<name>/SKILL.md`. The client skill directory links expose it automatically.
 
 Configuration references: [Claude Code MCP](https://code.claude.com/docs/en/mcp), [Codex MCP](https://developers.openai.com/codex/mcp), [Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/).
+
+## REST-to-MCP Zero-UI Golden Path
+
+The `api-to-mcp` skill complements Spring/Angular generation:
+create a deployed Spring REST service first; then use the platform MCP
+`create_api_mcp_adapter` tool. Edit the new repository's approved
+`operations.json` and register its MCP **stdio** process in Claude Code.
+See [Retail Spec 01](../../../examples/scenarios/example/specs/retail-sales-insights-01-app.md)
+and [Retail Spec 02](../../../examples/scenarios/example/specs/retail-sales-insights-02-zero-ui.md).

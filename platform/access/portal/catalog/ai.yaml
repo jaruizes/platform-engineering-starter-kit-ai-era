@@ -94,3 +94,24 @@ spec:
   categories: [golden-path]
   agents: [claude-code]
   dependsOn: [agent-guardrails, cost-guardrails, audit-trail]
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: api-to-mcp-golden-path
+  title: Consume existing REST APIs through Zero-UI
+  description: >-
+    Builds an independent read-only MCP stdio adapter backed by explicit GET
+    endpoint contracts, with no direct database connection or exposed SQL.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/platform/ai/agent-tooling/skills/api-to-mcp/SKILL.md
+spec:
+  type: skill
+  lifecycle: experimental
+  owner: platform-team
+  system: internal-developer-platform
+  disciplines: [backend, platform, ai]
+  categories: [golden-path, mcp]
+  agents: [claude-code]
+  dependsOn: [agent-guardrails, audit-trail]

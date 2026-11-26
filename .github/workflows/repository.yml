@@ -2,7 +2,7 @@ name: Repository structure and unit tests
 on:
   pull_request:
   push:
-    branches: [main, feat/zeroui-use-case]
+    branches: [main, 'feat/**']
 permissions:
   contents: read
 jobs:
