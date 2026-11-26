@@ -76,3 +76,29 @@ def test_mcp_v2_server_can_be_imported():
     from rest_mcp_adapter import server
     assert server.mcp is not None
     assert server.CONTRACT["operations"][0]["name"] == "health"
+
+
+def test_retail_allowlist_accepts_camelcase_query_parameters():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[5]
+    retail = root / "examples/scenarios/example/data/retail-operations.json"
+    contract = load_contract(retail)
+    compare = next(op for op in contract["operations"] if op["name"] == "compare_sales_periods")
+    assert validate_parameters(compare, {
+        "from": "2026-11-16", "to": "2026-11-22",
+        "previousFrom": "2026-11-09", "previousTo": "2026-11-15",
+    })["previousFrom"] == "2026-11-09"
+
+
+def test_tool_errors_preserve_safe_diagnostics(monkeypatch):
+    from mcp.server.mcpserver.exceptions import ToolError
+    from rest_mcp_adapter import server
+
+    monkeypatch.setattr(server, "query_api", lambda *args, **kwargs: (_ for _ in ()).throw(
+        RuntimeError("Backend unavailable; verify the port-forward and URL")))
+    with pytest.raises(ToolError, match="Backend unavailable"):
+        server.query_api_operation("health", {})
+    monkeypatch.setattr(server, "query_api", lambda *args, **kwargs: (_ for _ in ()).throw(
+        ContractError("Unknown or malformed query parameters")))
+    with pytest.raises(ToolError, match="Unknown or malformed"):
+        server.query_api_operation("health", {})

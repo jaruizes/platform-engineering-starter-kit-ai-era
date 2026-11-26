@@ -90,8 +90,19 @@ aggregate runs, configure `SONAR_HOST_URL` and `SONAR_TOKEN` and save the
 scanner status in `.platform/quality/sonar-status.json`. The gate runs JUnit
 and the architecture rules in
 `src/test/java/**/architecture/ArchitectureTest.java`, and checks the
-JaCoCo report. For integration tests, run `./mvnw verify` (Testcontainers
-needs Docker). Read the platform's `software-quality-governance` skill when
+JaCoCo report. **Important coverage limitation:** CI uses `./mvnw verify -DskipITs` because
+the current Gitea runner does not have a Docker daemon. JaCoCo and SonarQube
+in CI therefore count only code executed by unit tests. Persistence adapters
+tested *only* by Testcontainers integration tests can show as uncovered in
+CI even if `./mvnw verify` passes locally with higher coverage.
+
+For every new JPA or infrastructure adapter, add focused isolated unit tests
+that exercise its branching, mapping and error cases, then also run
+`./mvnw verify` locally with Docker/Testcontainers. Do not lower Sonar
+thresholds or exclude application code from coverage to hide this gap.
+If the coverage gate fails, compare CI's JaCoCo report with the local report
+and identify lines covered only by integration tests. Production workloads
+should eventually use a runner with isolated Docker/Testcontainers support. Read the platform's `software-quality-governance` skill when
 the gate reports findings.
 
 Never weaken, skip or delete an architecture rule to make a change pass. If

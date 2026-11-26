@@ -16,6 +16,7 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 NAME = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+PARAMETER_NAME = re.compile(r"^[a-z][a-zA-Z0-9_]{0,63}$")
 PATH = re.compile(r"^/api/[a-zA-Z0-9/_-]+$")
 TYPES = {"string": str, "integer": int, "number": (int, float), "boolean": bool}
 
@@ -42,7 +43,7 @@ def load_contract(file: str | Path) -> dict[str, Any]:
         if not isinstance(params, dict):
             raise ContractError(f"{name}: parameters must be an object")
         for key, schema in params.items():
-            if not NAME.fullmatch(key) or not isinstance(schema, dict) or schema.get("type") not in TYPES:
+            if not PARAMETER_NAME.fullmatch(key) or not isinstance(schema, dict) or schema.get("type") not in TYPES:
                 raise ContractError(f"{name}: invalid query parameter: {key}")
             if not isinstance(schema.get("required", False), bool):
                 raise ContractError(f"{name}: required must be boolean")
