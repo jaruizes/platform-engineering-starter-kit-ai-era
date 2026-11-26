@@ -1,0 +1,88 @@
+# Golden Path demo troubleshooting and template corrections
+
+These fixes apply to `feat/zeroui-use-case` and **newly generated repositories**.
+A Scaffolder template is copied once at repository creation: modifying the
+Starter Kit does **not** rewrite an existing `retail-sales-web` or
+`retail-sales-mcp` repository in Gitea.
+
+## Angular 20.3: tests, Sonar, and publishing
+
+The Angular Golden Path now has:
+
+- `angular.json`: `codeCoverage` and `codeCoverageReporters` for the
+  Angular 20.3 unit-test builder; the test script no longer passes the unsupported
+  CLI `--coverage` flag.
+- `tools/normalize-lcov.mjs`: converts Vitest `dist/test-out/<run>/src/...`
+  records to repository paths `src/...` **only when the source file exists**.
+  The script runs after `ng test`, produces `coverage/lcov.info`, and fails
+  if no legitimate LCOV records exist.
+- `sonar-project.properties`: separates `*.spec.ts` from production sources
+  and tells Sonar where to find the corrected LCOV file.
+- `.gitea/workflows/deliver.yaml`: uses actual `crane append` flags
+  `--new_layer`/`--new_tag`; creates amd64 and arm64 variants and an index
+  under the final image tag before GitOps.
+
+To bring these corrections into an **already generated Angular repo**, review
+and port the modifications to the files listed above. Do not overwrite
+application-specific tests, source code, environment values or unrelated
+changes. Confirm locally:
+
+```bash
+npm install
+npm run test:lcov
+npm test
+npm run lint
+npm run build
+```
+
+On Gitea CI, confirm the Sonar report recognizes coverage and that the
+published image has both `linux/amd64` and `linux/arm64` entries:
+
+```bash
+crane manifest <registry/image:tag>
+```
+
+A multi-architecture publication needs credentials allowing all three tags
+(the two architecture-specific intermediates and the final index). Do not
+bypass or relax Sonar's quality gate to hide missing coverage.
+
+## MCP API adapter: retail queries and meaningful errors
+
+- `rest_mcp_adapter/bridge.py` now validates operation names separately from
+  query parameter names; `previousFrom` and `previousTo` are valid
+  camelCase query parameters.
+- `rest_mcp_adapter/server.py` raises the MCP v2 `ToolError` for safe,
+  known validation and transport errors so Claude Code gets an actionable
+  explanation rather than a generic tool failure.
+- The adapter now has tests that load the actual retail allowlist and verify
+  the error messages.
+
+For an existing `retail-sales-mcp` repository, port these two Python files,
+then run `pytest -q`. Restart the stdio process in Claude Code after updating
+its source, and keep the backend `kubectl port-forward` active.
+
+## Spring coverage: what CI does *not* exercise
+
+The Spring Golden Path's Gitea pipeline deliberately uses
+`./mvnw verify -DskipITs`, because its current runner does not offer a
+Docker daemon for Testcontainers. **Integration tests and their code
+coverage do not contribute to Sonar's CI coverage.** For JPA/persistence
+adapters, add focused isolated unit tests and also run `./mvnw verify`
+locally with Docker. The generated `AGENTS.md` makes this limitation
+explicit; Sonar gates remain blocking.
+
+A later platform improvement should enable an isolated integration-test
+executor instead of trying to share the host Docker socket with
+untrusted pipeline code.
+
+## Platform validation
+
+```bash
+make test
+# The normalizer has an independent Node built-in test:
+node --test platform/capabilities/golden-paths/angular-app/skeleton/tools/normalize-lcov.test.mjs
+```
+
+Actual Gitea pipelines, multi-arch ECR publication, Angular unit tests of a
+generated app, and Claude Code MCP restart require the **running demo
+platform** and cannot be inferred merely from static template checks.
