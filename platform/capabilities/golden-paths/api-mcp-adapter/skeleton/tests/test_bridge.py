@@ -42,3 +42,31 @@ def test_reject_remote_http(tmp_path):
     with pytest.raises(ContractError):
         query_api(contract(tmp_path), "top_products",
             {"limit": 5, "from": "2026-11-01"}, "http://example.org")
+
+
+def test_constructs_encoded_query_from_fixed_path(tmp_path, monkeypatch):
+    from rest_mcp_adapter import bridge
+
+    class FakeResponse:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *exc):
+            return False
+        def read(self, size):
+            return b'{"revenueCents":91641}'
+
+    received = []
+
+    def fake_open(req, timeout):
+        received.append((req.full_url, req.get_method(), req.get_header("Authorization"), timeout))
+        return FakeResponse()
+
+    monkeypatch.setattr(bridge, "urlopen", fake_open)
+    result = query_api(contract(tmp_path), "top_products",
+        {"from": "2026-11-16", "limit": 5}, "http://127.0.0.1:18080", token="test-token")
+    assert result == {"revenueCents": 91641}
+    assert received == [(
+        "http://127.0.0.1:18080/api/insights/top-products?limit=5&from=2026-11-16",
+        "GET", "Bearer test-token", 10,
+    )]
