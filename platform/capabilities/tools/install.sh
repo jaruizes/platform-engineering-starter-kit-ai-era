@@ -4,7 +4,7 @@
 #   platform/capabilities/tools/install.sh [NAME ...]   (all of them by default)
 set -euo pipefail
 
-DIR="$(cd "$(dirname "$0")/.." && pwd)"
+DIR="$(cd "$(dirname "$0")/../infrastructure" && pwd)"
 names=("$@")
 if [[ ${#names[@]} -eq 0 ]]; then
   for definition in "$DIR"/*/definition.yaml; do names+=("$(basename "$(dirname "$definition")")"); done

@@ -191,7 +191,7 @@ if [[ -n "$PLATFORM_CA_FILE" ]]; then
 fi
 
 step "Building and deploying the platform MCP server and console"
-IMAGE="$(load_image "$MCP_IMAGE" "$ROOT/interfaces/mcp" "${MCP_BUILD_ARGS:-}")"
+IMAGE="$(load_image "$MCP_IMAGE" "$ROOT/platform/access/mcp" "${MCP_BUILD_ARGS:-}")"
 deploy "$ROOT/platform/access/mcp/deploy" platform-starter-kit/platform-mcp:dev "$IMAGE"
 kubectl -n platform-system rollout status deployment/platform-mcp --timeout=180s || diagnose platform-mcp
 kubectl -n platform-system rollout status deployment/platform-console --timeout=180s || diagnose platform-console
@@ -249,7 +249,7 @@ if [[ "$PORTAL" == "true" ]]; then
   [[ -f "$BRANDING_DIR/branding.yaml" ]] || { echo "No branding.yaml in BRANDING_DIR=$BRANDING_DIR" >&2; exit 1; }
   BRANDING_DIR="$(cd "$BRANDING_DIR" && pwd)"
   echo "Branding: $BRANDING_DIR"
-  IMAGE="$(load_image "$PORTAL_IMAGE" "$ROOT/interfaces/portal" "--build-context standards=$ROOT/engineering/standards --build-context capabilities=$ROOT/platform/capabilities --build-context spring-service=$ROOT/platform/capabilities/golden-paths/spring-service --build-context angular-app=$ROOT/platform/capabilities/golden-paths/angular-app --build-context branding=$BRANDING_DIR ${PORTAL_BUILD_ARGS:-}")"
+  IMAGE="$(load_image "$PORTAL_IMAGE" "$ROOT/platform/access/portal" "--build-context standards=$ROOT/platform/cognitive/knowledge/standards --build-context capabilities=$ROOT/platform/capabilities --build-context spring-service=$ROOT/platform/capabilities/golden-paths/spring-service --build-context angular-app=$ROOT/platform/capabilities/golden-paths/angular-app --build-context branding=$BRANDING_DIR ${PORTAL_BUILD_ARGS:-}")"
   deploy "$ROOT/platform/access/portal/deploy" platform-starter-kit/portal:dev "$IMAGE"
   kubectl -n platform-system rollout status deployment/portal --timeout=300s || diagnose portal
 fi

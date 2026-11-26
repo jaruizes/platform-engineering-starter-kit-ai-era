@@ -17,14 +17,15 @@ def check(ok, message):
 
 
 for folder in (
-    'platform/control-plane', 'platform/capabilities', 'platform/governance',
-    'platform/delivery', 'interfaces/portal', 'interfaces/mcp',
-    'engineering/standards', 'engineering/golden-paths', 'platform/ai/agent-tooling/skills',
-    'platform/ai/agent-tooling/instructions', 'platform/ai/agent-tooling/clients', 'examples/scenarios', 'bootstrap',
+    'platform/integrations/crossplane', 'platform/capabilities', 'platform/governance/policies',
+    'platform/capabilities/delivery', 'platform/access/portal', 'platform/access/mcp',
+    'platform/cognitive/knowledge/standards', 'platform/capabilities/golden-paths', 'platform/capabilities/infrastructure',
+    'platform/ai/agent-tooling/skills', 'platform/ai/agent-tooling/instructions',
+    'platform/ai/agent-tooling/clients', 'examples/scenarios', 'deploy',
 ):
     check((ROOT / folder).is_dir(), f'Missing responsibility directory: {folder}')
 
-for folder in ('.claude/skills', '.platform/ai/agent-tooling/skills', '.gemini/skills'):
+for folder in ('.claude/skills', '.agents/skills', '.gemini/skills'):
     check((ROOT / folder).resolve() == ROOT / 'platform/ai/agent-tooling/skills', f'{folder} must link to the shared skills')
 
 for path in ROOT.rglob('*'):

@@ -4,7 +4,7 @@
 # as pull requests. With --reset it starts it again from scratch.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 GIT_URL="${GIT_URL:-http://localhost:3000}"
 REPO=platform/platform-starter-kit
 user="$(kubectl -n platform-system get secret gitea-admin -o jsonpath='{.data.username}' | base64 -d)"

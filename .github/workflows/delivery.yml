@@ -10,7 +10,7 @@ on:
       - platform/capabilities/golden-paths/**
       - platform/capabilities/delivery/git-server/**
       - platform/governance/policies/**
-      - platform/control-plane/**
+      - platform/integrations/crossplane/**
       - platform/access/mcp/**
       - platform/capabilities/golden-paths/spring-service/**
       - platform/capabilities/golden-paths/angular-app/**

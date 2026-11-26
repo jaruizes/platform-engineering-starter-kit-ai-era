@@ -14,7 +14,7 @@ source "$ROOT/deploy/local/versions.env"
 NAME="${1:?usage: check.sh NAME [--no-e2e]}"
 E2E=true
 [[ "${2:-}" == "--no-e2e" ]] && E2E=false
-FOLDER="$ROOT/platform/capabilities/$NAME"
+FOLDER="$ROOT/platform/capabilities/infrastructure/$NAME"
 OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
@@ -59,7 +59,7 @@ step "Traceability"
 python3 "$ROOT/platform/capabilities/tools/capctl.py" trace "$NAME" "${junit[@]}" --kyverno "$kyverno" --render "$render" || failed=1
 
 if [[ $failed -ne 0 ]]; then
-  printf '\n\033[1;31m%s is not ready: see the errors above and %s\033[0m\n' "$NAME" "platform/capabilities/$NAME/TRACEABILITY.md"
+  printf '\n\033[1;31m%s is not ready: see the errors above and %s\033[0m\n' "$NAME" "platform/capabilities/infrastructure/$NAME/TRACEABILITY.md"
   exit 1
 fi
 printf '\n\033[1;32m%s passed every check. Next: a person on the platform team reviews it.\033[0m\n' "$NAME"
