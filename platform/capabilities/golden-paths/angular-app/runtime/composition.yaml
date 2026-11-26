@@ -41,7 +41,8 @@ spec:
                     index index.html;
                     # $request_id contains 16 random bytes (hex); use the SAME
                     # value in the CSP header and the HTML root ngCspNonce.
-                    # No unsafe-inline: Angular/Material component <style> tags
+                    # Angular/Material component <style> tags receive a nonce; never
+                    # allow all inline styles.
                     # inherit the per-response nonce from Angular's root node.
                     add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'nonce-$request_id'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
                     add_header X-Content-Type-Options "nosniff" always;
