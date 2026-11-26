@@ -14,7 +14,7 @@ from pathlib import Path
 def evaluate(root: Path, architecture: str, commit: str | None = None) -> dict:
     profile_path = root / ".platform/quality/profile.json"
     if not profile_path.exists():
-        profile_path = root / "engineering/quality/profiles" / f"{architecture}.json"
+        profile_path = root / "platform/capabilities/quality/profiles" / f"{architecture}.json"
     profile = json.loads(profile_path.read_text())
     if architecture == "frontend-angular-v1":
         return evaluate_angular(root, profile, commit)

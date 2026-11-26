@@ -67,7 +67,7 @@ def test_summarize_capability_reads_the_xrd():
     import yaml
     from pathlib import Path
 
-    xrd = yaml.safe_load((Path(__file__).parents[3] / "platform/capabilities/postgres-database/definition.yaml").read_text())
+    xrd = yaml.safe_load((Path(__file__).parents[4] / "platform/capabilities/infrastructure/postgres-database/definition.yaml").read_text())
     c = platform.summarize_capability(xrd)
     assert c["name"] == "postgres-database" and c["kind"] == "PostgresDatabase"
     assert c["api_version"] == "platform.starterkit.dev/v1alpha1" and c["plural"] == "postgresdatabases"
