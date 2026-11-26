@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import capctl  # noqa: E402
 
-EXAMPLE = capctl.ROOT / "postgres-database"
+EXAMPLE = capctl.CAPABILITIES / "postgres-database"
 
 
 @pytest.fixture

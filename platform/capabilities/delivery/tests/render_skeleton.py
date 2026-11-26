@@ -1,5 +1,5 @@
 """Renders the Spring service template's skeleton the way the portal does,
-for tests that run without the portal (see platform/delivery/tests/e2e.sh).
+for tests that run without the portal (see platform/capabilities/delivery/tests/e2e.sh).
 
     python3 render_skeleton.py <output dir> name=... description=... owner=...
         module=... environment=... requestedBy=...
@@ -12,8 +12,8 @@ from pathlib import Path
 
 import jinja2
 
-ROOT = Path(__file__).resolve().parents[3]
-SKELETON = ROOT / "engineering/golden-paths/spring-service/skeleton"
+ROOT = Path(__file__).resolve().parents[4]
+SKELETON = ROOT / "platform/capabilities/golden-paths/spring-service/skeleton"
 # The template's copyWithoutTemplating.
 VERBATIM = [".gitea/workflows/*"]
 

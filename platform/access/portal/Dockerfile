@@ -3,10 +3,10 @@
 #
 # Build it with the engineering standards, the capabilities and the branding
 # (branding/README.md) as extra contexts:
-#   docker build --build-context standards=../../engineering/standards \
+#   docker build --build-context standards=../../cognitive/knowledge/standards \
 #     --build-context capabilities=../../platform/capabilities \
-#     --build-context spring-service=../../engineering/golden-paths/spring-service \
-#     --build-context angular-app=../../engineering/golden-paths/angular-app \
+#     --build-context spring-service=../../capabilities/golden-paths/spring-service \
+#     --build-context angular-app=../../capabilities/golden-paths/angular-app \
 #     --build-context branding=branding -t portal .
 # The branding is the last layer, so changing it alone rebuilds in seconds.
 
@@ -49,7 +49,7 @@ RUN mkdocs build --quiet --site-dir /site \
 # Stage 4: the documentation of each platform capability, as TechDocs sites.
 FROM techdocs AS capability-docs
 COPY --from=capabilities . /capabilities
-RUN mkdir -p /capability-sites && for mk in /capabilities/*/mkdocs.yml; do \
+RUN mkdir -p /capability-sites && for mk in /capabilities/infrastructure/*/mkdocs.yml; do \
       [ -f "$mk" ] || continue; \
       name="$(basename "$(dirname "$mk")")"; \
       (cd "$(dirname "$mk")" && mkdocs build --quiet --site-dir "/capability-sites/$name") || exit 1; \

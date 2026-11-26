@@ -7,8 +7,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-RENDER = ROOT / "platform/delivery/tests/render_skeleton.py"
+ROOT = Path(__file__).resolve().parents[4]
+RENDER = ROOT / "platform/capabilities/delivery/tests/render_skeleton.py"
 
 
 def run(command: list[str], cwd: Path, expect_pass: bool, expect_text: str | None = None) -> None:

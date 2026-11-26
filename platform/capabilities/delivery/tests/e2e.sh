@@ -4,12 +4,12 @@
 # built by its pipeline, deployed by Argo CD with its database, answers on
 # its port, and a second push deploys again.
 #
-#   platform/delivery/tests/e2e.sh
+#   platform/capabilities/delivery/tests/e2e.sh
 #
 # It renders the template itself, so it does not need the portal.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 GIT_URL="${GIT_URL:-http://localhost:3000}"
 SERVICE=loyalty-points
 ENVIRONMENT=checkout-e2e
@@ -95,7 +95,7 @@ EOF
 kubectl wait "environment.platform.starterkit.dev/$ENVIRONMENT" --for=condition=Ready --timeout=180s
 
 step "Creating $SERVICE from the Spring service template, as an agent"
-python3 "$ROOT/platform/delivery/tests/render_skeleton.py" "$work/$SERVICE" name="$SERVICE" \
+python3 "$ROOT/platform/capabilities/delivery/tests/render_skeleton.py" "$work/$SERVICE" name="$SERVICE" \
   description="Loyalty points of the customers" owner=group:default/checkout module=points \
   environment="$ENVIRONMENT" requestedBy=agent:e2e
 curl -fsS -u "$admin" -H 'Content-Type: application/json' -o /dev/null \

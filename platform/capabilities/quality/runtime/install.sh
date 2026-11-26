@@ -2,9 +2,9 @@
 # Install SonarQube and provision its private CI token and human admin password.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 kubectl create namespace platform-system --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-kubectl apply -f "$ROOT/platform/quality/sonarqube.yaml"
+kubectl apply -f "$ROOT/platform/capabilities/quality/runtime/sonarqube.yaml"
 kubectl -n quality rollout status deployment/sonarqube --timeout=600s
 
 has_pipeline_secret=false
