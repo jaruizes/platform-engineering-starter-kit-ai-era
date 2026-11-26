@@ -18,8 +18,6 @@ La solución utilizará exclusivamente datos sintéticos, sin información perso
 - **Disponibilidad requerida:** acceso a la aplicación desde el entorno de demostración, sin publicación pública en Internet.
 - **Cumplimiento:** estándares de arquitectura, desarrollo, seguridad y calidad aplicables en la organización.
 
-Estos datos identifican el producto y sus restricciones, pero no prescriben herramientas, Golden Paths, pipelines ni procedimientos de aprovisionamiento.
-
 ## Información de negocio
 
 El producto trabajará con tres conceptos:

@@ -17,8 +17,6 @@ Esta ampliación debe **reutilizar el servicio y los datos existentes** y manten
 - **Alcance:** consultas de lectura sobre ventas sintéticas.
 - **Prerequisito funcional:** la aplicación de la Spec 01 ya responde correctamente a sus consultas de negocio.
 
-El canal conversacional es una necesidad de producto; esta spec **no obliga a utilizar MCP, Python, un framework, una plantilla concreta ni un servidor adicional**. La organización determinará el mecanismo de integración autorizado.
-
 ## Funcionalidades requeridas
 
 ### RF-01 — Consultar ingresos y actividad
