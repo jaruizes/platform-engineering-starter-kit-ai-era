@@ -165,19 +165,22 @@ GOLDEN_PATHS = [
     {
         "name": "api-mcp-adapter",
         "kind": "Repository",
-        "description": ("Creates a reusable, read-only REST-to-MCP adapter repository " 
-                        "for an already deployed Spring backend. Runs locally through Claude Code stdio."),
+        "description": ("Creates a read-only REST-to-MCP server deployed in the same "
+                        "ephemeral namespace as an existing Spring backend. "
+                        "Remote Streamable HTTP access via kubectl port-forward; "
+                        "no public ingress. Local stdio remains possible."),
         "parameters": {
             "name": "Adapter repository name",
             "description": "Business purpose of the MCP tools",
             "team": "Owning team",
             "backend_service": "Existing SpringService name",
-            "environment": "Existing ephemeral environment of that service",
+            "environment": "Required existing ephemeral environment of that service",
         },
         "guardrails": [
             "Only explicit GET operations and typed query parameters are exposed.",
             "The adapter never connects to SQL or exposes an arbitrary URL proxy.",
-            "Remote backend URLs must use HTTPS; local port-forward defaults to loopback.",
+            "MCP endpoint is private ClusterIP, reachable only by an authorized port-forward.",
+            "Each Claude Code user needs their own Kubernetes credentials and port-forward.",
         ],
         "tool": "create_api_mcp_adapter",
     }

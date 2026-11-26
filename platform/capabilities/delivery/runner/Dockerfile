@@ -1,6 +1,6 @@
 # The runner of the platform pipelines (Gitea Actions, host mode): the steps
 # run in this container, which has what service and frontend builds need: a
-# JDK, Node, Git, Python, the ECR helper and crane for daemonless OCI images.
+# JDK, Node, Git, Python + pip/venv, the ECR helper and crane for daemonless OCI images.
 ARG ACT_RUNNER_VERSION=0.6.1
 
 FROM gitea/act_runner:${ACT_RUNNER_VERSION} AS act-runner
@@ -19,7 +19,7 @@ FROM eclipse-temurin:21-jdk-noble
 ARG TARGETARCH
 ARG NODE_VERSION=22.14.0
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git ca-certificates python3 curl xz-utils \
+    && apt-get install -y --no-install-recommends git ca-certificates python3 python3-pip python3-venv curl xz-utils \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 runner \
     && case "$TARGETARCH" in amd64) node_arch=x64 ;; arm64) node_arch=arm64 ;; *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; esac \

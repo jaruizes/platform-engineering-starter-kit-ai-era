@@ -381,12 +381,13 @@ def create_api_mcp_adapter(
 ) -> dict[str, Any]:
     """Creates a separate MCP adapter repository for a deployed REST backend.
 
-    This Zero-UI Golden Path NEVER creates a second database or deploys a new
-    backend. The generated adapter is a local stdio process calling an approved
-    set of read-only GET endpoints via a laptop port-forward.
+    This Zero-UI Golden Path does not create another database or backend.
+    It generates a Streamable HTTP server deployed in the SAME ephemeral
+    namespace as the existing REST service via the Gitea/Argo CD pipeline.
+    No public ingress: each consumer uses their own authorized port-forward.
 
-    After generation: clone repo, replace operations.json with reviewed backend
-    GET operations, run pytest, then register its stdio executable in Claude Code.
+    After generation: clone repo, define reviewed GET operations, push to main,
+    let GitOps deploy, then register the remote MCP URL in Claude Code.
     """
     for field, value in (("name", name), ("backend_service", backend_service)):
         if not re.fullmatch(r"[a-z]([-a-z0-9]{0,38}[a-z0-9])?", value):
@@ -427,9 +428,13 @@ def create_api_mcp_adapter(
         "backend_service": backend_service,
         "environment": environment,
         "next_step": (
-            "Clone the adapter, edit operations.json using the reviewed backend OpenAPI GET "
-            "operations, run pytest, port-forward the existing backend service to localhost:18080 "
-            "and add the generated stdio MCP server to Claude Code. Read the repo README."
+            "Clone the adapter, edit operations.json using the approved backend OpenAPI "
+            "GET operations, run tests and push to main. Gitea Actions deploys the "
+            "MCP via Argo CD into env-" + environment + ". "
+            "Then each user runs kubectl -n env-" + environment +
+            " port-forward svc/" + name + " 18081:8080 and registers with "
+            "claude mcp add --scope user --transport http " + name +
+            " http://127.0.0.1:18081/mcp. See generated README."
         ),
     }
 

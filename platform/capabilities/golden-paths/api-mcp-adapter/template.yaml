@@ -4,8 +4,9 @@ metadata:
   name: api-mcp-adapter
   title: API to MCP adapter (Zero-UI)
   description: >-
-    Creates a read-only MCP adapter for a previously deployed REST API.
-    Agents consume approved endpoints as tools without database credentials.
+    Creates a read-only Streamable HTTP MCP server for an existing REST API.
+    It is deployed to the same ephemeral Kubernetes namespace and is consumed
+    through a private, per-user kubectl port-forward (no public ingress).
   tags: [golden-path, ai, mcp, zero-ui, api]
 spec:
   owner: platform-team
@@ -37,11 +38,14 @@ spec:
           title: Requested by
           type: string
           ui:widget: hidden
-    - title: Connectivity
+    - title: Remote deployment (private Kubernetes service)
+      required: [environment]
       properties:
         environment:
           title: Ephemeral environment
-          description: Used to show the port-forward command; runtime remains local.
+          description: >-
+            Required Kubernetes environment for the remote MCP Deployment.
+            The MCP service remains ClusterIP-only, accessible by port-forward.
           type: string
           ui:field: EntityPicker
           ui:options:
@@ -61,6 +65,8 @@ spec:
           backendService: ${{ parameters.backendService }}
           environment: ${{ (parameters.environment or '').split('/') | last }}
           requestedBy: ${{ parameters.requestedBy or user.ref }}
+        copyWithoutTemplating:
+          - .gitea/workflows/*
     - id: publish
       name: Create the MCP adapter repository
       action: publish:gitea
@@ -80,5 +86,9 @@ spec:
       - title: Next steps
         content: |
           Edit `operations.json` to enumerate your approved GET endpoints.
-          Run `pytest` and configure Claude Code with the generated README.
-          No SQL access or user-supplied arbitrary URLs are exposed as MCP tools.
+          Run `pytest` and push the revised operations.json to main. Gitea Actions
+          builds a multi-architecture Python image; Argo CD deploys the MCP
+          in env-${{ (parameters.environment or '').split('/') | last }}.
+          Each user runs their own kubectl port-forward and registers:
+          claude mcp add --scope user --transport http retail-sales http://127.0.0.1:18081/mcp
+          No SQL access, public ingress or arbitrary URLs are exposed as MCP tools.
