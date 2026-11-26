@@ -17,7 +17,7 @@ The example `/api/health` must be replaced for the Retail demo.
 With the platform running, use a second terminal:
 
 ```bash
-kubectl -n env-${{ values.environment }} port-forward svc/${{ values.backendService }} 18080:8080
+kubectl -n env-${{ values.environment }} port-forward svc/${{ values.backendService }} 18080:80
 ```
 
 Check one API endpoint with `curl http://127.0.0.1:18080/api/insights/summary?from=2026-11-16\&to=2026-11-22`.

@@ -9,13 +9,13 @@ import os
 from pathlib import Path
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from .bridge import load_contract, query_api
 
 FILE = Path(os.environ.get("MCP_OPERATIONS_FILE", str(Path(__file__).resolve().parents[1] / "operations.json")))
 CONTRACT = load_contract(FILE)
-mcp = FastMCP(name="rest-api-adapter", instructions=(
+mcp = MCPServer(name="rest-api-adapter", instructions=(
     "Use list_api_operations to discover approved business queries. "
     "Call query_api with one exact operation name and typed parameters. "
     "Never invent a business metric, SQL query or endpoint."
