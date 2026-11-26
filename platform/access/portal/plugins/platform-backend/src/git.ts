@@ -76,7 +76,7 @@ export class GitServer {
     body: string;
     author: { name: string; email: string };
   }): Promise<PullRequest> {
-    const path = `platform/capabilities/${options.name}/capability.yaml`;
+    const path = `platform/capabilities/infrastructure/${options.name}/capability.yaml`;
     const branch = `capability/${options.name}-${Date.now().toString(36)}`;
     const existing = await this.api(`/contents/${path}?ref=main`);
     const sha = existing.ok ? ((await existing.json()) as { sha: string }).sha : undefined;

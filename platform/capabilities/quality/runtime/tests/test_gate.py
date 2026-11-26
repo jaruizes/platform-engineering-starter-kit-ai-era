@@ -2,7 +2,7 @@ import importlib.util
 import json
 from pathlib import Path
 
-GATE = Path(__file__).parents[1].parent.parent / "engineering/quality/gate.py"
+GATE = Path(__file__).resolve().parents[2] / "gate.py"
 SPEC = importlib.util.spec_from_file_location("quality_gate", GATE)
 gate = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(gate)
