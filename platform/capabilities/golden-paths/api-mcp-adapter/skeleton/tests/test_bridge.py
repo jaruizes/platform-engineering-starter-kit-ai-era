@@ -102,3 +102,43 @@ def test_tool_errors_preserve_safe_diagnostics(monkeypatch):
         ContractError("Unknown or malformed query parameters")))
     with pytest.raises(ToolError, match="Unknown or malformed"):
         server.query_api_operation("health", {})
+
+
+def test_cluster_http_allowed_only_for_fixed_backend_in_kubernetes(monkeypatch, tmp_path):
+    from rest_mcp_adapter import bridge
+    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+    monkeypatch.setenv("REST_API_TRUSTED_CLUSTER_HOST", "retail-sales-insights")
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def read(self, length): return b'{"ok":true}'
+    urls = []
+    def open_url(req, timeout):
+        urls.append(req.full_url)
+        return Response()
+    monkeypatch.setattr(bridge, "urlopen", open_url)
+    params = {"limit": 5, "from": "2026-11-16"}
+    assert query_api(contract(tmp_path), "top_products", params, "http://retail-sales-insights:80") == {"ok": True}
+    assert urls[0].startswith("http://retail-sales-insights:80/api/insights/")
+    with pytest.raises(ContractError):
+        query_api(contract(tmp_path), "top_products", params, "http://other-service:80")
+    with pytest.raises(ContractError):
+        query_api(contract(tmp_path), "top_products", params, "http://169.254.169.254")
+    monkeypatch.delenv("KUBERNETES_SERVICE_HOST")
+    with pytest.raises(ContractError):
+        query_api(contract(tmp_path), "top_products", params, "http://retail-sales-insights:80")
+
+
+def test_transport_configuration(monkeypatch):
+    from rest_mcp_adapter.server import runtime_options
+    monkeypatch.delenv("MCP_TRANSPORT", raising=False)
+    assert runtime_options() == {"transport": "stdio"}
+    monkeypatch.setenv("MCP_TRANSPORT", "streamable-http")
+    assert runtime_options() == {
+        "transport": "streamable-http", "host": "0.0.0.0", "port": 8080,
+        "streamable_http_path": "/mcp", "stateless_http": True, "json_response": True,
+    }
+    monkeypatch.setenv("MCP_TRANSPORT", "sse")
+    with pytest.raises(ValueError):
+        runtime_options()

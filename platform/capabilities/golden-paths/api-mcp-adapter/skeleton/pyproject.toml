@@ -1,7 +1,7 @@
 [project]
 name = "rest-mcp-adapter"
 version = "0.1.0"
-description = "Reusable read-only REST API to MCP adapter"
+description = "Reusable read-only REST API to MCP adapter supporting stdio and Streamable HTTP"
 requires-python = ">=3.12"
 dependencies = ["mcp==2.3.0"]
 

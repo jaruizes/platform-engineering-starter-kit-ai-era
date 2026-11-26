@@ -83,9 +83,17 @@ def query_api(contract: dict[str, Any], operation: str, parameters: dict[str, An
     parsed = urlsplit(base)
     if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.query or parsed.fragment or parsed.username:
         raise ContractError("REST_API_BASE_URL must be an http(s) origin, without credentials or query")
-    # A non-local endpoint requires TLS. Local port-forward is the default.
+    # Local stdio uses a port-forward. Remote HTTP pods can call only the
+    # explicitly configured Kubernetes service, not arbitrary plaintext hosts.
     if parsed.scheme == "http" and parsed.hostname not in ("127.0.0.1", "localhost"):
-        raise ContractError("Non-local REST API endpoints require HTTPS")
+        trusted = os.getenv("REST_API_TRUSTED_CLUSTER_HOST", "")
+        if (
+            not os.getenv("KUBERNETES_SERVICE_HOST")
+            or not trusted
+            or not re.fullmatch(r"[a-z0-9]([-a-z0-9]*[a-z0-9])?", trusted)
+            or parsed.hostname != trusted
+        ):
+            raise ContractError("Non-local REST API endpoints require HTTPS; only the declared in-cluster service is exempt")
     url = base + op["path"] + ("?" + urlencode(params) if params else "")
     secret = token if token is not None else os.environ.get("REST_API_BEARER_TOKEN", "")
     headers = {"Accept": "application/json"}
