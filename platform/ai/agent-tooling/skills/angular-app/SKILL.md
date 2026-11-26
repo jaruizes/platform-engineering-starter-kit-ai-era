@@ -6,7 +6,7 @@ description: Use when a user asks for an Angular frontend, a web UI for a platfo
 # Creating and changing Angular applications
 
 Follow the `frontend-angular-v1` architecture and its rules from the portal's
-engineering standards. The Golden Path is `engineering/golden-paths/angular-app`;
+engineering standards. The Golden Path is `platform/capabilities/golden-paths/angular-app`;
 it generates a standalone Angular repository and a namespaced Crossplane `App`.
 
 ## Create a frontend for a backend
