@@ -4,7 +4,7 @@
 
 These are the verifiable rules that a Backend Spring v1 (layered, deprecated) service must satisfy to be considered architecture-compliant.
 
-This document does not restate the architecture. Structure, rationale and the migration path are in `architecture.md` in this folder. Shared rules in `engineering/standards/docs/common/` (development rules, technology policy, testing) also apply.
+This document does not restate the architecture. Structure, rationale and the migration path are in `architecture.md` in this folder. Shared rules in `platform/cognitive/knowledge/standards/docs/common/` (development rules, technology policy, testing) also apply.
 
 It answers only:
 

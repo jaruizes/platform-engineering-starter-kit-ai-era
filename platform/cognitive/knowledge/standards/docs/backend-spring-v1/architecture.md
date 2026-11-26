@@ -4,7 +4,7 @@
 
 Backend Spring v1 is the classic layered Spring Boot architecture (controller → service → repository) used by older services; it is **deprecated** for new services, which must use Backend Spring v2 (hexagonal).
 
-This document describes how v1 services are structured so they can be maintained safely and migrated to v2 incrementally. The verifiable rules are in `architecture-rules.md` (BL-001 to BL-015). Shared engineering rules (development rules, technology policy, testing strategy) live in `engineering/standards/docs/common/` and apply to v1 as well; they are not repeated here.
+This document describes how v1 services are structured so they can be maintained safely and migrated to v2 incrementally. The verifiable rules are in `architecture-rules.md` (BL-001 to BL-015). Shared engineering rules (development rules, technology policy, testing strategy) live in `platform/cognitive/knowledge/standards/docs/common/` and apply to v1 as well; they are not repeated here.
 
 ---
 
