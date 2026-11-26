@@ -43,6 +43,8 @@ spec:
               value: streamable-http
             - name: MCP_PORT
               value: "8080"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
             - name: REST_API_BASE_URL
               value: http://${{ values.backendService }}:80
             # Explicitly declares the ONLY backend that may use in-cluster HTTP.
@@ -70,6 +72,14 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
 ---
 apiVersion: v1
 kind: Service

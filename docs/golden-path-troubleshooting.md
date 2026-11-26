@@ -57,9 +57,11 @@ bypass or relax Sonar's quality gate to hide missing coverage.
 - The adapter now has tests that load the actual retail allowlist and verify
   the error messages.
 
-For an existing `retail-sales-mcp` repository, port these two Python files,
-then run `pytest -q`. Restart the stdio process in Claude Code after updating
-its source, and keep the backend `kubectl port-forward` active.
+For an older `retail-sales-mcp` repository configured for **local stdio**,
+port these two Python files and run `pytest -q`. For the recommended
+**remote Kubernetes** deployment, migrate the new Streamable HTTP runtime,
+`deploy/mcp.yaml`, image pipeline and generated README (or create a new
+adapter repository from the updated Golden Path).
 
 ## Spring coverage: what CI does *not* exercise
 

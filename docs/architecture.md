@@ -43,7 +43,7 @@ The refactor should preserve command behavior. Runs requiring Docker, Kubernetes
 
 ## Zero-UI business application consumption
 
-The `api-mcp-adapter` Golden Path lives in `platform/capabilities/golden-paths/api-mcp-adapter/` and is exposed by the portal's Backstage Template and the platform MCP `create_api_mcp_adapter` action. It generates an independent Python MCP stdio process, with a declarative, validated **GET-only operation allowlist**, forwarding to an already deployed REST backend through local port-forward. The actual Spring API continues to own PostgreSQL access and domain logic. The adapter does not implement database access or a generic API gateway.
+The `api-mcp-adapter` Golden Path lives in `platform/capabilities/golden-paths/api-mcp-adapter/` and is exposed by the Backstage Software Template and the platform MCP `create_api_mcp_adapter` action. It generates a Python Streamable HTTP MCP server deployed as a **private Deployment + ClusterIP Service** in the existing backend's ephemeral namespace via Gitea Actions and Argo CD. A per-user port-forward provides access to Claude Code. The server calls only approved GET endpoints through a declarative `operations.json` allowlist; Spring still owns PostgreSQL access and business logic. A local stdio fallback remains available for debugging.
 
 See the [two Retail Sales Insights specs](../examples/scenarios/example/specs/retail-sales-insights-01-app.md) and [fixture](../examples/scenarios/example/data/README.md). Production extensions (service auth, identity delegation, audit, rate limits, managed runtime) remain future architecture capabilities.
 
