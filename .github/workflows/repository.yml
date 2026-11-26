@@ -30,6 +30,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Verify Angular Golden Path LCOV mapping
+        run: node --test platform/capabilities/golden-paths/angular-app/skeleton/tools/normalize-lcov.test.mjs
       - name: Test Backstage integration
         working-directory: platform/access/portal
         run: |
