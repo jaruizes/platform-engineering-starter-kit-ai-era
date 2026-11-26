@@ -232,7 +232,18 @@ This example separates **WHAT** (product requirements and acceptance criteria) f
 The agent should discover and consume the platform through its connected MCP,
 skills and engineering standards, rather than following an explicit tool-by-tool
 recipe in the product spec. The example repositories for the backend and web
-application are created by executing Spec 01; they are not predeployed here.
+application are created by executing Spec 01; they are not predeployed here. The follow-on Spec 02 generates a **remote MCP Deployment + ClusterIP Service** in the same ephemeral namespace as the backend; Gitea Actions builds the image and Argo CD deploys it.
+
+**Bring your own Claude Code:** the presenter or an authorized attendee
+can use the same remote MCP from **any working directory**. Each person opens
+their **own** `kubectl -n env-retail-demo port-forward svc/retail-sales-mcp
+18081:8080` and registers it in their Claude Code account via
+`claude mcp add --scope user --transport http retail-sales
+http://127.0.0.1:18081/mcp`. An attendee on another computer needs their
+own Kubernetes/AWS identity and access to the cluster API (not the presenter's
+localhost). Read the [presenter's runbook](examples/scenarios/example/demo/execution-guide.md)
+and [Golden Path guide](platform/capabilities/golden-paths/api-mcp-adapter/README.md)
+before the demo.
 
 > **Already generated Retail apps:** changing the specs or Golden Paths does not
 > retroactively style or update an existing application. Ask the agent to bring

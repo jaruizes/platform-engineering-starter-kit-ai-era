@@ -31,6 +31,8 @@ def test_creates_adapter_from_existing_backend(monkeypatch):
     )
     assert response["status"] == "created"
     assert response["backend_service"] == "retail-sales-insights"
+    assert "port-forward svc/retail-sales-mcp" in response["next_step"]
+    assert "claude mcp add --scope user --transport http" in response["next_step"]
     assert calls[0][0] == "api-mcp-adapter"
     assert calls[0][1]["backendService"] == "retail-sales-insights"
     assert calls[0][1]["environment"] == "retail-demo"

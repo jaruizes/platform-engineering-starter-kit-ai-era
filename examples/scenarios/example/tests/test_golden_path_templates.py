@@ -38,3 +38,45 @@ def test_mcp_adapter_uses_explicit_tool_errors():
     assert "mcp.server.mcpserver.exceptions import ToolError" in server
     assert "raise ToolError(str(exc))" in server
     assert "PARAMETER_NAME" in bridge
+
+
+def test_remote_mcp_template_deploys_private_kubernetes_service():
+    deploy = (MCP / "deploy/mcp.yaml").read_text()
+    assert "kind: Deployment" in deploy
+    assert "kind: Service" in deploy
+    assert "type: ClusterIP" in deploy
+    assert "namespace: env-${{ values.environment }}" in deploy
+    assert "REST_API_BASE_URL" in deploy and "REST_API_TRUSTED_CLUSTER_HOST" in deploy
+    assert "value: streamable-http" in deploy
+    assert "automountServiceAccountToken: false" in deploy
+    assert "allowPrivilegeEscalation: false" in deploy
+    assert not any(token in deploy.lower() for token in ("kind: ingress", "type: loadbalancer"))
+    workflow = (MCP / ".gitea/workflows/deliver.yaml").read_text()
+    assert "scripts/build-image.sh" in workflow
+    assert "deploy/mcp.yaml" in workflow
+    assert "pytest" in workflow
+    script = (MCP / "scripts/build-image.sh").read_text()
+    assert "for ARCH in amd64 arm64" in script
+    assert "--only-binary=:all:" in script
+    assert "crane index append" in script
+    assert "--new_layer" in script and "--new_tag" in script
+
+
+def test_remote_mcp_template_keeps_scaffolder_workflow_expressions_untouched():
+    template = (ROOT / "platform/capabilities/golden-paths/api-mcp-adapter/template.yaml").read_text()
+    assert "copyWithoutTemplating:" in template
+    assert ".gitea/workflows/*" in template
+    assert "required: [environment]" in template
+    project = (ROOT / "platform/capabilities/delivery/argocd/services.yaml").read_text()
+    assert "kind: Deployment" in project
+    assert "kind: Service" in project
+
+
+def test_remote_mcp_supports_cluster_http_only_for_known_backend():
+    source = (MCP / "rest_mcp_adapter/bridge.py").read_text()
+    runtime = (MCP / "rest_mcp_adapter/server.py").read_text()
+    assert "REST_API_TRUSTED_CLUSTER_HOST" in source
+    assert "KUBERNETES_SERVICE_HOST" in source
+    assert '"transport": "streamable-http"' in runtime
+    assert '"stateless_http": True' in runtime
+    assert '"streamable_http_path": "/mcp"' in runtime
