@@ -1,0 +1,84 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: api-mcp-adapter
+  title: API to MCP adapter (Zero-UI)
+  description: >-
+    Creates a read-only MCP adapter for a previously deployed REST API.
+    Agents consume approved endpoints as tools without database credentials.
+  tags: [golden-path, ai, mcp, zero-ui, api]
+spec:
+  owner: platform-team
+  type: service
+  parameters:
+    - title: MCP adapter
+      required: [name, description, owner, backendService]
+      properties:
+        name:
+          title: Repository name
+          type: string
+          pattern: '^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$'
+        description:
+          title: Purpose of these business tools
+          type: string
+        owner:
+          title: Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+        backendService:
+          title: Existing REST backend
+          type: string
+          pattern: '^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$'
+          description: The already deployed SpringService exposing GET endpoints.
+        requestedBy:
+          title: Requested by
+          type: string
+          ui:widget: hidden
+    - title: Connectivity
+      properties:
+        environment:
+          title: Ephemeral environment
+          description: Used to show the port-forward command; runtime remains local.
+          type: string
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: Resource
+              spec.type: environment
+  steps:
+    - id: fetch
+      name: Generate the allowlisted REST-to-MCP adapter
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          backendService: ${{ parameters.backendService }}
+          environment: ${{ (parameters.environment or '').split('/') | last }}
+          requestedBy: ${{ parameters.requestedBy or user.ref }}
+    - id: publish
+      name: Create the MCP adapter repository
+      action: publish:gitea
+      input:
+        repoUrl: localhost:3000?owner=platform&repo=${{ parameters.name }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: public
+  output:
+    links:
+      - title: Adapter repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Adapter in catalog
+        icon: catalog
+        entityRef: component:default/${{ parameters.name }}
+    text:
+      - title: Next steps
+        content: |
+          Edit `operations.json` to enumerate your approved GET endpoints.
+          Run `pytest` and configure Claude Code with the generated README.
+          No SQL access or user-supplied arbitrary URLs are exposed as MCP tools.
