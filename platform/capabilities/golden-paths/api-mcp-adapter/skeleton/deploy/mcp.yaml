@@ -12,6 +12,12 @@ metadata:
     platform.starterkit.dev/service-created-by: ${{ values.requestedBy }}
 spec:
   replicas: 1
+  # Tight CPU quota: replace the old pod instead of using a surge pod.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   revisionHistoryLimit: 2
   selector:
     matchLabels:
@@ -60,13 +66,15 @@ spec:
               port: http
             periodSeconds: 15
             timeoutSeconds: 2
+          # Small read-only HTTP bridge: initial PoC sizing, not a benchmark.
+          # Monitor CPU throttling/memory before concurrent external demos.
           resources:
             requests:
-              cpu: 50m
-              memory: 128Mi
+              cpu: 25m
+              memory: 64Mi
             limits:
-              cpu: 500m
-              memory: 512Mi
+              cpu: 125m
+              memory: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

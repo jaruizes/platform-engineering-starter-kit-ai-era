@@ -92,3 +92,20 @@ def test_angular_csp_nonce_is_per_response_and_used_by_root_element():
     assert 'ngCspNonce="__CSP_NONCE__"' in root
     assert workspace["projects"]["${{ values.name }}"]["architect"]["build"]["configurations"]["production"]["optimization"]["styles"]["inlineCritical"] is False
     assert "unsafe-inline" not in runtime
+
+
+def test_retail_small_environment_can_fit_existing_medium_backend_and_remote_mcp():
+    """Medium Spring + small Postgres + Angular + MCP stay under 1-core quota."""
+    import re
+    spring = (ROOT / "platform/capabilities/golden-paths/spring-service/runtime/composition.yaml").read_text()
+    postgres = (ROOT / "platform/capabilities/infrastructure/postgres-database/composition.yaml").read_text()
+    nginx = (ROOT / "platform/capabilities/golden-paths/angular-app/runtime/composition.yaml").read_text()
+    mcp = (MCP / "deploy/mcp.yaml").read_text()
+    env = (ROOT / "platform/capabilities/infrastructure/environments/composition.yaml").read_text()
+    assert '"small"  (dict "cpu" "1"' in env
+    assert '"medium" (dict "cpu" "500m" "memory" "512Mi")' in spring
+    assert '"small"  (dict "cpu" "250m" "memory" "256Mi"' in postgres
+    assert re.search(r"limits:\\s+cpu: 100m\\s+memory: 128Mi".replace('\\\\', '\\'), nginx)
+    assert re.search(r"limits:\\s+cpu: 125m\\s+memory: 256Mi".replace('\\\\', '\\'), mcp)
+    assert 500 + 250 + 100 + 125 <= 1000
+    assert "maxSurge: 0" in mcp and "maxUnavailable: 1" in mcp

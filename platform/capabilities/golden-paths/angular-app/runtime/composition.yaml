@@ -127,13 +127,15 @@ spec:
                         httpGet:
                           path: /healthz
                           port: http
+                      # Static Nginx server. Reserve CPU quota for Spring, Postgres
+                      # and a remote MCP adapter sharing this small environment.
                       resources:
                         requests:
-                          cpu: 50m
-                          memory: 64Mi
+                          cpu: 25m
+                          memory: 32Mi
                         limits:
-                          cpu: 250m
-                          memory: 256Mi
+                          cpu: 100m
+                          memory: 128Mi
                       securityContext:
                         allowPrivilegeEscalation: false
                         capabilities:
