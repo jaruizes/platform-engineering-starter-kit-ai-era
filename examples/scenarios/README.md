@@ -150,6 +150,10 @@ spec and dataset. Do not copy the technical runbook into the product requirement
 discovery of Golden Paths, platform APIs and governance rules is part of what
 the demo evaluates.
 
+The remote adapter is deployed in the **same namespace** as the backend;
+multiple attendees can use their own port-forward with a `--scope user`
+Claude Code MCP registration, independent of the current directory.
+
 The visual acceptance criteria in Spec 01 explicitly reject an unstyled HTML
 page even if the backend responds correctly. A previously generated Angular
 repository must be updated separately; editing a spec does not change it.

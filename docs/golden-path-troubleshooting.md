@@ -86,3 +86,22 @@ node --test platform/capabilities/golden-paths/angular-app/skeleton/tools/normal
 Actual Gitea pipelines, multi-arch ECR publication, Angular unit tests of a
 generated app, and Claude Code MCP restart require the **running demo
 platform** and cannot be inferred merely from static template checks.
+
+## Remote MCP delivery and access (new default)
+
+The updated Golden Path now deploys a private Streamable HTTP MCP in the
+backend's namespace instead of requiring a local stdio runtime. The Gitea
+pipeline builds its Python image for amd64/arm64; the platform runner needs
+`python3-pip` and `python3-venv` (redeploy the runner image). Argo CD's
+`services` AppProject now allows the generated namespaced Deployment/Service.
+
+If the original `retail-sales-mcp` repository was already scaffolded before
+this enhancement, it **will not** receive these changes automatically. Create
+an adapter repository with a new name (preferred for a clean demo), or port
+its runtime, deploy/mcp.yaml, pipeline, build script, and documentation.
+
+For remote access, port-forward `svc/retail-sales-mcp 18081:8080` and add
+`claude mcp add --scope user --transport http retail-sales http://127.0.0.1:18081/mcp`.
+Every attendee needs an independent port-forward and their own Kubernetes
+identity; the resulting MCP registration is global to their Claude Code user
+profile, not to the folder containing the app code.

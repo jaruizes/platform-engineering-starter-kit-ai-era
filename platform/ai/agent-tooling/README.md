@@ -21,7 +21,10 @@ Configuration references: [Claude Code MCP](https://code.claude.com/docs/en/mcp)
 The `api-to-mcp` skill complements Spring/Angular generation:
 create a deployed Spring REST service first; then use the platform MCP
 `create_api_mcp_adapter` tool. Edit the new repository's approved
-`operations.json` and register its MCP **stdio** process in Claude Code.
+`operations.json` and push to main to deploy a **remote Streamable HTTP MCP** server in the
+same ephemeral namespace as the backend. Each person opens their own
+Kubernetes port-forward and registers it in Claude Code with `--scope user`,
+so it can be used from any folder. Local stdio remains an optional fallback.
 The Retail specs describe **expected product behavior**, not a prescribed
 MCP workflow. See [Retail Spec 01](../../../examples/scenarios/example/specs/retail-sales-insights-01-app.md)
 and [Retail Spec 02](../../../examples/scenarios/example/specs/retail-sales-insights-02-zero-ui.md).

@@ -46,3 +46,20 @@ The refactor should preserve command behavior. Runs requiring Docker, Kubernetes
 The `api-mcp-adapter` Golden Path lives in `platform/capabilities/golden-paths/api-mcp-adapter/` and is exposed by the portal's Backstage Template and the platform MCP `create_api_mcp_adapter` action. It generates an independent Python MCP stdio process, with a declarative, validated **GET-only operation allowlist**, forwarding to an already deployed REST backend through local port-forward. The actual Spring API continues to own PostgreSQL access and domain logic. The adapter does not implement database access or a generic API gateway.
 
 See the [two Retail Sales Insights specs](../examples/scenarios/example/specs/retail-sales-insights-01-app.md) and [fixture](../examples/scenarios/example/data/README.md). Production extensions (service auth, identity delegation, audit, rate limits, managed runtime) remain future architecture capabilities.
+
+
+### Private remote MCP adapter
+
+The API-to-MCP Golden Path now delivers a **namespaced Deployment and ClusterIP
+Service** with Streamable HTTP, using Gitea Actions, a multi-arch OCI image
+and Argo CD. The MCP talks only to its declared business REST service inside
+the ephemeral namespace. External clients connect through a
+**per-person Kubernetes port-forward**, registering an HTTP MCP in Claude Code
+at `--scope user`. There is no public Ingress or shared authenticated
+MCP gateway yet. The same Python runtime retains stdio for debugging.
+
+The Argo CD `services` AppProject permits Deployment and Service resources
+in `env-*` namespaces to deliver this Golden Path. That broadens what a
+service repository can deploy: a future platform iteration should enforce
+stronger admission controls and owner validation for raw workloads and migrate
+to a dedicated Crossplane composite if the capability becomes production-ready.

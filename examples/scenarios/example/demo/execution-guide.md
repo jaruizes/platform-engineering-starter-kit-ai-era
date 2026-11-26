@@ -5,17 +5,17 @@
 ## 0. Prerrequisitos y preparación
 
 - Plataforma Starter Kit desplegada en local o en AWS y accesible desde el portátil.
-- Claude Code configurado con los servidores \`platform\` (acciones) y \`portal\` (contexto) MCP, y skills del repositorio.
-- Acceso a \`kubectl\` con contexto apuntando al cluster correcto, acceso a Gitea y permisos para ejecutar port-forward.
-- Dataset disponible en \`../data/\`.
+- Claude Code configurado con los servidores `platform` (acciones) y `portal` (contexto) MCP, y skills del repositorio.
+- Acceso a `kubectl` con contexto apuntando al cluster correcto, acceso a Gitea y permisos para ejecutar port-forward.
+- Dataset disponible en `../data/`.
 - Los nombres indicados abajo son **ejemplos reproducibles del runbook**; las specs de producto no están acopladas a ellos.
-- No ejecutar \`make demo-reset\` sobre entornos que contienen otros trabajos sin comprobar antes su alcance.
+- No ejecutar `make demo-reset` sobre entornos que contienen otros trabajos sin comprobar antes su alcance.
 
 ## 1. Acto 1 — Crear la aplicación a partir de requisitos
 
 **Prompt de demostración:**
 
-> Implementa la funcionalidad descrita en \`examples/scenarios/example/specs/retail-sales-insights-01-app.md\`, utilizando los datos de \`examples/scenarios/example/data/\`. Cumple los criterios de aceptación y deja la aplicación accesible para validarla.
+> Implementa la funcionalidad descrita en `examples/scenarios/example/specs/retail-sales-insights-01-app.md`, utilizando los datos de `examples/scenarios/example/data/`. Cumple los criterios de aceptación y deja la aplicación accesible para validarla.
 
 **Qué debería resolver el agente sin instrucciones paso a paso:**
 
@@ -28,10 +28,10 @@
 
 **Una posible ruta técnica con el Starter Kit actual** (no prescrita por la spec):
 
-1. \`request_environment\`: nombre \`retail-demo\`, equipo \`retail\`, tamaño \`small\`, TTL 8 h; verificar Ready con \`get_environment\`.
-2. \`create_service\`: \`retail-sales-insights\`, propietario \`platform-team\`, módulo \`sales\`, entorno \`retail-demo\`. El Golden Path incluye su propio \`PostgresDatabase\`; **no pedir otra**.
-3. Añadir los SQL \`../data/V1__create_sales_schema.sql\` y \`V2__seed_demo_sales.sql\` como migraciones de la aplicación generada; confirmar su carga con consultas.
-4. \`create_angular_app\`: \`retail-sales-web\`, propietario \`platform-team\`, entorno \`retail-demo\`, backend \`retail-sales-insights\`.
+1. `request_environment`: nombre `retail-demo`, equipo `retail`, tamaño `small`, TTL 8 h; verificar Ready con `get_environment`.
+2. `create_service`: `retail-sales-insights`, propietario `platform-team`, módulo `sales`, entorno `retail-demo`. El Golden Path incluye su propio `PostgresDatabase`; **no pedir otra**.
+3. Añadir los SQL `../data/V1__create_sales_schema.sql` y `V2__seed_demo_sales.sql` como migraciones de la aplicación generada; confirmar su carga con consultas.
+4. `create_angular_app`: `retail-sales-web`, propietario `platform-team`, entorno `retail-demo`, backend `retail-sales-insights`.
 5. Implementar código y tests en **los repositorios generados en Gitea** y esperar a que sus pipelines y Argo CD confirmen el despliegue.
 6. Pedir al agente que demuestre la interfaz en los dos tamaños de pantalla de la spec; los criterios visuales requieren inspección, no basta con que las APIs devuelvan 200.
 
@@ -69,65 +69,114 @@ Comprueba las tarjetas KPI, el periodo seleccionado, la comparación y las dos t
 
 No basta con verificar las cuatro respuestas HTTP 200 en DevTools. Debe comprobarse la experiencia visual, la accesibilidad básica y los estados de carga/error.
 
-## 2. Acto 2 — Exponer la misma aplicación como Zero-UI
+## 2. Acto 2 — Publicar MCP remoto en el entorno existente
 
 **Prompt de demostración:**
 
-> Amplía la solución existente según \`examples/scenarios/example/specs/retail-sales-insights-02-zero-ui.md\`. Quiero poder consultar los mismos datos desde Claude Code con lenguaje natural, sin utilizar la interfaz web.
+> Amplía la solución existente según
+> `examples/scenarios/example/specs/retail-sales-insights-02-zero-ui.md`.
+> Quiero consultar los mismos datos desde Claude Code, incluso al abrirlo
+> en un directorio diferente o desde otro portátil autorizado.
 
-**Comportamiento que queremos observar:** el agente descubre el Golden Path \`api-mcp-adapter\` y utiliza \`create_api_mcp_adapter\` (u otro mecanismo aprobado), en lugar de escribir un proxy ad hoc o generar SQL desde lenguaje natural.
+**Comportamiento esperado:** el agente descubre el Golden Path
+`api-mcp-adapter`, crea el repositorio `retail-sales-mcp`, y el
+Starter Kit publica un servidor MCP remoto usando Gitea Actions y Argo CD,
+sin crear otro backend ni otra base de datos.
 
-### Ruta técnica conocida del Starter Kit
+### Ejecución con el Starter Kit
 
-1. Confirmar que \`retail-sales-insights\` sigue desplegado y que el contrato OpenAPI describe las cuatro operaciones aprobadas.
-2. \`create_api_mcp_adapter\` con \`name=retail-sales-mcp\`, \`team=platform-team\`, \`backend_service=retail-sales-insights\`, \`environment=retail-demo\`.
-3. Clonar el repositorio Gitea generado y copiar \`../data/retail-operations.json\` a su \`operations.json\` (la ruta real dependerá del directorio de trabajo).
-4. Ejecutar su suite de tests y registrar el adaptador **local stdio** en Claude Code. El proceso llama a la API existente a través de \`http://127.0.0.1:18080\`; no necesita credenciales JDBC ni otra base de datos.
-5. Mantener el port-forward del backend del paso anterior activo.
-
-Ejemplo de instalación dentro del repositorio del adaptador:
+1. Confirmar que la aplicación Spring y sus endpoints REST están operativos.
+2. Desde el MCP de plataforma, invocar `create_api_mcp_adapter` con
+   `name=retail-sales-mcp`, `team=platform-team`,
+   `backend_service=retail-sales-insights`, `environment=retail-demo`.
+3. Clonar el repositorio generado en Gitea y sustituir el sample
+   `operations.json` por la allowlist
+   `examples/scenarios/example/data/retail-operations.json`.
+4. Ejecutar su suite de tests; hacer commit y push a `main`.
+5. Esperar al pipeline Gitea (tests, build multi-arquitectura y publicación al
+   registro) y al sync de Argo CD. El manifiesto
+   `deploy/mcp.yaml` contiene Deployment y Service ClusterIP en
+   `env-retail-demo`. El MCP llama internamente a
+   `http://retail-sales-insights:80`. **No hay port-forward al backend.**
+6. Comprobar el despliegue:
 
 ~~~bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -e '.[test]'
-pytest -q
+kubectl -n env-retail-demo get deployment/retail-sales-mcp svc/retail-sales-mcp
+kubectl -n env-retail-demo rollout status deployment/retail-sales-mcp --timeout=180s
+kubectl -n env-retail-demo get pods -l app.kubernetes.io/name=retail-sales-mcp
 ~~~
 
-Registro de Claude Code (sustituye la ruta por la absoluta al ejecutable generado):
+### Conexión del presentador desde cualquier directorio
+
+**Terminal A** — dejar activo durante las preguntas:
 
 ~~~bash
-claude mcp add --scope local --env REST_API_BASE_URL=http://127.0.0.1:18080 \
-  --transport stdio retail-sales -- \
-  /ABSOLUTE/PATH/retail-sales-mcp/.venv/bin/rest-mcp-adapter
+kubectl -n env-retail-demo port-forward svc/retail-sales-mcp 18081:8080
 ~~~
 
-Reinicia o recarga la conexión MCP y comprueba que el agente descubre las herramientas. El ejemplo concreto puede requerir ajustes de la configuración CLI según la versión de Claude Code instalada.
+**Terminal B** — desde un directorio arbitrario, por ejemplo `cd /tmp`:
 
-### Preguntas de demostración
+~~~bash
+cd /tmp
+claude mcp add --scope user --transport http retail-sales http://127.0.0.1:18081/mcp
+claude mcp list
+claude
+~~~
 
-1. «¿Cuánto facturamos entre el 16 y el 22 de noviembre de 2026 y cuántas unidades vendimos?».
-2. «¿Qué cinco productos facturaron más esa semana?».
-3. «Compara esa semana con el 9–15 de noviembre. ¿Qué cambio porcentual hubo?».
+Dentro de Claude Code usar `/mcp` para comprobar conectividad.
+`--scope user` **no depende del directorio actual**. Si ya hay
+una entrada llamada `retail-sales`, eliminar primero la entrada anterior
+y volver a registrarla. El proceso de port-forward debe seguir activo.
+
+### Invitar a otra persona con su propio Claude Code
+
+**No debe conectarse al `localhost` del presentador:** se refiere a otro
+ordenador. El invitado necesita credenciales Kubernetes propias y acceso
+a la API de EKS o del cluster local, con RBAC suficiente para
+`get/list` el Service/Pods y `create` en `pods/portforward`.
+Comprobar de antemano:
+
+~~~bash
+kubectl config current-context
+kubectl auth can-i create pods/portforward -n env-retail-demo
+kubectl -n env-retail-demo get svc/retail-sales-mcp
+~~~
+
+Si está autorizado, **en el portátil del invitado**:
+
+~~~bash
+kubectl -n env-retail-demo port-forward svc/retail-sales-mcp 18081:8080
+# En otra terminal, desde cualquier directorio:
+claude mcp add --scope user --transport http retail-sales http://127.0.0.1:18081/mcp
+claude
+~~~
+
+Los dos clientes consumen **el mismo servidor MCP del cluster** con
+túneles independientes. No se comparten kubeconfig, tokens de AWS ni claves
+de acceso. Si el invitado no tiene acceso al Kubernetes API, esta modalidad
+**no es suficiente**; se necesitaría una pasarela HTTPS autenticada.
+
+### Preguntas y controles
+
+1. «¿Cuánto facturamos entre el 16 y el 22 de noviembre de 2026?».
+2. «¿Cuáles son los cinco productos de mayor facturación esa semana?».
+3. «Compara esa semana con el 9–15 de noviembre. ¿Qué cambio hubo?».
 4. «¿Qué categorías lideraron las ventas?».
-5. «Elimina todas las ventas» (verificar rechazo).
-6. Detener momentáneamente el port-forward y volver a preguntar (verificar error explicativo; **no** datos inventados).
+5. «Elimina todas las ventas» → rechazar: no hay herramienta de escritura.
+6. Cortar el túnel local y volver a preguntar → comunicar fallo, no inventar.
 
-### Qué demuestra
-
-- **La misma lógica de negocio** está disponible a humanos mediante web y a agentes mediante conversación.
-- El agente consume capacidades de plataforma en lugar de inventar infraestructura e integraciones.
-- Se preservan las políticas, límites de acceso y controles de calidad.
-- MCP es un **mecanismo de exposición**, no el lugar donde reside la lógica de negocio.
+**Mensaje principal:** la Spec 01 creó una aplicación. La Spec 02
+hace que esa misma aplicación sea consumible como herramientas MCP remotas
+por distintos asistentes, **sin publicar una API en Internet**.
 
 ## 3. Diagnóstico y límites actuales
 
 - Los repositorios de aplicaciones ya generados **no se actualizan automáticamente** al modificar un Golden Path; revisar [incidencias conocidas y migración de plantillas](../../../../docs/golden-path-troubleshooting.md).
 - Si el frontend muestra HTML sin diseño, verificar que sus hojas CSS se generan, empaquetan y cargan, y que cumple los criterios de diseño de la Spec 01.
-- Si el MCP rechaza \`previousFrom\`, usar una versión del adaptador que soporte parámetros \`camelCase\`.
-- Si Claude devuelve un error genérico, usar el adaptador que preserva errores seguros como \`ToolError\`.
+- Si el MCP rechaza `previousFrom`, usar una versión del adaptador que soporte parámetros `camelCase`.
+- Si Claude devuelve un error genérico, usar el adaptador que preserva errores seguros como `ToolError`.
 - No considerar la demo E2E completada hasta verificar la API, el diseño en navegador, el canal conversacional y sus escenarios de error.
-- El adaptador local por stdio **no** demuestra todavía identidad OAuth por agente, autorización granular o Agent Runtime administrado.
+- El adaptador remoto por Streamable HTTP **no** demuestra todavía identidad OAuth por agente, autorización granular o Agent Runtime administrado.
 
 ## 4. Limpieza
 
