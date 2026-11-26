@@ -224,6 +224,8 @@ with the same platform. The two specs are intentionally separated:
 - This repository provides **the specs, fixture and adapter generator**; the two sample app repositories are **created by the agent while executing Spec 01**, not predeployed here.
 - The adapter intentionally runs over local MCP stdio connected to Claude Code and an existing backend port-forward. This is a safe MVP, **not** per-agent OAuth or a managed multi-tenant MCP gateway.
 
+> **Testing a generated demo repository?** Corrections to the Angular and MCP Golden Paths do not automatically update repositories already created in Gitea. See the [Golden Path troubleshooting and migration guide](docs/golden-path-troubleshooting.md) for fixes to Angular 20 coverage, Sonar LCOV, multi-arch crane publishing, MCP query parameters/errors and Spring integration-test coverage.
+
 ## Getting started
 
 ### Prerequisites
