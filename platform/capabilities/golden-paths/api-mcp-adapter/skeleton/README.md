@@ -35,7 +35,7 @@ From the adapter repository, register the stdio process in Claude Code (absolute
 path recommended to avoid CWD ambiguity):
 
 ```bash
-claude mcp add --scope project retail-insights --env REST_API_BASE_URL=http://127.0.0.1:18080 -- /absolute/path/to/adapter/.venv/bin/rest-mcp-adapter
+claude mcp add --scope local --env REST_API_BASE_URL=http://127.0.0.1:18080 --transport stdio retail-insights -- /absolute/path/to/adapter/.venv/bin/rest-mcp-adapter
 ```
 
 Restart/reload Claude Code after registering. Ask it to list the approved

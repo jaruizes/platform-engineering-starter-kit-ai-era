@@ -52,7 +52,7 @@ python3 -m venv .venv
 pip install -e '.[test]'
 pytest -q
 # Replace /ABSOLUTE/PATH with the location of the cloned adapter repository
-claude mcp add --scope project retail-sales --env REST_API_BASE_URL=http://127.0.0.1:18080 -- /ABSOLUTE/PATH/retail-sales-mcp/.venv/bin/rest-mcp-adapter
+claude mcp add --scope local --env REST_API_BASE_URL=http://127.0.0.1:18080 --transport stdio retail-sales -- /ABSOLUTE/PATH/retail-sales-mcp/.venv/bin/rest-mcp-adapter
 ```
 
 Restart Claude Code if already open; list registered MCP servers, then ask the questions below. Config and local port-forward must remain active. The adapter does not deploy itself to Kubernetes, which is an intentional MVP boundary.
