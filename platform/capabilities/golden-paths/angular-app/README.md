@@ -52,3 +52,13 @@ Nginx ConfigMap reconciles. Older generated Angular repositories also need
 the updated `src/index.html` and production `angular.json` configuration,
 followed by a new image and deployment. The runtime alone does not inject
 `ngCspNonce` into an app built from an old template.
+
+## Lightweight Nginx resource profile
+
+The Angular App is served as static files via unprivileged Nginx. The
+Crossplane Composition now defaults to CPU **request 25m/limit 100m** and
+memory **request 32Mi/limit 128Mi** rather than 50m/250m and 64Mi/256Mi.
+This allows the full Retail UI + medium-size Spring backend + PostgreSQL +
+remote MCP to coexist under the **small environment's 1-core quota**.
+Review the Nginx resource utilization and readiness under load before adopting
+these settings in a real environment; the Starter Kit is a demo.

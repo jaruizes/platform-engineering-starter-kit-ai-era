@@ -220,3 +220,28 @@ por distintos asistentes, **sin publicar una API en Internet**.
 ## 4. Limpieza
 
 El entorno es efímero y su TTL debería caducar según las políticas. Si se destruye manualmente, confirmar antes que solo contiene recursos de la demo y que no afecta a otros desarrollos. En AWS, no dejar infraestructura encendida innecesariamente una vez terminada la demostración.
+
+## 5. Diagnóstico de cuota para la Spec 02
+
+La demo conjunta puede superar la cuota si se generó un MCP remoto antiguo
+(500m CPU) y Nginx aún usa el límite original (250m). La cuota small de
+`env-retail-demo` es 1000m CPU; los cuatro componentes sumaban 1500m.
+
+El Golden Path actualizado asigna 500m a Spring medium, 250m a PostgreSQL
+small, 100m a Nginx y 125m al MCP remoto: **975m**. Esta configuración deja
+poco margen y requiere comprobar el consumo real si varios asistentes se
+conectan a la vez.
+
+Tras actualizar el Starter Kit, re-aplicar la Composition Angular y migrar
+el `deploy/mcp.yaml` del repositorio Gitea **ya generado** a los límites
+actualizados (no se modifica automáticamente), comprobar:
+
+~~~bash
+kubectl -n env-retail-demo describe resourcequota budget
+kubectl -n env-retail-demo get pods
+kubectl -n env-retail-demo get deployment retail-sales-web retail-sales-mcp
+~~~
+
+Ver [guía de incidencias](../../../../docs/golden-path-troubleshooting.md)
+para los valores concretos y las instrucciones GitOps. No reducir la memoria
+de Spring ni trasladar y recrear la base de datos solo para resolver la cuota.

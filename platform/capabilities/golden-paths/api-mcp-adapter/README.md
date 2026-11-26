@@ -91,3 +91,31 @@ the MCP **does not authenticate agent identities individually**. In-cluster
 workloads may also reach a ClusterIP service unless additional NetworkPolicies
 are installed. Enterprise use requires authenticated MCP gateway, agent-specific
 authorization, network segmentation, rate limits and tool-level audit.
+
+## CPU quota: small Retail demo with UI and remote MCP
+
+The small environment enforces a **1000m CPU limits** quota (not actual CPU
+usage). The full Retail demo includes Spring with a medium 500m/512Mi profile,
+PostgreSQL small 250m/256Mi, Angular Nginx 100m/128Mi, and remote MCP
+125m/256Mi. **Total: 975m CPU limits** and 1152Mi memory limits, under the
+small environment's 1000m/2Gi quota. These are demo-size defaults, not
+performance guarantees. Measure MCP CPU throttling/memory under concurrent
+Claude Code sessions; the CPU headroom is only 25m.
+
+The generated MCP Deployment uses `maxSurge: 0` so updates do not temporarily
+require a second MCP pod that exceeds the namespace quota.
+
+**Already generated `retail-sales-mcp` repo:** scaffolded content is copied,
+not linked to the Golden Path. Change its `deploy/mcp.yaml` CPU limit from
+`500m` to `125m`, memory limit from `512Mi` to `256Mi`, CPU request
+to `25m` and memory request to `64Mi`, and add
+`strategy.rollingUpdate.maxSurge: 0`/`maxUnavailable: 1`.
+Commit/push the manifest to Gitea so Argo CD preserves the change. Rerunning
+the Starter Kit installer only updates the platform's Angular Composition:
+it does not rewrite generated MCP repositories.
+
+**Existing Angular app:** after updating the platform's Angular Composition,
+Crossplane reconciles its Deployment from 250m to 100m CPU and 256Mi to 128Mi
+memory. Verify `kubectl -n env-retail-demo describe quota budget` and
+`kubectl -n env-retail-demo get pod` before retrying MCP. Keep Spring's
+512Mi limit: it has been observed above 256Mi in the demo.

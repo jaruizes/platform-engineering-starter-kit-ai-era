@@ -107,3 +107,37 @@ For remote access, port-forward `svc/retail-sales-mcp 18081:8080` and add
 Every attendee needs an independent port-forward and their own Kubernetes
 identity; the resulting MCP registration is global to their Claude Code user
 profile, not to the folder containing the app code.
+
+## Small environment CPU quota when deploying the remote MCP
+
+Error: `exceeded quota: budget, requested limits.cpu` while the existing
+Spring 500m + PostgreSQL 250m + Angular Nginx 250m already consume 1000m of the
+small environment quota. The old remote MCP skeleton adds another 500m.
+
+Golden Path defaults have been adjusted to **Nginx 100m** CPU and **MCP
+125m** CPU, for a combined 975m with the existing medium Spring 500m and
+PostgreSQL 250m. The generated MCP Deployment also uses `maxSurge: 0` to
+avoid needing another MCP pod during rolling updates. These settings are
+suitable as an initial light-traffic demo baseline, not a production SLO.
+
+To repair **an existing demo** without losing the Flyway dataset:
+
+1. Update the Starter Kit and reapply its Crossplane Angular composition using
+   your existing local/AWS install. Wait for the generated `retail-sales-web`
+   Deployment to reconcile to `cpu: 100m` and `memory: 128Mi`.
+2. In the **already generated** Gitea repo `retail-sales-mcp`, edit
+   `deploy/mcp.yaml`: requests `cpu: 25m`, `memory: 64Mi`; limits
+   `cpu: 125m`, `memory: 256Mi`; `maxSurge: 0`, `maxUnavailable: 1`.
+   Push to its main branch and wait for Argo CD. Do not rely on a manual
+   `kubectl patch` alone because GitOps will revert it.
+3. Run `kubectl -n env-retail-demo describe resourcequota budget`,
+   `kubectl -n env-retail-demo get deploy -o wide`, and
+   `kubectl -n env-retail-demo get pods`. After both changes, the full demo
+   should fit the **CPU quota**; actual startup remains subject to resource
+   usage and other workloads in the namespace.
+4. Do **not** lower the Spring memory limit to 256Mi if the JVM has already
+   been measured above that. Do not bypass quota policies to mask bad sizing.
+
+If the namespace has additional workloads or the MCP needs more CPU under
+several simultaneous clients, request a **medium** environment via the
+existing approval process, or use a separately governed environment profile.

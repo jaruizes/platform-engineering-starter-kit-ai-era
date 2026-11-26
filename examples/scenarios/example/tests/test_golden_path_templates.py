@@ -105,7 +105,7 @@ def test_retail_small_environment_can_fit_existing_medium_backend_and_remote_mcp
     assert '"small"  (dict "cpu" "1"' in env
     assert '"medium" (dict "cpu" "500m" "memory" "512Mi")' in spring
     assert '"small"  (dict "cpu" "250m" "memory" "256Mi"' in postgres
-    assert re.search(r"limits:\\s+cpu: 100m\\s+memory: 128Mi".replace('\\\\', '\\'), nginx)
-    assert re.search(r"limits:\\s+cpu: 125m\\s+memory: 256Mi".replace('\\\\', '\\'), mcp)
+    assert re.search(r"limits:\s+cpu: 100m\s+memory: 128Mi", nginx)
+    assert re.search(r"limits:\s+cpu: 125m\s+memory: 256Mi", mcp)
     assert 500 + 250 + 100 + 125 <= 1000
     assert "maxSurge: 0" in mcp and "maxUnavailable: 1" in mcp
