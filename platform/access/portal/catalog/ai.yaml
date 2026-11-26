@@ -63,7 +63,7 @@ metadata:
     Teaches coding agents to get environments and deploy services through the
     platform instead of writing infrastructure code.
   annotations:
-    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/agents/skills/platform-golden-paths/
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/platform/ai/agent-tooling/skills/platform-golden-paths/
 spec:
   type: skill
   lifecycle: experimental
@@ -84,7 +84,7 @@ metadata:
     a SpringService through same-origin /api/, and deploys their App resource
     into an ephemeral Kubernetes environment.
   annotations:
-    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/agents/skills/angular-app/SKILL.md
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/platform/ai/agent-tooling/skills/angular-app/SKILL.md
 spec:
   type: skill
   lifecycle: experimental

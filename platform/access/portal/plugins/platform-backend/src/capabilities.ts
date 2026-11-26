@@ -2,7 +2,7 @@ import type { Entity } from '@backstage/catalog-model';
 import { KubeObject, PREFIX } from './kubernetes';
 
 /**
- * Platform capabilities built from a CapabilityDefinition (platform/capabilities/<name>/
+ * Platform capabilities built from a CapabilityDefinition (platform/capabilities/infrastructure/<name>/
  * in the platform repository). Their XRD carries everything the portal needs:
  * a label to find them and annotations with the title, guardrails, cost and
  * examples. So a new capability appears in the catalog, with a form to request

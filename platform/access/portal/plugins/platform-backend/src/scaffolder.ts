@@ -213,7 +213,7 @@ export function pullRequestBody(definition: any, requestedBy: string): string {
     '',
     '## Next steps',
     '',
-    '1. **An agent builds it** on this branch with the `build-platform-capability` skill in `agents/skills/`, using Claude Code, Codex or Gemini CLI:',
+    '1. **An agent builds it** on this branch with the `build-platform-capability` skill in `platform/ai/agent-tooling/skills/`, using Claude Code, Codex or Gemini CLI:',
     `   _"Build the capability in this pull request"_. It never changes \`capability.yaml\`; if something is unclear it asks here.`,
     '2. **CI checks it** against this definition (`platform/capabilities/tools/check.sh`) and writes `TRACEABILITY.md`.',
     '3. **A person on the platform team validates it** and merges. It becomes available as experimental.',

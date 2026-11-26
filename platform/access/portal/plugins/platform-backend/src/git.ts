@@ -68,7 +68,7 @@ export class GitServer {
     return found;
   }
 
-  /** Opens a pull request that adds or changes platform/capabilities/<name>/capability.yaml. */
+  /** Opens a pull request that adds or changes platform/capabilities/infrastructure/<name>/capability.yaml. */
   async propose(options: {
     name: string;
     content: string;

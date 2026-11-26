@@ -26,7 +26,7 @@ metadata:
     How AI agents act on the platform. Exposes the Golden Paths as MCP tools,
     with the agent identity, so the agent guardrails apply.
   annotations:
-    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/interfaces/mcp/
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/platform/access/mcp/
     backstage.io/kubernetes-id: platform-mcp
     backstage.io/kubernetes-namespace: platform-system
     backstage.io/kubernetes-label-selector: app.kubernetes.io/name=platform-mcp
@@ -44,7 +44,7 @@ metadata:
   title: Platform console
   description: Approvals of agent requests and AI-era metrics. Also shown in the portal.
   annotations:
-    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/interfaces/mcp/
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/platform/access/mcp/
     backstage.io/kubernetes-id: platform-console
     backstage.io/kubernetes-namespace: platform-system
     backstage.io/kubernetes-label-selector: app.kubernetes.io/name=platform-console
@@ -66,7 +66,7 @@ metadata:
     This Backstage. Software Templates for humans, and read-only context for
     AI agents through MCP.
   annotations:
-    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/interfaces/portal/
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/platform/access/portal/
 spec:
   type: website
   lifecycle: experimental

@@ -11,7 +11,7 @@ export async function readQualityResult(
   service: string,
 ): Promise<QualityResult | undefined> {
   const response = await fetch(
-    `${baseUrl.replace(/\/$/, '')}/platform/${encodeURIComponent(service)}/raw/branch/platform-quality-evidence/.platform/quality/results.json`,
+    `${baseUrl.replace(/\/$/, '')}/platform/${encodeURIComponent(service)}/raw/branch/platform-quality-evidence/.platform/capabilities/quality/runtime/results.json`,
   );
   if (response.status === 404) return undefined;
   if (!response.ok) throw new Error(`Git server answered ${response.status}`);
