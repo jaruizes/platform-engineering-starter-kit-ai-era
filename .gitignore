@@ -6,6 +6,6 @@ __pycache__/
 /.idea/
 
 # OpenTofu state, CA and tokens of the platform on AWS
-bootstrap/aws/.state/
-bootstrap/aws/.terraform/
-bootstrap/aws/.terraform.lock.hcl
+deploy/aws/.state/
+deploy/aws/.terraform/
+deploy/aws/.terraform.lock.hcl
