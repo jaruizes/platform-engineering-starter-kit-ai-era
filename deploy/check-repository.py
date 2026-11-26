@@ -19,13 +19,13 @@ def check(ok, message):
 for folder in (
     'platform/control-plane', 'platform/capabilities', 'platform/governance',
     'platform/delivery', 'interfaces/portal', 'interfaces/mcp',
-    'engineering/standards', 'engineering/golden-paths', 'agents/skills',
-    'agents/instructions', 'agents/clients', 'examples/scenarios', 'bootstrap',
+    'engineering/standards', 'engineering/golden-paths', 'platform/ai/agent-tooling/skills',
+    'platform/ai/agent-tooling/instructions', 'platform/ai/agent-tooling/clients', 'examples/scenarios', 'bootstrap',
 ):
     check((ROOT / folder).is_dir(), f'Missing responsibility directory: {folder}')
 
-for folder in ('.claude/skills', '.agents/skills', '.gemini/skills'):
-    check((ROOT / folder).resolve() == ROOT / 'agents/skills', f'{folder} must link to the shared skills')
+for folder in ('.claude/skills', '.platform/ai/agent-tooling/skills', '.gemini/skills'):
+    check((ROOT / folder).resolve() == ROOT / 'platform/ai/agent-tooling/skills', f'{folder} must link to the shared skills')
 
 for path in ROOT.rglob('*'):
     if any(part in {'.git', 'node_modules', '.venv', '__pycache__', '.pytest_cache'} for part in path.parts):
@@ -44,10 +44,10 @@ for path in ROOT.rglob('*'):
         for target in re.findall(r'\$ROOT/([\w./-]+)', path.read_text()):
             check((ROOT / target).exists(), f'{path.relative_to(ROOT)}: missing $ROOT/{target}')
 
-for capability in (ROOT / 'platform/capabilities').glob('*/capability.yaml'):
+for capability in (ROOT / 'platform/capabilities/infrastructure').glob('*/capability.yaml'):
     skill = capability.parent / 'SKILL.md'
     check(skill.is_symlink(), f'{skill.relative_to(ROOT)} must link to the canonical skill')
-    check(skill.resolve() == ROOT / 'agents/skills' / capability.parent.name / 'SKILL.md',
+    check(skill.resolve() == ROOT / 'platform/ai/agent-tooling/skills' / capability.parent.name / 'SKILL.md',
           f'Wrong canonical skill for {capability.parent.name}')
 
 claude = json.loads((ROOT / '.mcp.json').read_text())['mcpServers']

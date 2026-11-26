@@ -11,7 +11,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-AWS_DIR="$ROOT/bootstrap/aws"
+AWS_DIR="$ROOT/deploy/aws"
 STATE="$AWS_DIR/.state"
 TOFU="${TOFU:-$(command -v tofu || command -v terraform || true)}"
 
@@ -49,7 +49,7 @@ chmod 700 "$STATE"
 # The CA that signs the load balancer certificate. Created once and kept, so
 # you trust it once on your computer (see README.md) for every demo.
 if [[ ! -f "$STATE/ca.pem" ]]; then
-  step "Creating the CA of the demo (kept in bootstrap/aws/.state)"
+  step "Creating the CA of the demo (kept in deploy/aws/.state)"
   openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 825 \
     -keyout "$STATE/ca.key" -out "$STATE/ca.pem" -subj "/CN=Platform Starter Kit demo CA" \
     -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" 2>/dev/null
@@ -100,7 +100,7 @@ export IMAGE_REGISTRY="$registry/$(out image_repository_prefix)" IMAGE_PLATFORM=
 export PLATFORM_CA_FILE="$STATE/ca.pem"
 # The pipelines push the service images to ECR, with the runner's Pod Identity role.
 export SERVICE_IMAGE_REPOSITORY="$(out service_image_repository)" JIB_FLAGS="-Djib.to.credHelper=ecr-login"
-"$ROOT/bootstrap/install.sh"
+"$ROOT/deploy/install.sh"
 
 base="https://$PUBLIC_HOST"
 cat <<MSG

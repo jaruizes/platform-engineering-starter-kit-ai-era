@@ -8,11 +8,11 @@ on:
   pull_request:
     paths:
       - platform/capabilities/**
-      - platform/governance/**
+      - platform/governance/policies/**
       - platform/control-plane/**
-      - interfaces/mcp/**
-      - bootstrap/local/**
-      - bootstrap/install.sh
+      - platform/access/mcp/**
+      - deploy/local/**
+      - deploy/install.sh
       - .github/workflows/capabilities.yml
   push:
     branches: [main]
@@ -37,7 +37,7 @@ jobs:
           go-version: stable
       - name: Install the tools
         run: |
-          source bootstrap/local/versions.env
+          source deploy/local/versions.env
           pip install -r platform/capabilities/requirements.txt
           go install "github.com/crossplane/cli/v2/cmd/crossplane@${CROSSPLANE_CLI_VERSION}"
           curl -sSL "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_CLI_VERSION}/kyverno-cli_${KYVERNO_CLI_VERSION}_linux_x86_64.tar.gz" \
@@ -67,7 +67,7 @@ jobs:
           go-version: stable
       - name: Install the tools
         run: |
-          source bootstrap/local/versions.env
+          source deploy/local/versions.env
           pip install -r platform/capabilities/requirements.txt
           go install "github.com/crossplane/cli/v2/cmd/crossplane@${CROSSPLANE_CLI_VERSION}"
           curl -sSL "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_CLI_VERSION}/kyverno-cli_${KYVERNO_CLI_VERSION}_linux_x86_64.tar.gz" \

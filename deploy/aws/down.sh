@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Deletes the platform on AWS, everything make aws-up created. The CA and the
-# tokens stay in bootstrap/aws/.state for the next demo.
+# tokens stay in deploy/aws/.state for the next demo.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-AWS_DIR="$ROOT/bootstrap/aws"
+AWS_DIR="$ROOT/deploy/aws"
 STATE="$AWS_DIR/.state"
 TOFU="${TOFU:-$(command -v tofu || command -v terraform || true)}"
 

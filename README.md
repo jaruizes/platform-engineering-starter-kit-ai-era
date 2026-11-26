@@ -74,18 +74,18 @@ Every request is stamped with an identity the requester cannot forge: the agent 
 
 ### Engineering standards, for humans and agents
 
-Most organizations have documents that say how a service must be built: architecture, package structure, naming, approved technologies, testing. In the AI era they have three readers, and the kit gives each one a way in, from a single source of truth ([`engineering/standards/`](engineering/standards), an example taken from [My-FinAI-Manager](https://github.com/jaruizes/My-FinAI-Manager/tree/main/reference/engineering)):
+Most organizations have documents that say how a service must be built: architecture, package structure, naming, approved technologies, testing. In the AI era they have three readers, and the kit gives each one a way in, from a single source of truth ([`platform/cognitive/knowledge/standards/`](engineering/standards), an example taken from [My-FinAI-Manager](https://github.com/jaruizes/My-FinAI-Manager/tree/main/reference/engineering)):
 
 | | Humans | AI agents |
 |---|---|---|
 | **Read** | TechDocs in the portal (*Engineering standards*), one section per architecture and version | `platform.get-standards-for-entity` (which architecture and version a service follows, and what to read), `platform.get-engineering-standard` and `platform.search-engineering-standards` (filtered by architecture) in the portal MCP server, and an `AiResource` per architecture in the catalog |
-| **Create** | The **Spring service** and **Angular application** templates: repositories that follow their architecture standards from the first commit | `create_service` and `create_angular_app` in the platform MCP server run the same templates; the [spring-service](agents/skills/spring-service/SKILL.md) and [angular-app](agents/skills/angular-app/SKILL.md) skills explain their paths |
+| **Create** | The **Spring service** and **Angular application** templates: repositories that follow their architecture standards from the first commit | `create_service` and `create_angular_app` in the platform MCP server run the same templates; the [spring-service](platform/ai/agent-tooling/skills/spring-service/SKILL.md) and [angular-app](platform/ai/agent-tooling/skills/angular-app/SKILL.md) skills explain their paths |
 | **Change** | The repository's README | The repository's `AGENTS.md` (and `CLAUDE.md`), with the essentials and links to the full documents |
 | **Check** | `./mvnw verify` for Spring, `npm test && npm run build` for Angular | The same project checks run in CI before the image is published and GitOps is updated |
 
 Nobody has to remember the rules: the ones that can be checked are checked, the same way for human and AI-written code.
 
-Several architectures coexist, as in any organization with some history: **backend v2** (hexagonal Spring, for new services), **backend v1** (layered Spring, deprecated but still used by older services), **Angular v1** (internal back-office) and **React v1** (customer-facing web). Each service declares its own with the label `platform.starterkit.dev/architecture` ([`engineering/standards/architectures.yaml`](engineering/standards/architectures.yaml)), so an agent changing the old orders API gets the v1 rules and one building a new service gets v2, instead of a mix of similar-looking rules from both.
+Several architectures coexist, as in any organization with some history: **backend v2** (hexagonal Spring, for new services), **backend v1** (layered Spring, deprecated but still used by older services), **Angular v1** (internal back-office) and **React v1** (customer-facing web). Each service declares its own with the label `platform.starterkit.dev/architecture` ([`platform/cognitive/knowledge/standards/architectures.yaml`](platform/cognitive/knowledge/standards/architectures.yaml)), so an agent changing the old orders API gets the v1 rules and one building a new service gets v2, instead of a mix of similar-looking rules from both.
 
 ![Spring service template in the portal](docs/portal-spring-template.png)
 
@@ -94,11 +94,11 @@ Several architectures coexist, as in any organization with some history: **backe
 New capabilities (a database, a cache, a queue) are not hand-written by the platform team any more. A person describes **what** the platform needs in a capability definition, an agent builds it, CI proves it does what the definition says, and a person validates it ([`platform/capabilities/`](platform/capabilities)):
 
 1. **Define.** In the portal, *Create → New platform capability* is a form built from the [definition schema](platform/capabilities/schema/capability-definition.schema.json): purpose, interface, guardrails (`GR-n`, for everyone or only for agents), cost and acceptance criteria (`AC-n`, as a person, as an agent or both). It opens a pull request in the platform repository with `platform/capabilities/<name>/capability.yaml`, and the proposal appears in the catalog.
-2. **Build.** An agent, with the [build-platform-capability skill](agents/skills/build-platform-capability/SKILL.md), generates everything from that file: Crossplane XRD and composition, Kyverno policies with their tests, an acceptance test per criterion, examples, docs and a skill for agents that will use it. It never changes the definition; when something is unclear, it asks in the pull request.
+2. **Build.** An agent, with the [build-platform-capability skill](platform/ai/agent-tooling/skills/build-platform-capability/SKILL.md), generates everything from that file: Crossplane XRD and composition, Kyverno policies with their tests, an acceptance test per criterion, examples, docs and a skill for agents that will use it. It never changes the definition; when something is unclear, it asks in the pull request.
 3. **Check.** `make capability NAME=<name>` (and CI) validates the definition and the generated files, renders the examples, runs the policy tests and runs the acceptance tests in the local platform, as a person and as an agent. It writes `TRACEABILITY.md`: each criterion and guardrail, the test that proves it and its result.
 4. **Validate.** A person on the platform team reviews the traceability matrix and merges. The capability appears on its own in the portal (catalog entry, docs and request form) and in the platform MCP server (`request_capability`), with its guardrails enforced for both.
 
-Changing a capability works the same way: a new version of its definition, validated by a person. The first one is a [PostgreSQL database](platform/capabilities/postgres-database/capability.yaml).
+Changing a capability works the same way: a new version of its definition, validated by a person. The first one is a [PostgreSQL database](platform/capabilities/infrastructure/postgres-database/capability.yaml).
 
 ### Technology choices
 
@@ -190,33 +190,26 @@ Measure the baseline before building anything: without it, there is no business 
 
 ## Repository structure
 
-What is available today:
+The repository is organized by logical platform architecture. See [architecture and responsibilities](docs/architecture.md).
 
 ```text
-├── Makefile
-├── bootstrap/                 # local k3d and AWS EKS setup, shared installer
-├── platform/
-│   ├── control-plane/         # Crossplane functions and permissions
-│   ├── capabilities/          # definitions, compositions, policies and checks
-│   ├── governance/            # shared identity and guardrail policies
-│   ├── delivery/              # Argo CD, runner, registry and local Git server
-│   └── quality/               # SonarQube, quality gate and demo
-├── interfaces/
-│   ├── portal/                # Backstage catalog, templates, context and TechDocs
-│   └── mcp/                   # platform MCP server, console and scripted agent
-├── engineering/
-│   ├── standards/             # shared engineering contracts and documentation
-│   ├── quality/               # architecture-specific quality profiles and gate
-│   └── golden-paths/          # Environment, SpringService, and Angular App APIs
-├── agents/
-│   ├── skills/                # one canonical skill library
-│   ├── instructions/          # shared guidance
-│   └── clients/               # Claude Code, Codex and Gemini CLI MCP adapters
-├── examples/scenarios/        # demo walkthrough, requests and reset
-└── docs/                      # screenshots
+platform/
+  access/                     # Backstage portal, MCP services
+  capabilities/
+    golden-paths/             # Spring and Angular templates
+    infrastructure/           # Ephemeral environments, PostgreSQL
+    delivery/                 # Gitea / Argo CD
+    quality/                  # Engineering gates and SonarQube
+  ai/agent-tooling/           # Skills, instructions, client adapters
+  cognitive/knowledge/        # Shared engineering standards
+  governance/policies/        # Kyverno / identity stamping
+  integrations/crossplane/    # Crossplane control plane
+
+deploy/                       # Local / AWS / shared installer
+examples/scenarios/           # Demos and acceptance flows
 ```
 
-See [agent client setup](agents/README.md). Client discovery and configuration files at the root are thin adapters or relative links. The Backstage runtime keeps its image-local `standards/` and `capabilities/` paths; the Docker build supplies them from the new repository locations.
+The knowledge layer currently contains versioned standards; RAG, GraphRAG and ontologies remain roadmap capabilities. Agent runtime, model gateway, observability and FinOps are similarly roadmap where not implemented.
 
 ## Getting started
 
@@ -244,11 +237,11 @@ make down            # remove everything
 | Git server with the repositories the portal creates | <http://localhost:3000> (to sign in as `platform-admin`: `kubectl -n platform-system get secret gitea-admin -o jsonpath='{.data.password}' \| base64 -d`) |
 | Metrics in Prometheus format | <http://localhost:8080/metrics> |
 
-To connect a real agent, see [Claude Code, Codex and Gemini CLI setup](agents/README.md). Claude Code it reads [`.mcp.json`](.mcp.json) (the `platform` and `portal` servers) and the skills in [`agents/skills/`](agents/skills). Then follow [the demo script](examples/scenarios/README.md).
+To connect a real agent, see [Claude Code, Codex and Gemini CLI setup](platform/ai/agent-tooling/README.md). Claude Code it reads [`.mcp.json`](.mcp.json) (the `platform` and `portal` servers) and the skills in [`platform/ai/agent-tooling/skills/`](platform/ai/agent-tooling/skills). Then follow [the demo script](examples/scenarios/README.md).
 
 `PORTAL=false make up` skips the portal and the Git server if you only need the MCP server and the console.
 
-To show the portal with the logo, title and texts of your company or a client, copy [`interfaces/portal/branding/`](interfaces/portal/branding), change it and run `BRANDING_DIR=<that folder> make up`. No code changes, and only the last layer of the portal image is rebuilt.
+To show the portal with the logo, title and texts of your company or a client, copy [`platform/access/portal/branding/`](platform/access/portal/branding), change it and run `BRANDING_DIR=<that folder> make up`. No code changes, and only the last layer of the portal image is rebuilt.
 
 > **Local demo only.** On a laptop the platform MCP server has no authentication (on AWS it requires a token), the portal signs everyone in as a guest (mapped to the sample user Ana), and agents reach the portal MCP server with a fixed token. All of this is fine on a laptop and is replaced by real identity (Keycloak, and OAuth for MCP clients) in the *Optimize* milestone.
 
@@ -262,7 +255,7 @@ make aws-up          # OpenTofu: VPC, EKS, ECR and a load balancer with HTTPS; t
 make aws-down        # remove everything
 ```
 
-Only your public IP can reach it. See [bootstrap/aws](bootstrap/aws/README.md) for the CA to trust, how to connect Claude Code, the cost (about 0.35 USD per hour while it is up) and what is still missing (a real login).
+Only your public IP can reach it. See [deploy/aws](deploy/aws/README.md) for the CA to trust, how to connect Claude Code, the cost (about 0.35 USD per hour while it is up) and what is still missing (a real login).
 
 ---
 
