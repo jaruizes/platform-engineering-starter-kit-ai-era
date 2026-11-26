@@ -80,7 +80,7 @@ def test_mcp_v2_server_can_be_imported():
 
 def test_retail_allowlist_accepts_camelcase_query_parameters():
     from pathlib import Path
-    root = Path(__file__).resolve().parents[5]
+    root = Path(__file__).resolve().parents[6]
     retail = root / "examples/scenarios/example/data/retail-operations.json"
     contract = load_contract(retail)
     compare = next(op for op in contract["operations"] if op["name"] == "compare_sales_periods")
