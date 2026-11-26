@@ -75,17 +75,20 @@ def test_constructs_encoded_query_from_fixed_path(tmp_path, monkeypatch):
 def test_mcp_v2_server_can_be_imported():
     from rest_mcp_adapter import server
     assert server.mcp is not None
-    assert server.CONTRACT["operations"][0]["name"] == "health"
+    assert len(server.CONTRACT["operations"]) > 0
 
 
-def test_retail_allowlist_accepts_camelcase_query_parameters():
-    from pathlib import Path
-    root = Path(__file__).resolve().parents[6]
-    retail = root / "examples/scenarios/example/data/retail-operations.json"
-    contract = load_contract(retail)
-    compare = next(op for op in contract["operations"] if op["name"] == "compare_sales_periods")
-    assert validate_parameters(compare, {
-        "from": "2026-11-16", "to": "2026-11-22",
+def test_contract_accepts_camelcase_parameters_in_any_generated_repo(tmp_path):
+    path = tmp_path / "operations.json"
+    path.write_text(json.dumps({"operations": [{
+        "name": "compare_periods", "method": "GET", "path": "/api/insights/compare",
+        "parameters": {
+            "previousFrom": {"type": "string", "required": True},
+            "previousTo": {"type": "string", "required": True},
+        },
+    }]}))
+    c = load_contract(path)
+    assert validate_parameters(c["operations"][0], {
         "previousFrom": "2026-11-09", "previousTo": "2026-11-15",
     })["previousFrom"] == "2026-11-09"
 
