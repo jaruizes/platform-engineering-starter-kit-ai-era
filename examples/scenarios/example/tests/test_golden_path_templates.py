@@ -80,3 +80,15 @@ def test_remote_mcp_supports_cluster_http_only_for_known_backend():
     assert '"transport": "streamable-http"' in runtime
     assert '"stateless_http": True' in runtime
     assert '"streamable_http_path": "/mcp"' in runtime
+
+
+def test_angular_csp_nonce_is_per_response_and_used_by_root_element():
+    runtime = (ROOT / "platform/capabilities/golden-paths/angular-app/runtime/composition.yaml").read_text()
+    root = (ANGULAR / "src/index.html").read_text()
+    workspace = json.loads((ANGULAR / "angular.json").read_text())
+    assert "style-src 'self' 'nonce-$request_id'" in runtime
+    assert "sub_filter '__CSP_NONCE__' $request_id;" in runtime
+    assert 'Cache-Control "no-store"' in runtime
+    assert 'ngCspNonce="__CSP_NONCE__"' in root
+    assert workspace["projects"]["${{ values.name }}"]["architect"]["build"]["configurations"]["production"]["optimization"]["styles"]["inlineCritical"] is False
+    assert "unsafe-inline" not in runtime
