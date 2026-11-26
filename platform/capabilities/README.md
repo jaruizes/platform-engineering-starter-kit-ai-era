@@ -38,7 +38,7 @@ From the definition, the [build-platform-capability skill](../ai/agent-tooling/s
 | `SKILL.md` | `purpose`, `interface` | When and how agents should use it (linked from `platform/ai/agent-tooling/skills/<name>`) |
 | `TRACEABILITY.md` | the checks | Each criterion and guardrail, the test that proves it and its result |
 
-[`postgres-database/`](postgres-database) is the first complete example.
+[`postgres-database/`](infrastructure/postgres-database) is the first complete example.
 
 ## The checks
 
