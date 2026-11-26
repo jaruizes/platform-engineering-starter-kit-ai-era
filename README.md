@@ -211,20 +211,34 @@ examples/scenarios/           # Demos and acceptance flows
 
 The knowledge layer currently contains versioned standards; RAG, GraphRAG and ontologies remain roadmap capabilities. Agent runtime, model gateway, observability and FinOps are similarly roadmap where not implemented.
 
-## Zero-UI business insights demo (two specs)
+## Retail Sales Insights — product specs + reproducible Zero-UI demo
 
-A reproducible example demonstrates **build by agent** and **consume by agent**
-with the same platform. The two specs are intentionally separated:
+This example separates **WHAT** (product requirements and acceptance criteria) from
+**HOW** (platform discovery, agent tooling and demonstrator operations).
 
-1. [Spec 01 — Retail Sales Insights API + Angular dashboard](examples/scenarios/example/specs/retail-sales-insights-01-app.md): Claude Code requests an ephemeral environment, generates Spring and Angular repositories using existing Golden Paths, imports a deterministic Flyway dataset and deploys. The browser accesses the Angular app via `kubectl port-forward`.
-2. [Spec 02 — REST to MCP / Zero-UI](examples/scenarios/example/specs/retail-sales-insights-02-zero-ui.md): Claude Code uses the new `create_api_mcp_adapter` tool to generate a separate adapter repository, configures its allowlisted GET business operations and queries the already deployed REST backend in natural language.
+- [Spec 01 — Sales dashboard and business API](examples/scenarios/example/specs/retail-sales-insights-01-app.md):
+  what to build, business rules and measurable **visual design** requirements
+  (KPI cards, professional typography, responsive layouts, empty/error states).
+- [Spec 02 — Conversational access, Zero-UI](examples/scenarios/example/specs/retail-sales-insights-02-zero-ui.md):
+  what the existing service must enable through natural-language queries, without
+  prescribing MCP tools, Python or deployment steps.
+- [Demo entry point](examples/scenarios/example/demo/README.md) and
+  [presenter's technical runbook](examples/scenarios/example/demo/execution-guide.md):
+  where the platform-specific instructions, MCP tool names and port-forward
+  verification commands live. **Do not pass the runbook as the functional spec.**
+- [Deterministic SQL/CSV data + expected metrics](examples/scenarios/example/data/README.md)
+  and [API-to-MCP Golden Path](platform/capabilities/golden-paths/api-mcp-adapter/README.md).
 
-- [Seed SQL + CSV + exact assertions](examples/scenarios/example/data/README.md).
-- [API-to-MCP reusable Golden Path](platform/capabilities/golden-paths/api-mcp-adapter/README.md).
-- This repository provides **the specs, fixture and adapter generator**; the two sample app repositories are **created by the agent while executing Spec 01**, not predeployed here.
-- The adapter intentionally runs over local MCP stdio connected to Claude Code and an existing backend port-forward. This is a safe MVP, **not** per-agent OAuth or a managed multi-tenant MCP gateway.
+The agent should discover and consume the platform through its connected MCP,
+skills and engineering standards, rather than following an explicit tool-by-tool
+recipe in the product spec. The example repositories for the backend and web
+application are created by executing Spec 01; they are not predeployed here.
 
-> **Testing a generated demo repository?** Corrections to the Angular and MCP Golden Paths do not automatically update repositories already created in Gitea. See the [Golden Path troubleshooting and migration guide](docs/golden-path-troubleshooting.md) for fixes to Angular 20 coverage, Sonar LCOV, multi-arch crane publishing, MCP query parameters/errors and Spring integration-test coverage.
+> **Already generated Retail apps:** changing the specs or Golden Paths does not
+> retroactively style or update an existing application. Ask the agent to bring
+> the generated dashboard into compliance with the new Spec 01 visual acceptance
+> criteria, preserving its functional behavior. For framework and CI defects see
+> the [Golden Path troubleshooting guide](docs/golden-path-troubleshooting.md).
 
 ## Getting started
 

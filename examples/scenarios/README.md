@@ -133,12 +133,23 @@ The checks run with `make capability NAME=<name>` and in CI ([`.github/workflows
 - **The agent does not see the `platform` or `portal` server:** check <http://localhost:8081/healthz> answers `ok` and the portal opens, then restart the agent.
 
 
-## Act 5: Retail Sales Insights — UI first, then Zero-UI
+## Retail Sales Insights: two product specs, one demo
 
-This scenario has **two sequential implementation specs** and a deterministic 196-row PostgreSQL fixture.
+This example deliberately keeps **product specifications** separate from
+**platform execution instructions**. It uses a fixed synthetic dataset
+(12 products, 3 stores, 196 sales) for repeatable results.
 
-1. Execute [Retail Spec 01](example/specs/retail-sales-insights-01-app.md) with Claude Code, using the existing platform MCP and Golden Paths to generate the Spring service and Angular frontend, then deploy them in `retail-demo`. The app uses the seeded [Flyway SQL](example/data/README.md).
-2. Port-forward `svc/retail-sales-web 18090:80` in `env-retail-demo` and show the browser dashboard.
-3. Execute [Retail Spec 02](example/specs/retail-sales-insights-02-zero-ui.md) in the same Claude Code session. It calls `create_api_mcp_adapter`, generates an adapter repo, configures [approved GET endpoints](example/data/retail-operations.json), and queries the existing service via local MCP stdio and a backend port-forward.
+- [Spec 01 — Business API and polished, responsive dashboard](example/specs/retail-sales-insights-01-app.md).
+- [Spec 02 — Consult the same business insights using natural language](example/specs/retail-sales-insights-02-zero-ui.md).
+- [Start here: demo overview](example/demo/README.md).
+- [Presenter's runbook](example/demo/execution-guide.md): prompts, example tool sequence, port-forward, API checks and Zero-UI verification.
+- [Dataset and expected numbers](example/data/README.md).
 
-The adapter **does not** generate SQL, host another database, implement business metrics or expose a public HTTP MCP server. The first spec must be completed before the second can be demonstrated.
+For the AI-native SDLC demonstration, give the agent only the corresponding
+spec and dataset. Do not copy the technical runbook into the product requirements:
+discovery of Golden Paths, platform APIs and governance rules is part of what
+the demo evaluates.
+
+The visual acceptance criteria in Spec 01 explicitly reject an unstyled HTML
+page even if the backend responds correctly. A previously generated Angular
+repository must be updated separately; editing a spec does not change it.

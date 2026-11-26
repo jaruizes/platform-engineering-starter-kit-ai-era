@@ -22,5 +22,10 @@ The `api-to-mcp` skill complements Spring/Angular generation:
 create a deployed Spring REST service first; then use the platform MCP
 `create_api_mcp_adapter` tool. Edit the new repository's approved
 `operations.json` and register its MCP **stdio** process in Claude Code.
-See [Retail Spec 01](../../../examples/scenarios/example/specs/retail-sales-insights-01-app.md)
+The Retail specs describe **expected product behavior**, not a prescribed
+MCP workflow. See [Retail Spec 01](../../../examples/scenarios/example/specs/retail-sales-insights-01-app.md)
 and [Retail Spec 02](../../../examples/scenarios/example/specs/retail-sales-insights-02-zero-ui.md).
+The tool-by-tool demo path is intentionally isolated in the
+[presenter's runbook](../../../examples/scenarios/example/demo/execution-guide.md).
+Keep platform discovery and execution rules in these agent instructions and
+skills, not in product specifications.
