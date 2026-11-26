@@ -1,0 +1,1 @@
+../../../ai/agent-tooling/skills/postgres-database/SKILL.md
