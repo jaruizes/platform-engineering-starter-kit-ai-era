@@ -10,7 +10,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-source "$ROOT/bootstrap/local/versions.env"
+source "$ROOT/deploy/local/versions.env"
 NAME="${1:?usage: check.sh NAME [--no-e2e]}"
 E2E=true
 [[ "${2:-}" == "--no-e2e" ]] && E2E=false
@@ -25,7 +25,7 @@ python3 "$ROOT/platform/capabilities/tools/capctl.py" validate "$NAME" || exit 1
 
 step "Rendering every example with the composition"
 sed "s|\${FUNCTION_GO_TEMPLATING_VERSION}|$FUNCTION_GO_TEMPLATING_VERSION|" \
-  "$ROOT/platform/control-plane/crossplane/functions.yaml" > "$OUT/functions.yaml"
+  "$ROOT/platform/integrations/crossplane/functions.yaml" > "$OUT/functions.yaml"
 render=PASS
 for example in "$FOLDER"/examples/*.yaml; do
   # CROSSPLANE_RENDER_ARGS lets you point to mirrored images.

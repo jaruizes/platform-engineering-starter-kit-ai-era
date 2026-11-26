@@ -14,7 +14,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Check repository structure and client adapters
-        run: python3 bootstrap/check-repository.py
+        run: python3 deploy/check-repository.py
       - name: Install unit test dependencies
         run: |
           pip install -e 'interfaces/mcp[test]' -r platform/capabilities/requirements.txt
@@ -42,10 +42,10 @@ jobs:
           docker buildx build --load -t platform-starter-kit/portal:refactor \
             --build-context standards=./engineering/standards \
             --build-context capabilities=./platform/capabilities \
-            --build-context spring-service=./engineering/golden-paths/spring-service \
-            --build-context angular-app=./engineering/golden-paths/angular-app \
-            --build-context branding=./interfaces/portal/branding ./interfaces/portal
+            --build-context spring-service=./platform/capabilities/golden-paths/spring-service \
+            --build-context angular-app=./platform/capabilities/golden-paths/angular-app \
+            --build-context branding=./platform/access/portal/branding ./interfaces/portal
       - name: Build MCP server and delivery runner
         run: |
           docker build -t platform-starter-kit/platform-mcp:refactor ./interfaces/mcp
-          docker build -t platform-starter-kit/ci-runner:refactor ./platform/delivery/runner
+          docker build -t platform-starter-kit/ci-runner:refactor ./platform/capabilities/delivery/runner

@@ -24,7 +24,7 @@ The agent never edits it. Changing a capability means a new version of its defin
 
 ## What the agent generates
 
-From the definition, the [build-platform-capability skill](../../agents/skills/build-platform-capability/SKILL.md) generates, in the same folder:
+From the definition, the [build-platform-capability skill](../../platform/ai/agent-tooling/skills/build-platform-capability/SKILL.md) generates, in the same folder:
 
 | File | From | What it is |
 |---|---|---|
@@ -35,7 +35,7 @@ From the definition, the [build-platform-capability skill](../../agents/skills/b
 | `tests/e2e/test_acceptance.py` | `acceptance` | One test per criterion (`test_ac_<n>_...`), as a person (`kubectl`) and as an agent (platform MCP server) |
 | `examples/` | `interface` | Requests used to render the composition |
 | `docs/`, `mkdocs.yml` | everything | TechDocs in the portal |
-| `SKILL.md` | `purpose`, `interface` | When and how agents should use it (linked from `agents/skills/<name>`) |
+| `SKILL.md` | `purpose`, `interface` | When and how agents should use it (linked from `platform/ai/agent-tooling/skills/<name>`) |
 | `TRACEABILITY.md` | the checks | Each criterion and guardrail, the test that proves it and its result |
 
 [`postgres-database/`](postgres-database) is the first complete example.
@@ -54,7 +54,7 @@ make capability NAME=postgres-database   # platform/capabilities/tools/check.sh 
 
 CI runs the same on every pull request ([`.github/workflows/capabilities.yml`](../../.github/workflows/capabilities.yml)): steps 1 to 3 first, then a local platform without the portal for the acceptance tests.
 
-Tools: Python 3.12 with [`requirements.txt`](requirements.txt), the [Crossplane CLI](https://docs.crossplane.io/latest/cli/) and the [Kyverno CLI](https://kyverno.io/docs/kyverno-cli/), in the versions of [`versions.env`](../../bootstrap/local/versions.env).
+Tools: Python 3.12 with [`requirements.txt`](requirements.txt), the [Crossplane CLI](https://docs.crossplane.io/latest/cli/) and the [Kyverno CLI](https://kyverno.io/docs/kyverno-cli/), in the versions of [`versions.env`](../../deploy/local/versions.env).
 
 ## How people and agents use a capability
 
