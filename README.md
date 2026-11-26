@@ -74,7 +74,7 @@ Every request is stamped with an identity the requester cannot forge: the agent 
 
 ### Engineering standards, for humans and agents
 
-Most organizations have documents that say how a service must be built: architecture, package structure, naming, approved technologies, testing. In the AI era they have three readers, and the kit gives each one a way in, from a single source of truth ([`platform/cognitive/knowledge/standards/`](engineering/standards), an example taken from [My-FinAI-Manager](https://github.com/jaruizes/My-FinAI-Manager/tree/main/reference/engineering)):
+Most organizations have documents that say how a service must be built: architecture, package structure, naming, approved technologies, testing. In the AI era they have three readers, and the kit gives each one a way in, from a single source of truth ([`platform/cognitive/knowledge/standards/`](platform/cognitive/knowledge/standards), an example taken from [My-FinAI-Manager](https://github.com/jaruizes/My-FinAI-Manager/tree/main/reference/engineering)):
 
 | | Humans | AI agents |
 |---|---|---|
@@ -131,7 +131,7 @@ The kit is opinionated so it works out of the box, and modular so each piece can
 | **New service** | Repository from a template (Java/Spring Boot, Node.js, Python), CI pipeline, deployment through GitOps, observability and catalog entry | Portal · CLI · MCP |
 | **Angular frontend** | Angular repository, frontend test/build pipeline, static image, Crossplane `App` resource and Kubernetes Deployment/Service; optional `/api/` proxy to a SpringService in the same environment | Portal · MCP |
 | **Ephemeral environment** | An isolated environment (vcluster or namespace) to test a change, with a time to live and a cost budget | Portal · CLI · MCP |
-| **Database** | A PostgreSQL database (in-cluster locally, Amazon RDS on AWS) with credentials delivered as secrets. The first [platform capability](platform/capabilities/postgres-database) built by an agent from its definition | Portal · CLI · MCP |
+| **Database** | A PostgreSQL database (in-cluster locally, Amazon RDS on AWS) with credentials delivered as secrets. The first [platform capability](platform/capabilities/infrastructure/postgres-database) built by an agent from its definition | Portal · CLI · MCP |
 | **Agent-ready repository** | A repository prepared to work with coding agents: `AGENTS.md`, MCP configuration and verification checks in CI | Portal · CLI |
 | **LLM-powered service** | A service that consumes models through the AI gateway, with basic evaluation in CI | Portal · CLI |
 
