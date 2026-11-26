@@ -52,7 +52,7 @@ export type Environment = {
   expires_at: string;
 };
 
-export type App = {
+export type Service = {
   name: string;
   namespace: string;
   image?: string;
@@ -64,7 +64,7 @@ export type App = {
 export type Overview = {
   metrics: Metrics;
   environments: Environment[];
-  apps: App[];
+  services: Service[];
   approvals: Approval[];
   activity: Activity[];
 };

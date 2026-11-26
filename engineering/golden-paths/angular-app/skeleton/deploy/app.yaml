@@ -1,0 +1,19 @@
+{% if values.environment -%}
+# The platform pipeline writes the container image here. Argo CD applies this
+# App resource and Crossplane creates the Deployment and Service.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: App
+metadata:
+  name: ${{ values.name }}
+  namespace: env-${{ values.environment }}
+  annotations:
+    platform.starterkit.dev/service-created-by: ${{ values.requestedBy }}
+spec:
+  image: ""
+  port: 8080
+  replicas: 1
+{% if values.backendService %}  backendService: ${{ values.backendService }}
+{% endif %}{% else -%}
+# Not deployed: the application was created without an environment. To deploy
+# it, add an App resource here with a target environment and push to main.
+{% endif -%}

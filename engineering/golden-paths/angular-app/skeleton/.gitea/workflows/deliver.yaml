@@ -1,0 +1,93 @@
+# Build and verify the Angular frontend, publish a static Nginx image, and
+# update the App resource. The runner uses Node plus crane (daemonless OCI).
+name: deliver
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["deploy/**"]
+jobs:
+  deliver:
+    runs-on: platform
+    steps:
+      - name: Check out
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          find . -mindepth 1 -delete
+          git clone -q "http://pipeline:${TOKEN}@${{ vars.PLATFORM_GIT_HOST }}/${GITHUB_REPOSITORY}.git" .
+          git checkout -q "$GITHUB_SHA"
+      - name: Install dependencies and lint
+        run: |
+          npm install
+          mkdir -p .platform/quality
+          python3 .platform/quality/check.py lint npm run lint
+
+      - name: Architecture boundaries
+        if: always()
+        run: python3 .platform/quality/check.py boundaries python3 .platform/quality/check_architecture.py
+
+      - name: Unit tests with coverage
+        if: always()
+        run: python3 .platform/quality/check.py unit-tests npm test
+
+      - name: Production build and bundle budgets
+        if: always()
+        run: python3 .platform/quality/check.py production-build npm run build
+
+      - name: SonarQube analysis and quality gate
+        if: always()
+        run: |
+          if [ -n "${SONAR_HOST_URL:-}" ] && [ -n "${SONAR_TOKEN:-}" ] \
+            && npx @sonar/scan -Dsonar.projectKey="${GITHUB_REPOSITORY##*/}" \
+              -Dsonar.scm.revision="$GITHUB_SHA" -Dsonar.host.url="$SONAR_HOST_URL" \
+              -Dsonar.token="$SONAR_TOKEN" -Dsonar.qualitygate.wait=true \
+              -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info; then
+            printf '{"status":"passed"}\n' > .platform/quality/sonar-status.json
+          else
+            printf '{"status":"failed","reason":"SonarQube analysis or quality gate failed"}\n' > .platform/quality/sonar-status.json
+          fi
+
+      - name: Deterministic quality gate
+        if: always()
+        run: python3 .platform/quality/gate.py --architecture frontend-angular-v1
+
+      - name: Publish commit-linked quality evidence
+        if: always()
+        run: |
+          if [ ! -f .platform/quality/results.json ]; then
+            echo "No quality evidence was generated."
+            exit 0
+          fi
+          git config user.name "Platform quality gate"
+          git config user.email quality@starterkit.local
+          git checkout -B platform-quality-evidence
+          git add .platform/quality/results.json .platform/quality/sonar-status.json
+          git commit -m "Quality evidence for $GITHUB_SHA" || true
+          git push --force origin HEAD:platform-quality-evidence
+      - name: Publish the static application image
+        run: |
+          IMAGE="${{ vars.SERVICE_IMAGE_REPOSITORY }}:${GITHUB_REPOSITORY#*/}-${GITHUB_SHA:0:12}"
+          REGISTRY="${IMAGE%%/*}"
+          if [[ "$REGISTRY" == *.dkr.ecr.*.amazonaws.com ]]; then
+            mkdir -p "$HOME/.docker"
+            printf '{"credHelpers":{"%s":"ecr-login"}}\n' "$REGISTRY" > "$HOME/.docker/config.json"
+          fi
+          mkdir -p /tmp/angular-image/usr/share/nginx/html
+          cp -a dist/. /tmp/angular-image/usr/share/nginx/html/
+          tar -C /tmp/angular-image -cf /tmp/angular-image.tar .
+          crane append --base nginxinc/nginx-unprivileged:1.27-alpine \
+            --file /tmp/angular-image.tar --tag "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+      - name: Deploy (GitOps)
+        run: |
+          if grep -q '^  image:' deploy/app.yaml; then
+            sed -i "s|^  image:.*|  image: $IMAGE|" deploy/app.yaml
+          else
+            echo "deploy/app.yaml has no environment: the image is built but not deployed."
+          fi
+          git -c user.name="Platform pipeline" -c user.email=pipeline@starterkit.local add deploy/app.yaml
+          if ! git diff --cached --quiet; then
+            git -c user.name="Platform pipeline" -c user.email=pipeline@starterkit.local \
+              commit -m "Deploy $IMAGE after frontend checks for $GITHUB_SHA"
+            git push -q origin HEAD:main
+          fi

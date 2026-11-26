@@ -1,7 +1,7 @@
-# Act 1: the developer deploys a service with the new-service Golden Path.
+# Act 1: the developer deploys a service with the SpringService Golden Path.
 # Probes, limits, security context and ownership labels come for free.
 apiVersion: platform.starterkit.dev/v1alpha1
-kind: App
+kind: SpringService
 metadata:
   name: refunds-api
   namespace: env-payments-dev

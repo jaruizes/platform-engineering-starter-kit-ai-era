@@ -31,7 +31,7 @@ diagnose() {
   echo "::group::Diagnostics"
   kubectl -n argocd get applications -o wide || true
   kubectl -n argocd get application "$SERVICE" -o jsonpath='{.status.conditions}{"\n"}{.status.operationState.message}{"\n"}' || true
-  kubectl -n "$NS" get apps.platform.starterkit.dev,postgresdatabases,pods,secrets -o wide || true
+  kubectl -n "$NS" get springservices.platform.starterkit.dev,postgresdatabases,pods,secrets -o wide || true
   kubectl -n "$NS" describe pods -l "app.kubernetes.io/name=$SERVICE" | sed -n '/^Events:/,$p' || true
   kubectl -n "$NS" logs -l "app.kubernetes.io/name=$SERVICE" --tail=50 || true
   kubectl -n platform-system logs deploy/platform-ci-runner --tail=30 || true
@@ -65,9 +65,9 @@ wait_for_pipeline() {
 wait_for_deployment() {
   local image
   for _ in $(seq 1 90); do
-    image="$(curl -fsS "$GIT_URL/platform/$SERVICE/raw/branch/main/deploy/app.yaml" | sed -n 's/^  image: //p')"
+    image="$(curl -fsS "$GIT_URL/platform/$SERVICE/raw/branch/main/deploy/spring-service.yaml" | sed -n 's/^  image: //p')"
     if [[ -n "$image" && "$image" != '""' ]] \
-      && [[ "$(kubectl -n "$NS" get apps.platform.starterkit.dev "$SERVICE" -o jsonpath='{.spec.image}' 2>/dev/null)" == "$image" ]] \
+      && [[ "$(kubectl -n "$NS" get springservices.platform.starterkit.dev "$SERVICE" -o jsonpath='{.spec.image}' 2>/dev/null)" == "$image" ]] \
       && kubectl -n "$NS" rollout status "deployment/$SERVICE" --timeout=5s >/dev/null 2>&1 \
       && [[ "$(kubectl -n "$NS" get deployment "$SERVICE" -o jsonpath='{.spec.template.spec.containers[0].image}')" == "$image" ]]; then
       echo "Deployed $image"
@@ -121,7 +121,7 @@ echo "$health"
 [[ "$health" == *'"status":"UP"'* ]]
 
 step "Checking who is recorded as the requester"
-annotations="$(kubectl -n "$NS" get apps.platform.starterkit.dev "$SERVICE" -o jsonpath='{.metadata.annotations}')"
+annotations="$(kubectl -n "$NS" get springservices.platform.starterkit.dev "$SERVICE" -o jsonpath='{.metadata.annotations}')"
 echo "$annotations"
 [[ "$annotations" == *'"platform.starterkit.dev/requested-by":"e2e"'* ]]
 [[ "$annotations" == *'"platform.starterkit.dev/requester-type":"agent"'* ]]

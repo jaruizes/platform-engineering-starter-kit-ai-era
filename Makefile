@@ -21,7 +21,7 @@ demo-developer: ## Act 1: a developer requests an environment and deploys a serv
 	kubectl apply -f examples/scenarios/developer/environment.yaml
 	kubectl wait environments.platform.starterkit.dev/payments-dev --for=condition=Ready --timeout=120s
 	kubectl apply -f examples/scenarios/developer/service.yaml
-	kubectl get environments.platform.starterkit.dev,apps.platform.starterkit.dev -A
+	kubectl get environments.platform.starterkit.dev,springservices.platform.starterkit.dev,apps.platform.starterkit.dev -A
 
 demo-agent: ## Act 2 without an AI agent: a scripted agent talks to the MCP server
 	kubectl -n platform-system exec deploy/platform-mcp -- python -m platform_mcp.simulate_agent
@@ -31,6 +31,7 @@ demo-reset: ## Back to a clean state before the next demo
 
 status: ## Show environments, services and pending approvals
 	@kubectl get environments.platform.starterkit.dev
+	@kubectl get springservices.platform.starterkit.dev -A
 	@kubectl get apps.platform.starterkit.dev -A
 	@kubectl -n platform-system get configmaps -l platform.starterkit.dev/approval-request \
 	  -L platform.starterkit.dev/approval-status
@@ -42,8 +43,23 @@ capabilities: ## List the platform capabilities installed in the cluster
 	@kubectl get xrd -l platform.starterkit.dev/capability \
 	  -L platform.starterkit.dev/capability
 
+sonar-up: ## Reapply SonarQube manifests (it is installed by default with make up / make aws-up)
+	@platform/quality/install.sh
+
+sonar-down: ## Remove SonarQube and its data from the current cluster
+	@kubectl delete -f platform/quality/sonarqube.yaml --ignore-not-found
+	@kubectl delete namespace quality --ignore-not-found
+	@kubectl -n platform-system delete secret sonar-pipeline-auth sonar-admin-auth --ignore-not-found
+
+demo-quality: ## Demonstrate an ArchUnit violation failing and its correction passing
+	@python3 platform/quality/demo.py
+
+demo-spring-e2e: ## Run discount-service black-box acceptance checks in an ephemeral environment
+	@examples/scenarios/quality-gated-spring/run-e2e.sh $(or $(SERVICE),discount-service) $(ENVIRONMENT)
+
 test: ## Run the unit tests of the MCP server, console and capability tools
 	cd interfaces/mcp && $(PYTHON) -m pytest -q tests
 	$(PYTHON) -m pytest -q platform/capabilities/tools/tests
+	$(PYTHON) -m pytest -q platform/quality/tests
 
-.PHONY: help up down aws-up aws-down demo-developer demo-agent demo-reset status capability capabilities test
+.PHONY: help up down aws-up aws-down demo-developer demo-agent demo-reset status capability capabilities sonar-up sonar-down demo-quality demo-spring-e2e test

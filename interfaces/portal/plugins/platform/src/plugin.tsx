@@ -27,9 +27,17 @@ export const platformRequestCard = EntityCardBlueprint.make({
   },
 });
 
+export const serviceQualityCard = EntityCardBlueprint.make({
+  name: 'service-quality',
+  params: {
+    filter: { kind: 'Component', 'spec.type': 'service' },
+    loader: () => import('./components/ServiceQualityCard').then(m => <m.ServiceQualityCard />),
+  },
+});
+
 export const platformPlugin = createFrontendPlugin({
   pluginId: 'platform',
-  extensions: [aiPlatformPage, platformRequestCard],
+  extensions: [aiPlatformPage, platformRequestCard, serviceQualityCard],
   routes: {
     root: rootRouteRef,
   },

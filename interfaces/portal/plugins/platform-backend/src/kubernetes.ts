@@ -44,7 +44,7 @@ export type EnvironmentSummary = {
   expiresAt: string;
 };
 
-export type AppSummary = {
+export type SpringServiceSummary = {
   name: string;
   namespace: string;
   environment: string;
@@ -89,12 +89,12 @@ export class PlatformClient {
     return (res as { items: KubeObject[] }).items;
   }
 
-  async listApps(): Promise<KubeObject[]> {
+  async listSpringServices(): Promise<KubeObject[]> {
     const { custom } = await this.api();
     const res = await custom.listCustomObjectForAllNamespaces({
       group: GROUP,
       version: VERSION,
-      plural: 'apps',
+      plural: 'springservices',
     });
     return (res as { items: KubeObject[] }).items;
   }
@@ -135,7 +135,7 @@ export class PlatformClient {
     );
   }
 
-  async createApp(options: {
+  async createSpringService(options: {
     environment: string;
     name: string;
     image?: string;
@@ -150,7 +150,7 @@ export class PlatformClient {
     }
     const body = {
       apiVersion: `${GROUP}/${VERSION}`,
-      kind: 'App',
+      kind: 'SpringService',
       metadata: {
         name: options.name,
         namespace,
@@ -163,7 +163,7 @@ export class PlatformClient {
         group: GROUP,
         version: VERSION,
         namespace,
-        plural: 'apps',
+        plural: 'springservices',
         body,
       }),
     );
@@ -331,17 +331,17 @@ export function summarizeEnvironment(env: KubeObject): EnvironmentSummary {
   };
 }
 
-export function summarizeApp(app: KubeObject): AppSummary {
-  const annotations = app.metadata.annotations ?? {};
-  const namespace = app.metadata.namespace ?? '';
+export function summarizeSpringService(service: KubeObject): SpringServiceSummary {
+  const annotations = service.metadata.annotations ?? {};
+  const namespace = service.metadata.namespace ?? '';
   return {
-    name: app.metadata.name,
+    name: service.metadata.name,
     namespace,
     environment: namespace.replace(/^env-/, ''),
-    image: app.spec?.image,
-    replicas: app.spec?.replicas,
-    ready: isReady(app),
-    url: app.status?.url,
+    image: service.spec?.image,
+    replicas: service.spec?.replicas,
+    ready: isReady(service),
+    url: service.status?.url,
     requestedBy: annotations[`${PREFIX}/requested-by`],
     requesterType: annotations[`${PREFIX}/requester-type`],
   };

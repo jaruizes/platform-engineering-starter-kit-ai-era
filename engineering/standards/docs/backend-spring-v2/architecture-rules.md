@@ -142,11 +142,11 @@ Significant extraction requires an ADR.
 
 # 3. API and Frontend
 
-## AAC-008 — Business API Is the External Boundary
+## AAC-008 — External Contracts Are the Boundary
 
 **MANDATORY**
 
-External clients must use approved business-oriented contracts.
+External clients must use approved contracts designed for their consumers.
 
 External contracts must not expose:
 
@@ -168,7 +168,6 @@ The frontend must use approved frontend-facing contracts.
 
 It must not directly access databases, consume internal messaging, invoke LLM/data providers, depend on persistence models, or own critical backend business rules.
 
-A BFF may only be introduced when it provides concrete frontend-specific value and must not own core business behavior.
 
 ---
 
@@ -338,19 +337,19 @@ Speculative future components must not be represented as current reality.
 
 # 9. Repository and Conformance
 
-## AAC-021 — Executable Platform Structure
+## AAC-021 — Repository Layout Is Explicit
 
 **MANDATORY**
 
-The executable platform must live under:
+The repository must have a documented and consistent layout for executable code, contracts, and infrastructure. Services follow the layout required by their approved architecture and build tooling.
 
 ```text
-implementation/platform/
+<repository-root>/
 ```
 
-and preserve the implementation model defined in `architecture.md`.
+The exact directories are repository-specific and are not prescribed by this rule.
 
-The canonical local lifecycle entry points remain:
+Where the repository provides lifecycle entry points, they are documented and remain stable. This starter kit uses:
 
 ```text
 implementation/platform/start.sh

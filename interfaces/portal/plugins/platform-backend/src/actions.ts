@@ -1,6 +1,6 @@
 import { ActionsRegistryService } from '@backstage/backend-plugin-api/alpha';
 import { ConsoleClient } from './console';
-import { PlatformClient, summarizeApp, summarizeEnvironment } from './kubernetes';
+import { PlatformClient, summarizeSpringService, summarizeEnvironment } from './kubernetes';
 
 const TEAM_LIMIT = 3;
 
@@ -35,14 +35,14 @@ export function registerActions(
         }),
     },
     action: async ({ input }) => {
-      const [envs, apps, state] = await Promise.all([
+      const [envs, springServices, state] = await Promise.all([
         platform.listEnvironments(),
-        platform.listApps(),
+        platform.listSpringServices(),
         platformConsole.state().catch(() => undefined),
       ]);
       const environments = envs.map(summarizeEnvironment).filter(e => e.team === input.team);
       const names = new Set(environments.map(e => e.name));
-      const services = apps.map(summarizeApp).filter(a => names.has(a.environment));
+      const services = springServices.map(summarizeSpringService).filter(a => names.has(a.environment));
       const pendingApprovals = (state?.approvals ?? [])
         .filter(
           a =>

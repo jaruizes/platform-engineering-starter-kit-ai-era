@@ -13,15 +13,14 @@ It applies equally to:
 
 It does **not** redefine architecture, technology policy, testing strategy, delivery governance, or Definition of Done.
 
-Those concerns are governed by:
+Those concerns are governed by the applicable architecture profile and the shared standards in this directory:
 
 ```text
-product/reference/engineering/architecture.md
-product/reference/engineering/architecture-rules.md
-product/reference/engineering/technology-policy.md
-product/reference/engineering/testing-strategy.md
-product/reference/governance/delivery-policy.md
-product/reference/governance/definition-of-done.md
+../<architecture>/architecture.md
+../<architecture>/architecture-rules.md
+technology-policy.md
+testing.md
+quality-governance.md
 ```
 
 The governing principle is:
@@ -74,16 +73,13 @@ Implementation should use the canonical terminology defined by the product model
 
 Do not introduce competing names for established business concepts without an explicit product-level decision.
 
-Examples:
+Examples depend on the product and are defined by its approved domain model. For example:
 
 ```text
-Portfolio
-Position
-Financial Instrument
-Market
-Valuation
-Analysis
-Evidence
+<ProductConcept>
+<Resource>
+<BusinessEvent>
+<Identifier>
 ```
 
 Names in code, APIs, tests, and persistence mappings should remain consistent with the approved domain language.
@@ -94,17 +90,14 @@ Names in code, APIs, tests, and persistence mappings should remain consistent wi
 
 Avoid primitive obsession when a value has important domain meaning or constraints.
 
-Examples may include:
+Examples may include, when they exist in the product domain:
 
 ```text
-Money
-Currency
-Percentage
-Quantity
-Ticker
-MIC
-PortfolioId
-PositionId
+<ValueWithConstraints>
+<Measurement>
+<Percentage>
+<Quantity>
+<ResourceId>
 ```
 
 The exact implementation depends on the runtime and feature, but domain meaning should not be lost unnecessarily.
@@ -117,7 +110,7 @@ Do not create value objects mechanically when a primitive remains sufficiently c
 
 ## DR-005 — Use Safe Numeric Representations
 
-Financial amounts and other precision-sensitive values must not use binary floating-point types where exact decimal behavior is required.
+Values that require exact decimal behavior must not use binary floating-point types.
 
 Use decimal-safe representations appropriate to the selected runtime.
 
@@ -349,7 +342,7 @@ Logs must not expose:
 - API keys;
 - private credentials;
 - sensitive prompt contents;
-- unnecessary private portfolio information.
+- unnecessary personal, confidential, or sensitive information.
 
 Detailed observability requirements are defined by the architecture and observability guidance.
 
@@ -383,7 +376,7 @@ Shared fixtures and committed test datasets must use:
 - anonymized data;
 - deliberately public data.
 
-Private portfolio information must not be committed as shared test data.
+Private, confidential, or sensitive information must not be committed as shared test data.
 
 ---
 

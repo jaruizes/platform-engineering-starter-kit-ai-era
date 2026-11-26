@@ -77,7 +77,7 @@
   <div class="grid2">
     <section>
       <h2>Services</h2>
-      <div id="apps"></div>
+      <div id="services"></div>
     </section>
     <section>
       <h2>Estimated cost per team (EUR/day)</h2>
@@ -173,11 +173,11 @@ function render(state) {
       <td>${who(e.requester_type, e.requested_by)}</td><td>${esc(e.approved_by || "-")}</td>
       <td>${e.estimated_daily_cost_eur.toFixed(2)}</td><td>${until(e.expires_at)}</td>
       <td>${e.ready ? "Ready" : '<span class="badge pending">Creating</span>'}</td></tr>`));
-  $("apps").innerHTML = table(
+  $("services").innerHTML = table(
     ["Service", "Environment", "Requested by", "Status"],
-    state.apps.map((a) => `<tr><td><b>${esc(a.name)}</b><div class="muted">${esc(a.image)}</div></td>
-      <td>${esc(a.namespace)}</td><td>${who(a.requester_type, a.requested_by)}</td>
-      <td>${a.ready ? "Running" : '<span class="badge pending">Starting</span>'}</td></tr>`));
+    state.services.map((service) => `<tr><td><b>${esc(service.name)}</b><div class="muted">${esc(service.image)}</div></td>
+      <td>${esc(service.namespace)}</td><td>${who(service.requester_type, service.requested_by)}</td>
+      <td>${service.ready ? "Running" : '<span class="badge pending">Starting</span>'}</td></tr>`));
   const costs = Object.entries(state.metrics.cost_by_team);
   const max = Math.max(1, ...costs.map(([, c]) => c));
   $("costs").innerHTML = costs.length ? costs.map(([t, c]) => `

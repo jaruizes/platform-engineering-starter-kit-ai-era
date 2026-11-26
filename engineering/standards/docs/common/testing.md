@@ -123,11 +123,9 @@ External providers must be tested at adapter boundaries.
 
 Examples include:
 
-- market-data providers;
-- news providers;
 - LLM providers;
 - external SaaS APIs;
-- payment/identity providers when not owned by the application.
+- identity systems, model providers, or other external services not owned by the application.
 
 ## Local / Normal Verification
 
@@ -220,10 +218,10 @@ and, where applicable:
 
 Equivalent checks should be used for other runtimes where practical.
 
-The authoritative conformance rules remain in:
+The authoritative conformance rules are in the applicable architecture profile:
 
 ```text
-product/reference/engineering/architecture-rules.md
+../<architecture>/architecture-rules.md
 ```
 
 This document only defines the testing approach used to verify them.
@@ -245,7 +243,7 @@ Browser
   ↓
 Frontend
   ↓
-Business API
+API / application boundary
   ↓
 Backend
   ↓
@@ -317,7 +315,7 @@ Evaluation data should use:
 - public data;
 - anonymized data.
 
-Private portfolio data must not be committed.
+Private, confidential, or sensitive data must not be committed.
 
 Changes to prompts, models, providers, retrieval strategies, or agent workflows should trigger the relevant evaluation suite when they can affect behavior.
 
@@ -368,7 +366,7 @@ Fixtures should use realistic product concepts where useful.
 
 Test data must not accidentally become a hidden source of product requirements.
 
-Private user or portfolio data must not be committed.
+Private, confidential, or sensitive data must not be committed.
 
 ---
 
@@ -383,13 +381,13 @@ Tests should communicate:
 Examples:
 
 ```text
-givenValidPortfolio_whenCreated_thenPortfolioIsPersisted
+givenValidResource_whenCreated_thenResourceIsPersisted
 ```
 
 or:
 
 ```text
-test_create_portfolio_rejects_duplicate_instrument
+test_create_resource_rejects_duplicate_identifier
 ```
 
 according to language conventions.

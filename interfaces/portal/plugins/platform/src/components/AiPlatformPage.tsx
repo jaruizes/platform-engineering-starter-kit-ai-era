@@ -165,7 +165,7 @@ export const AiPlatformPage = () => {
     return <Progress />;
   }
 
-  const { metrics: m, environments, apps, approvals, activity } = overview.value;
+  const { metrics: m, environments, services, approvals, activity } = overview.value;
   const costs = Object.entries(m.cost_by_team).sort((a, b) => b[1] - a[1]);
   const maxCost = Math.max(...costs.map(([, cost]) => cost), 0.01);
   const pending = approvals.filter(a => a.status === 'pending');
@@ -267,19 +267,19 @@ export const AiPlatformPage = () => {
               columns={['Service', 'Environment', 'Requested by', 'Status']}
               empty="No services."
             >
-              {apps.map(a => (
-                <TableRow key={`${a.namespace}/${a.name}`}>
+              {services.map(service => (
+                <TableRow key={`${service.namespace}/${service.name}`}>
                   <TableCell>
-                    <b>{a.name}</b>
+                    <b>{service.name}</b>
                     <Typography variant="body2" color="textSecondary">
-                      {a.image || 'Waiting for the first image'}
+                      {service.image || 'Waiting for the first image'}
                     </Typography>
                   </TableCell>
-                  <TableCell>{a.namespace}</TableCell>
+                  <TableCell>{service.namespace}</TableCell>
                   <TableCell>
-                    <Requester type={a.requester_type} name={a.requested_by} />
+                    <Requester type={service.requester_type} name={service.requested_by} />
                   </TableCell>
-                  <TableCell>{a.ready ? 'Running' : 'Starting'}</TableCell>
+                  <TableCell>{service.ready ? 'Running' : 'Starting'}</TableCell>
                 </TableRow>
               ))}
             </Rows>

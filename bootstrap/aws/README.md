@@ -52,6 +52,16 @@ At the end it prints the URLs, which are the name AWS gives the load balancer wi
 
 After that, `kubectl` points to the EKS cluster (context `platform-starter-kit-aws`, which needs the same AWS variables in your shell), and the demo is the same as on a laptop: [examples/scenarios/README.md](../../examples/scenarios/README.md), with `make demo-developer`, `make demo-agent`, `make demo-reset` and `make status`.
 
+SonarQube is part of `make aws-up`: the Gitea runner is configured with its
+in-cluster URL and an analysis token, and a failed Sonar quality gate blocks
+image creation and GitOps changes. To open the human UI, run
+`kubectl -n quality port-forward svc/sonarqube 9000:9000`, open
+<http://localhost:9000>, and retrieve the generated `admin` password from the
+`sonar-admin-auth` Secret in `platform-system`. The service quality card and
+`get_quality_status` MCP tool expose commit-linked gate evidence.
+
+For a complete human/agent workflow, see the [quality-gated Spring scenario](../../examples/scenarios/quality-gated-spring/README.md).
+
 ## Delete it
 
 ```bash

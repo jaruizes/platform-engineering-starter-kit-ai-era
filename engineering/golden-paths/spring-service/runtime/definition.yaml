@@ -1,0 +1,70 @@
+# Golden Path runtime resource: Spring service.
+# A workload deployed the standard way: probes, resources, security context,
+# labels for ownership and cost, and a Service in front of it.
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: springservices.platform.starterkit.dev
+spec:
+  group: platform.starterkit.dev
+  names:
+    kind: SpringService
+    plural: springservices
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      additionalPrinterColumns:
+        - name: Image
+          type: string
+          jsonPath: .spec.image
+        - name: Replicas
+          type: integer
+          jsonPath: .spec.replicas
+        - name: URL
+          type: string
+          jsonPath: .status.url
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                image:
+                  type: string
+                  description: >-
+                    Container image to run. Empty means the service has no
+                    image yet (its pipeline has not built it): nothing runs
+                    until it is set.
+                  default: ghcr.io/stefanprodan/podinfo:6.15.0
+                port:
+                  type: integer
+                  description: Port the container listens on.
+                  default: 9898
+                replicas:
+                  type: integer
+                  minimum: 1
+                  maximum: 3
+                  default: 1
+                size:
+                  type: string
+                  description: >-
+                    CPU and memory of each replica: small (250m, 256Mi) or
+                    medium (500m, 512Mi, for JVM services).
+                  enum: [small, medium]
+                  default: small
+                database:
+                  type: string
+                  description: >-
+                    Name of a PostgresDatabase in the same environment. Its
+                    connection goes into DATABASE_HOST, DATABASE_PORT,
+                    DATABASE_NAME, DATABASE_USERNAME and DATABASE_PASSWORD, and
+                    into the SPRING_DATASOURCE_* variables.
+            status:
+              type: object
+              properties:
+                url:
+                  type: string
+                  description: In-cluster URL of the service.

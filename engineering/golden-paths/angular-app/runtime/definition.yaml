@@ -1,0 +1,54 @@
+# Golden Path runtime resource: a static frontend application served by Nginx.
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: apps.platform.starterkit.dev
+spec:
+  group: platform.starterkit.dev
+  names:
+    kind: App
+    plural: apps
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      additionalPrinterColumns:
+        - name: Image
+          type: string
+          jsonPath: .spec.image
+        - name: Replicas
+          type: integer
+          jsonPath: .spec.replicas
+        - name: URL
+          type: string
+          jsonPath: .status.url
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                image:
+                  type: string
+                  description: Container image built from the Angular application.
+                port:
+                  type: integer
+                  description: HTTP port served by the frontend container.
+                  default: 8080
+                replicas:
+                  type: integer
+                  minimum: 1
+                  maximum: 3
+                  default: 1
+                backendService:
+                  type: string
+                  description: Optional SpringService name in the same namespace; /api/ is proxied to it.
+                  pattern: '^$|^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$'
+            status:
+              type: object
+              properties:
+                url:
+                  type: string
+                  description: In-cluster URL of the frontend.

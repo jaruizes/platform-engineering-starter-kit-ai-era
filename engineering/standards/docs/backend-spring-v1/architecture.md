@@ -40,8 +40,8 @@ v1 deliberately accepts one trade-off that v2 does not: **JPA entities are the d
 v1 services are organized **by layer** first. A single root package holds one package per layer:
 
 ```text
-com.example.orders/
-├── OrdersApplication.java
+com.example.records/
+├── RecordsApplication.java
 ├── controller/        REST controllers (@RestController)
 ├── service/           business logic (@Service, @Transactional)
 ├── repository/        Spring Data JPA repositories
@@ -107,7 +107,7 @@ Large v1 services may add one level of sub-packages per functional area inside a
 # REST and API Conventions
 
 - v1 services expose **synchronous REST only**. Messaging (Kafka or other brokers) is not part of v1; a service that needs it should be migrated to v2 first or justified with an ADR.
-- Resources use plural nouns and stable paths: `/api/v1/orders`, `/api/v1/orders/{id}`.
+- Resources use plural nouns and stable paths: `/api/v1/records`, `/api/v1/records/{id}`.
 - Request and response bodies are DTOs. Entities are never serialized directly.
 - Input is validated with Bean Validation on DTOs (`@NotNull`, `@Size`, `@Positive`) and `@Valid` on controller parameters.
 - Errors are returned as RFC 9457 Problem Details (`application/problem+json`).
@@ -132,7 +132,7 @@ Large v1 services may add one level of sub-packages per functional area inside a
 
 # Error Handling
 
-- Business errors are expressed as specific exceptions in `exception/` (for example `OrderNotFoundException`, `InvalidOrderStateException`).
+- Business errors are expressed as specific exceptions in `exception/` (for example `RecordNotFoundException`, `InvalidRecordStateException`).
 - A single global `@RestControllerAdvice` translates exceptions into Problem Details:
   - not found → `404`;
   - business rule violation → `409` or `422`;
@@ -215,7 +215,7 @@ Migration is done **one functional module at a time**, not with a big-bang rewri
 
 1. **Choose a module.** Pick a cohesive functional area (for example `billing`) with clear tables and endpoints. Prefer the area with the most upcoming change.
 2. **Record the decision.** Write a short ADR naming the module, the target v2 structure and the end state of the migration.
-3. **Create the v2 module.** Add `com.example.orders.billing/{domain,business,infrastructure}` alongside the existing layered packages. Add the v2 ArchUnit rules scoped to that module.
+3. **Create the v2 module.** Add `com.example.records.modulea/{domain,business,infrastructure}` alongside the existing layered packages. Add the v2 ArchUnit rules scoped to that module.
 4. **Extract the domain.** Move business rules out of entities and services into plain domain types. Create new JPA entities under `billing/infrastructure/persistence` mapped to the **same tables**; no schema change is needed at this step.
 5. **Move the endpoints.** Re-implement the module's controllers as REST adapters in `billing/infrastructure/rest`, keeping the same paths and contracts. Contract tests protect existing clients.
 6. **Redirect callers.** Other layered services that used the old billing service call the new module through its published port, not its repositories.

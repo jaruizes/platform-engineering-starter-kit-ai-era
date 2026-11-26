@@ -90,15 +90,21 @@ sed -e "s|xpkg.crossplane.io|$FUNCTION_REGISTRY|" \
 kubectl wait function.pkg.crossplane.io --all --for=condition=Healthy --timeout=300s
 
 step "Installing Golden Paths"
-kubectl apply -f "$ROOT/engineering/golden-paths/environment/definition.yaml" -f "$ROOT/engineering/golden-paths/app/definition.yaml"
+kubectl apply -f "$ROOT/engineering/golden-paths/environment/definition.yaml" \
+  -f "$ROOT/engineering/golden-paths/spring-service/runtime/definition.yaml" \
+  -f "$ROOT/engineering/golden-paths/angular-app/runtime/definition.yaml"
 kubectl wait xrd --all --for=condition=Established --timeout=120s
-kubectl apply -f "$ROOT/engineering/golden-paths/environment/composition.yaml" -f "$ROOT/engineering/golden-paths/app/composition.yaml"
+kubectl apply -f "$ROOT/engineering/golden-paths/environment/composition.yaml" \
+  -f "$ROOT/engineering/golden-paths/spring-service/runtime/composition.yaml" \
+  -f "$ROOT/engineering/golden-paths/angular-app/runtime/composition.yaml"
 
 step "Installing guardrails (policies for humans and agents)"
 kubectl apply -f "$ROOT/platform/governance/"
 
 step "Installing platform capabilities (platform/capabilities/)"
 "$ROOT/platform/capabilities/tools/install.sh"
+
+"$ROOT/platform/quality/install.sh"
 
 # Builds an image and makes it available to the cluster: pushed to
 # IMAGE_REGISTRY, or imported into k3d. No provenance attestations: with
@@ -243,7 +249,7 @@ if [[ "$PORTAL" == "true" ]]; then
   [[ -f "$BRANDING_DIR/branding.yaml" ]] || { echo "No branding.yaml in BRANDING_DIR=$BRANDING_DIR" >&2; exit 1; }
   BRANDING_DIR="$(cd "$BRANDING_DIR" && pwd)"
   echo "Branding: $BRANDING_DIR"
-  IMAGE="$(load_image "$PORTAL_IMAGE" "$ROOT/interfaces/portal" "--build-context standards=$ROOT/engineering/standards --build-context capabilities=$ROOT/platform/capabilities --build-context branding=$BRANDING_DIR ${PORTAL_BUILD_ARGS:-}")"
+  IMAGE="$(load_image "$PORTAL_IMAGE" "$ROOT/interfaces/portal" "--build-context standards=$ROOT/engineering/standards --build-context capabilities=$ROOT/platform/capabilities --build-context spring-service=$ROOT/engineering/golden-paths/spring-service --build-context angular-app=$ROOT/engineering/golden-paths/angular-app --build-context branding=$BRANDING_DIR ${PORTAL_BUILD_ARGS:-}")"
   deploy "$ROOT/interfaces/portal/deploy" platform-starter-kit/portal:dev "$IMAGE"
   kubectl -n platform-system rollout status deployment/portal --timeout=300s || diagnose portal
 fi
@@ -256,6 +262,8 @@ cat <<MSG
   Portal MCP server (context):        $(public_url 7007)/api/mcp-actions/v1/context
   Git server (repositories):          $(public_url 3000) (read-only without signing in)
   Argo CD (GitOps, read-only):        $(public_url 8082)
+  SonarQube (quality gate):             kubectl -n quality port-forward svc/sonarqube 9000:9000
+  SonarQube login:                      admin / kubectl -n platform-system get secret sonar-admin-auth -o jsonpath='{.data.password}' | base64 -d
   Platform repository (capabilities): $(public_url 3000)/platform/platform-starter-kit
 
   Push to the service repositories as "developer"; its password:

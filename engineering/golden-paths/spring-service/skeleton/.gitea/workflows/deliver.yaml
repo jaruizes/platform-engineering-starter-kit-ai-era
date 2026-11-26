@@ -1,0 +1,81 @@
+# The platform pipeline (Gitea Actions, on the platform runner). On every
+# push to main it runs the checks, builds the image with Jib and deploys it
+# with GitOps: it writes the image into deploy/spring-service.yaml and Argo CD applies
+# the change to the environment. Changes to deploy/ alone are applied by
+# Argo CD without a new build.
+name: deliver
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["deploy/**", ".platform/quality/results.json"]
+jobs:
+  deliver:
+    runs-on: platform
+    steps:
+      - name: Check out
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          find . -mindepth 1 -delete
+          git clone -q "http://pipeline:${TOKEN}@${{ vars.PLATFORM_GIT_HOST }}/${GITHUB_REPOSITORY}.git" .
+          git checkout -q "$GITHUB_SHA"
+
+      # Integration tests need Docker (Testcontainers), which the runner does
+      # not have: they run with ./mvnw verify on a laptop.
+      - name: Unit tests and architecture rules
+        run: ./mvnw -B -ntp verify -DskipITs
+
+      - name: SonarQube analysis and quality gate
+        run: |
+          mkdir -p .platform/quality
+          if [ -n "${SONAR_HOST_URL:-}" ] && [ -n "${SONAR_TOKEN:-}" ] \
+            && ./mvnw -B -ntp org.sonarsource.scanner.maven:sonar-maven-plugin:5.1.0.4751:sonar \
+              -Dsonar.projectKey="${GITHUB_REPOSITORY##*/}" -Dsonar.scm.revision="$GITHUB_SHA" \
+              -Dsonar.host.url="$SONAR_HOST_URL" -Dsonar.token="$SONAR_TOKEN" -Dsonar.qualitygate.wait=true; then
+            printf '{"status":"passed"}\n' > .platform/quality/sonar-status.json
+            echo SONAR_ANALYSIS_STATUS=passed >> "$GITHUB_ENV"
+          else
+            printf '{"status":"failed","reason":"SonarQube analysis or quality gate failed"}\n' > .platform/quality/sonar-status.json
+            echo SONAR_ANALYSIS_STATUS=failed >> "$GITHUB_ENV"
+            exit 1
+          fi
+
+      - name: Deterministic quality gate
+        if: always()
+        run: python3 .platform/quality/gate.py --architecture backend-spring-v2
+
+      - name: Publish commit-linked quality evidence
+        if: always()
+        run: |
+          if [ ! -f .platform/quality/results.json ]; then
+            echo "No quality evidence was generated."
+            exit 0
+          fi
+          git config user.name "Platform quality gate"
+          git config user.email quality@starterkit.local
+          git checkout -B platform-quality-evidence
+          git add .platform/quality/results.json .platform/quality/sonar-status.json
+          git commit -m "Quality evidence for $GITHUB_SHA"
+          git push --force origin HEAD:platform-quality-evidence
+
+      - name: Build and push the image
+        run: |
+          IMAGE="${{ vars.SERVICE_IMAGE_REPOSITORY }}:${GITHUB_REPOSITORY#*/}-${GITHUB_SHA:0:12}"
+          ./mvnw -B -ntp -DskipTests compile jib:build -Dimage="$IMAGE" ${{ vars.JIB_FLAGS }}
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy (GitOps)
+        run: |
+          if grep -q '^  image:' deploy/spring-service.yaml; then
+            sed -i "s|^  image:.*|  image: $IMAGE|" deploy/spring-service.yaml
+          else
+            echo "deploy/spring-service.yaml has no environment: the image is built but not deployed."
+          fi
+          git -c user.name="Platform pipeline" -c user.email=pipeline@starterkit.local \
+            add deploy/spring-service.yaml
+          if ! git diff --cached --quiet; then
+            git -c user.name="Platform pipeline" -c user.email=pipeline@starterkit.local \
+              commit -m "Deploy $IMAGE after quality gate for $GITHUB_SHA"
+            git push -q origin HEAD:main
+            echo "Deployed $IMAGE: Argo CD applies it to the environment."
+          fi

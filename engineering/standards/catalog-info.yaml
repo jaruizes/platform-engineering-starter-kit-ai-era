@@ -88,7 +88,7 @@ metadata:
   name: frontend-angular-v1
   title: Frontend Angular v1 architecture rules
   description: >-
-    Internal back-office applications: standalone components, signals, OnPush, feature-first folders and HTTP clients generated from the backend contract (FA-001 to FA-016).
+    Angular applications: standalone components, signals, OnPush, feature-first folders and HTTP clients generated from the backend contract (FA-001 to FA-016).
   labels:
     platform.starterkit.dev/architecture: frontend-angular-v1
   annotations:
@@ -111,7 +111,7 @@ spec:
   system: internal-developer-platform
   category: architecture
   rationale: >-
-    Back-office applications share one structure that ESLint boundary rules and CI budgets check.
+    Angular applications share one structure that ESLint boundary rules and CI budgets check.
 ---
 apiVersion: backstage.io/v1alpha1
 kind: AiResource
@@ -119,7 +119,7 @@ metadata:
   name: frontend-react-v1
   title: Frontend React v1 architecture rules
   description: >-
-    Customer-facing web applications: React, TypeScript and Vite, feature-sliced folders, TanStack Query over the generated API client, performance and accessibility budgets (FR-001 to FR-018).
+    React applications: React, TypeScript and Vite, feature-sliced folders, TanStack Query over the generated API client, performance and accessibility budgets (FR-001 to FR-018).
   labels:
     platform.starterkit.dev/architecture: frontend-react-v1
   annotations:
@@ -170,7 +170,7 @@ metadata:
   title: Development rules
   description: >-
     Implementation discipline for all code, human or AI-generated: simplest
-    correct implementation, domain language, BigDecimal for money, explicit
+    correct implementation, domain language, safe numeric representation, explicit
     errors, no secrets, intentional dependencies, no unrelated refactoring.
   annotations:
     backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/engineering/standards/docs/common/development-rules.md

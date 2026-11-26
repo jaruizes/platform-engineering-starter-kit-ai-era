@@ -51,7 +51,12 @@ export const platformPlugin = createBackendPlugin({
           ),
           catalog,
         );
-        httpRouter.use(await createRouter({ httpAuth, platformConsole, displayName }));
+        httpRouter.use(await createRouter({
+          httpAuth,
+          platformConsole,
+          displayName,
+          qualityGitUrl: config.getOptionalString('platform.quality.gitUrl') ?? 'http://gitea.platform-system.svc:3000',
+        }));
       },
     });
   },

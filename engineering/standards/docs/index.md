@@ -19,8 +19,8 @@ metadata:
 |---|---|---|
 | [Backend v2 (hexagonal Spring)](backend-spring-v2/architecture.md) | production | New backend services and new modules in v2 services. Template: **Spring service**. |
 | [Backend v1 (layered Spring)](backend-spring-v1/architecture.md) | deprecated | Existing layered services only: bug fixes and small features. Migrate to v2 module by module. |
-| [Frontend Angular v1](frontend-angular-v1/architecture.md) | production | Internal back-office and operations applications. |
-| [Frontend React v1](frontend-react-v1/architecture.md) | production | Customer-facing web applications. |
+| [Frontend Angular v1](frontend-angular-v1/architecture.md) | production | Angular frontend applications. |
+| [Frontend React v1](frontend-react-v1/architecture.md) | production | React frontend applications. |
 
 Each architecture has three documents: **architecture** (how it is structured
 and why), **architecture rules** (what must be true to be compliant, with
@@ -35,6 +35,7 @@ ids such as `AAC-001`, `BL-001`, `FA-001` or `FR-001`) and **examples**
 | [Technology policy](common/technology-policy.md) | Which technologies are allowed, and when. |
 | [Development rules](common/development-rules.md) | Implementation discipline (DR-001 to DR-023), for human and AI-written code alike. |
 | [Testing](common/testing.md) | How correctness is proven at each level. |
+| [Quality governance](common/quality-governance.md) | Which deterministic evidence blocks delivery and how findings are surfaced. |
 
 ## How the platform uses them
 
@@ -48,4 +49,5 @@ ids such as `AAC-001`, `BL-001`, `FA-001` or `FR-001`) and **examples**
   the architecture so rules from another version never mix in.
 - **Nobody has to remember them**: the rules that can be checked are checked
   in CI (ArchUnit for the backends, ESLint boundary rules and budgets for the
-  frontends), for human and AI-written code alike.
+  frontends), for human and AI-written code alike. The architecture-specific
+  quality gate records commit-linked results and blocks GitOps updates on failure.

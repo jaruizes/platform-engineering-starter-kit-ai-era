@@ -2,26 +2,26 @@
 
 ## Purpose
 
-Short, compliant code examples for the Angular v1 back-office architecture, plus common non-compliant patterns and how to fix them, each tied to an FA rule.
+Short, compliant code examples for the Angular v1 architecture, plus common non-compliant patterns and how to fix them, each tied to an FA rule.
 
-The examples use a hypothetical `orders` feature. They are illustrations of `architecture.md` and `architecture-rules.md`, not a template; start real applications from the platform template.
+The examples use a hypothetical `records` feature. They are illustrations of `architecture.md` and `architecture-rules.md`, not a template; start real applications from the platform template.
 
 ---
 
 # 1. Data-access service wrapping the generated client
 
-`OrdersApi` and `OrderDto` are generated into `src/app/api/` (FA-005). The service maps DTOs to view models and is the only HTTP entry point of the feature (FA-003).
+`RecordsApi` and `RecordDto` are generated into `src/app/api/` (FA-005). The service maps DTOs to view models and is the only HTTP entry point of the feature (FA-003).
 
 ```typescript
-// features/orders/data-access/orders.service.ts
+// features/records/data-access/records.service.ts
 @Injectable({ providedIn: 'root' })
-export class OrdersService {
-  private readonly api = inject(OrdersApi);
+export class RecordsService {
+  private readonly api = inject(RecordsApi);
 
-  search(filter: OrderFilter): Observable<Page<OrderRow>> {
+  search(filter: RecordFilter): Observable<Page<RecordRow>> {
     return this.api
-      .searchOrders(filter.status, filter.page, filter.size)
-      .pipe(map((res) => ({ total: res.total, items: res.items.map(toOrderRow) })));
+      .searchRecords(filter.status, filter.page, filter.size)
+      .pipe(map((res) => ({ total: res.total, items: res.items.map(toRecordRow) })));
   }
 }
 ```
@@ -33,16 +33,16 @@ export class OrdersService {
 Provided on the feature route, exposes read-only signals and methods (FA-008).
 
 ```typescript
-// features/orders/data-access/orders.store.ts
+// features/records/data-access/records.store.ts
 @Injectable()
-export class OrdersStore {
-  private readonly service = inject(OrdersService);
-  private readonly state = signal<{ items: OrderRow[]; loading: boolean }>({ items: [], loading: false });
+export class RecordsStore {
+  private readonly service = inject(RecordsService);
+  private readonly state = signal<{ items: RecordRow[]; loading: boolean }>({ items: [], loading: false });
 
   readonly items = computed(() => this.state().items);
   readonly loading = computed(() => this.state().loading);
 
-  load(filter: OrderFilter): void {
+  load(filter: RecordFilter): void {
     this.state.update((s) => ({ ...s, loading: true }));
     this.service.search(filter).subscribe({
       next: (page) => this.state.set({ items: page.items, loading: false }),
@@ -57,33 +57,33 @@ export class OrdersStore {
 # 3. Standalone OnPush page
 
 ```typescript
-// features/orders/pages/orders-page.component.ts
+// features/records/pages/records-page.component.ts
 @Component({
-  selector: 'app-orders-page',
+  selector: 'app-records-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OrdersTableComponent, MatProgressBar],
+  imports: [RecordsTableComponent, MatProgressBar],
   template: `
-    <h1 i18n>Orders</h1>
+    <h1 i18n>Records</h1>
     @if (store.loading()) { <mat-progress-bar mode="indeterminate" /> }
-    <app-orders-table [rows]="store.items()" (open)="openOrder($event)" />
+    <app-records-table [rows]="store.items()" (open)="openRecord($event)" />
   `,
 })
-export class OrdersPageComponent {
-  protected readonly store = inject(OrdersStore);
+export class RecordsPageComponent {
+  protected readonly store = inject(RecordsStore);
   private readonly router = inject(Router);
-  readonly status = input<OrderStatus>('OPEN'); // bound from the query string
+  readonly status = input<RecordStatus>('OPEN'); // bound from the query string
 
   constructor() {
     effect(() => this.store.load({ status: this.status(), page: 0, size: 50 }));
   }
 
-  openOrder(id: string): void {
-    this.router.navigate(['/orders', id]);
+  openRecord(id: string): void {
+    this.router.navigate(['/records', id]);
   }
 }
 ```
 
-`OrdersTableComponent` only has `input()` and `output()` (FA-007).
+`RecordsTableComponent` only has `input()` and `output()` (FA-007).
 
 ---
 
@@ -93,15 +93,15 @@ export class OrdersPageComponent {
 // app.routes.ts
 export const routes: Routes = [
   {
-    path: 'orders',
-    canActivate: [hasRole('orders.read')],
-    loadChildren: () => import('./features/orders/orders.routes').then((m) => m.ORDER_ROUTES),
+    path: 'records',
+    canActivate: [hasRole('records.read')],
+    loadChildren: () => import('./features/records/records.routes').then((m) => m.ORDER_ROUTES),
   },
 ];
 
-// features/orders/orders.routes.ts
+// features/records/records.routes.ts
 export const ORDER_ROUTES: Routes = [
-  { path: '', providers: [OrdersStore], component: OrdersPageComponent },
+  { path: '', providers: [RecordsStore], component: RecordsPageComponent },
 ];
 ```
 
@@ -110,20 +110,20 @@ export const ORDER_ROUTES: Routes = [
 # 5. Typed reactive form
 
 ```typescript
-// features/orders/components/order-form.component.ts
-export class OrderFormComponent {
+// features/records/components/record-form.component.ts
+export class RecordFormComponent {
   private readonly fb = inject(NonNullableFormBuilder);
 
   readonly form = this.fb.group({
-    customerId: ['', Validators.required],
+    ownerId: ['', Validators.required],
     quantity: [1, [Validators.required, Validators.min(1)]],
     comment: ['', Validators.maxLength(500)],
   });
 
-  readonly submitted = output<OrderDraft>();
+  readonly submitted = output<RecordDraft>();
 
   submit(): void {
-    if (this.form.valid) this.submitted.emit(this.form.getRawValue()); // typed OrderDraft
+    if (this.form.valid) this.submitted.emit(this.form.getRawValue()); // typed RecordDraft
   }
 }
 ```
@@ -166,15 +166,15 @@ rules: {
 # 7. Component test
 
 ```typescript
-// features/orders/components/order-form.component.spec.ts
+// features/records/components/record-form.component.spec.ts
 it('emits a typed draft when the form is valid', async () => {
   const submitted = jest.fn();
-  await render(OrderFormComponent, { on: { submitted } });
+  await render(RecordFormComponent, { on: { submitted } });
 
-  await userEvent.type(screen.getByLabelText(/customer/i), 'C-42');
+  await userEvent.type(screen.getByLabelText(/owner/i), 'C-42');
   await userEvent.click(screen.getByRole('button', { name: /save/i }));
 
-  expect(submitted).toHaveBeenCalledWith({ customerId: 'C-42', quantity: 1, comment: '' });
+  expect(submitted).toHaveBeenCalledWith({ ownerId: 'C-42', quantity: 1, comment: '' });
 });
 ```
 
@@ -187,38 +187,38 @@ With Vitest, replace `jest.fn()` with `vi.fn()`.
 ## 8.1 Component calling HTTP directly
 
 ```typescript
-// features/orders/components/orders-table.component.ts
-export class OrdersTableComponent {
+// features/records/components/records-table.component.ts
+export class RecordsTableComponent {
   private readonly http = inject(HttpClient);
-  rows = toSignal(this.http.get<OrderDto[]>('/api/orders'));
+  rows = toSignal(this.http.get<RecordDto[]>('/api/records'));
 }
 ```
 
 **Why:** violates FA-003 (HTTP outside data-access), FA-005 (hand-written call instead of generated client) and FA-007 (presentational component fetches its own data). ESLint fails the build.
 
-**Fix:** move the call to `OrdersService` using `OrdersApi`, expose it through `OrdersStore`, and give the table an `input<OrderRow[]>()`.
+**Fix:** move the call to `RecordsService` using `RecordsApi`, expose it through `RecordsStore`, and give the table an `input<RecordRow[]>()`.
 
 ## 8.2 Feature importing another feature
 
 ```typescript
-// features/invoices/pages/invoice-page.component.ts
-import { OrdersStore } from '../../orders/data-access/orders.store';
+// features/related/pages/related-page.component.ts
+import { RecordsStore } from '../../records/data-access/records.store';
 ```
 
 **Why:** violates FA-002. Features become coupled and can no longer be loaded, changed or tested independently.
 
-**Fix:** the invoices feature gets what it needs from its own data-access service calling the Business API. If only a UI piece is shared, move it to `shared/ui`.
+**Fix:** the related feature gets what it needs from its own data-access service calling the approved API contract. If only a UI piece is shared, move it to `shared/ui`.
 
 ## 8.3 NgModule and default change detection
 
 ```typescript
-@NgModule({ declarations: [OrdersPageComponent], imports: [CommonModule] })
-export class OrdersModule {}
+@NgModule({ declarations: [RecordsPageComponent], imports: [CommonModule] })
+export class RecordsModule {}
 
-@Component({ selector: 'app-orders-page', templateUrl: './orders-page.html' })
-export class OrdersPageComponent {}
+@Component({ selector: 'app-records-page', templateUrl: './records-page.html' })
+export class RecordsPageComponent {}
 ```
 
 **Why:** violates FA-006 (NgModule, missing OnPush) and usually FA-009 (module-based routing instead of a lazy feature route).
 
-**Fix:** delete the module, make the component standalone with `ChangeDetectionStrategy.OnPush`, and declare it in `orders.routes.ts` loaded through `loadChildren`.
+**Fix:** delete the module, make the component standalone with `ChangeDetectionStrategy.OnPush`, and declare it in `records.routes.ts` loaded through `loadChildren`.

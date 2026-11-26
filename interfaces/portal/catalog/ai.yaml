@@ -73,3 +73,24 @@ spec:
   categories: [platform]
   agents: [claude-code]
   dependsOn: [agent-guardrails, cost-guardrails, audit-trail]
+---
+apiVersion: backstage.io/v1alpha1
+kind: AiResource
+metadata:
+  name: angular-app-golden-path
+  title: Build Angular apps through the platform Golden Path
+  description: >-
+    Creates Angular frontends through create_angular_app, integrates them with
+    a SpringService through same-origin /api/, and deploys their App resource
+    into an ephemeral Kubernetes environment.
+  annotations:
+    backstage.io/source-location: url:https://github.com/jaruizes/platform-engineering-starter-kit-ai-era/blob/main/agents/skills/angular-app/SKILL.md
+spec:
+  type: skill
+  lifecycle: experimental
+  owner: platform-team
+  system: internal-developer-platform
+  disciplines: [frontend, platform]
+  categories: [golden-path]
+  agents: [claude-code]
+  dependsOn: [agent-guardrails, cost-guardrails, audit-trail]

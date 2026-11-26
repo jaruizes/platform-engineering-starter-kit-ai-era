@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Angular v1 is the standard architecture for internal back-office and operations applications: authenticated employees working with data-heavy forms and tables. It uses standalone components, signals, OnPush change detection and HTTP clients generated from the Business API contract.
+Angular v1 is a reference architecture for web applications built with Angular. It uses standalone components, signals, OnPush change detection and typed HTTP clients generated from an approved API contract where available.
 
 This document explains how such an application is structured and why. The verifiable acceptance criteria are in `architecture-rules.md` (FA-001 to FA-016). Implementation discipline shared by all architectures (naming, error handling, secrets, dependencies, generated code) is in `common/development-rules.md` and is not repeated here. Testing principles are in `common/testing.md`.
 
@@ -12,23 +12,23 @@ This document explains how such an application is structured and why. The verifi
 
 Use Angular v1 when:
 
-- the users are employees, authenticated through the corporate identity provider;
-- the work is mostly forms, tables, filters, bulk actions and detail pages;
-- the application lives behind the gateway and does not need SEO or server-side rendering;
+- the application uses Angular and the structure defined by this profile;
+- its UI and interaction requirements fit Angular and this profile;
+- the selected rendering and delivery model is supported by the approved architecture;
 - the team values a strongly opinionated framework with batteries included (router, forms, HTTP, i18n, testing).
 
-Use the **React architecture** (`frontend-react-v1`) instead for customer-facing web: public pages, marketing-sensitive performance, SEO, or experiences shared with mobile web teams.
+Use the React architecture (`frontend-react-v1`) when the service is built with React. Select an architecture based on the application technology and needs.
 
-Do not create a frontend for a single screen that an existing back-office already covers. Add a feature to that application instead.
+Avoid creating a separate application for a small capability when an existing application is an appropriate owner.
 
 ---
 
 # 2. Position in the platform
 
-The frontend talks only to the backend, through the **Business API** (OpenAPI contracts) or, when justified, through an application-specific **BFF**. It never talks to databases, Kafka topics, internal services, market-data providers or LLM providers.
+The frontend communicates through approved API contracts. It does not access databases, internal messaging, or provider integrations directly.
 
 ```text
-Browser (Angular app) ──HTTPS──▶ Gateway ──▶ Business API / BFF ──▶ internal services
+Browser (Angular app) ──HTTPS──▶ API / gateway ──▶ application services
 ```
 
 Business rules live in the backend. The frontend validates input for user experience, but the backend is the authority.
@@ -144,7 +144,7 @@ Runtime configuration (API base URL, OIDC issuer, client id, telemetry endpoint)
 - Validators that mirror backend constraints (required, length, format) live next to the form model. Cross-field validators are pure functions.
 - Server-side validation errors (`ProblemDetails` with field errors) are mapped back onto form controls.
 - Form state (dirty, pending, submitting) is exposed as signals to the template. A `CanDeactivateFn` warns about unsaved changes on long forms.
-- Money, quantities and identifiers follow the precision rules of `common/development-rules.md` (DR-005): no floating-point arithmetic on monetary values in the browser.
+- Values follow the precision and representation rules of `common/development-rules.md` (DR-005).
 
 ---
 
@@ -160,7 +160,7 @@ Runtime configuration (API base URL, OIDC issuer, client id, telemetry endpoint)
 
 # 10. Security
 
-- Authentication uses **OIDC Authorization Code with PKCE** against the corporate identity provider, through a maintained library (for example `angular-auth-oidc-client`). Tokens are kept in memory or session storage, never in `localStorage`. When a BFF is used, prefer its session cookie and keep tokens out of the browser.
+- When browser-based authentication is required, use an approved OIDC Authorization Code with PKCE flow and maintained client library. Store credentials according to the approved security architecture; do not persist sensitive tokens in local storage.
 - The access token is sent only to the configured API origin.
 - No secrets in the bundle. Anything shipped to the browser is public.
 - Do not bypass Angular sanitization (`bypassSecurityTrust*`) without an ADR. Do not use `innerHTML` with untrusted content.
@@ -180,7 +180,7 @@ Runtime configuration (API base URL, OIDC issuer, client id, telemetry endpoint)
 
 # 12. Performance budgets
 
-Back-office apps are used all day; responsiveness matters more than first-visit speed, but budgets still apply and are enforced by the build (`angular.json` budgets) in CI:
+Performance budgets should reflect the application usage and be enforced by the build (`angular.json` budgets) in CI:
 
 | Budget | Limit |
 |---|---|

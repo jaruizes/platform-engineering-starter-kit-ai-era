@@ -15,11 +15,12 @@ from typing import Any
 
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.types import ToolAnnotations
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from . import delivery, platform, portal
+from . import delivery, platform, portal, quality
 from .platform import Denied
 
 NAME_PATTERN = re.compile(r"^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$")
@@ -28,12 +29,14 @@ mcp = MCPServer(
     name="platform",
     title="Internal Developer Platform",
     instructions=(
-        "Use this server to get environments and deploy services through the "
+        "Use this server to get environments and deploy services and frontend apps through the "
         "company's Golden Paths, and capabilities such as databases, instead of writing "
-        "infrastructure code. Start with list_golden_paths. Requests are checked by policy; if one needs human "
+        "infrastructure code. Start with list_golden_paths. Use get_quality_status for read-only, "
+        "commit-linked quality evidence and findings. Requests are checked by policy; if one needs human "
         "approval, tell the user and give them the approval id. When you build a new service, deliver it so "
         "the user can try it: unless they say otherwise, reuse a ready environment of the team or request a "
-        "small one for 8 hours, pass it to create_service, and finish with get_service_status."
+        "small one for 8 hours. Use create_service for a Spring backend and create_angular_app for an Angular frontend, "
+        "then follow deployment with get_service_status."
     ),
 )
 
@@ -61,6 +64,19 @@ def list_golden_paths() -> list[dict[str, Any]]:
     Capabilities (databases and the like) are all requested with request_capability.
     """
     return platform.GOLDEN_PATHS + platform.list_capabilities()
+
+
+@mcp.tool(
+    title="Get service quality status",
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
+def get_quality_status(service: str) -> dict[str, Any]:
+    """Reads the latest committed quality gate evidence and findings for a service.
+
+    Args:
+        service: Service repository name, for example inventory-service.
+    """
+    return quality.quality_status(service)
 
 
 @mcp.tool(title="Request an environment")
@@ -153,7 +169,7 @@ def deploy_service(
     replicas: int = 1,
     ctx: Context | None = None,
 ) -> dict[str, Any]:
-    """Deploys a ready-made image into an environment using the new-service Golden Path.
+    """Deploys a ready-made image into an environment using the SpringService runtime Golden Path.
 
     Services created with create_service do not need it: every push to their
     main branch is built and deployed by the platform (GitOps).
@@ -173,7 +189,7 @@ def deploy_service(
             "reason": f"Environment '{environment}' does not exist or is not ready yet. Check it with get_environment.",
         }
     try:
-        platform.create_app(namespace, name, image, replicas, agent)
+        platform.create_spring_service(namespace, name, image, replicas, agent)
     except Denied as denied:
         platform.record("RequestDenied", f"{agent} tried to deploy {name} in {namespace}: {denied.reason}",
                         environment, warning=True, actor=agent)
@@ -203,8 +219,8 @@ def create_service(
     Args:
         name: Service and repository name (lowercase letters, numbers and dashes).
         description: What the service does, in the domain language.
-        team: Team that owns the service, for example checkout.
-        module: First functional module, a business capability such as orders.
+        team: Team that owns the service, for example platform-team.
+        module: First functional module, a business capability such as records.
         environment: Ephemeral environment to deploy to (request_environment first).
             Without it, only the repository is created and nothing is deployed, so
             leave it out only when the user does not want to try the service.
@@ -213,7 +229,7 @@ def create_service(
     if not re.match(r"^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$", name):
         raise ValueError("name must be lowercase letters, numbers and dashes (max 40 characters).")
     if not re.match(r"^[a-z][a-z0-9]*$", module):
-        raise ValueError("module must be lowercase letters and numbers, for example orders.")
+        raise ValueError("module must be lowercase letters and numbers, for example records.")
     _check_name(team, "team")
     if environment:
         _check_name(environment, "environment")
@@ -265,8 +281,8 @@ def create_service(
 
 
 @mcp.tool(title="Get the status of a service")
-def get_service_status(name: str, environment: str) -> dict[str, Any]:
-    """How the delivery of a service created with create_service is going.
+def get_service_status(name: str, environment: str, resource_kind: str = "SpringService") -> dict[str, Any]:
+    """How the delivery of a service or frontend created with a Golden Path is going.
 
     Puts together its pipeline (tests and image), GitOps (Argo CD) and its pods,
     with the logs when it does not start, and says what to do next. Call it after
@@ -275,9 +291,83 @@ def get_service_status(name: str, environment: str) -> dict[str, Any]:
     Args:
         name: Service name.
         environment: Environment it is deployed to.
+        resource_kind: SpringService for a backend (default), or App for an Angular frontend.
     """
     _check_name(environment, "environment")
-    return delivery.status(name, environment)
+    if resource_kind not in ("SpringService", "App"):
+        raise ValueError("resource_kind must be SpringService or App.")
+    return delivery.status(name, environment, resource_kind)
+
+
+@mcp.tool(title="Create an Angular frontend")
+def create_angular_app(
+    name: str,
+    description: str,
+    team: str,
+    environment: str | None = None,
+    backend_service: str | None = None,
+    ctx: Context | None = None,
+) -> dict[str, Any]:
+    """Creates an Angular frontend repository with the angular-app Golden Path.
+
+    The repository contains an Angular skeleton, build and test pipeline, static
+    Nginx image delivery, and a namespaced Crossplane App resource. With an
+    environment, Argo CD applies the App and Crossplane creates its Kubernetes
+    Deployment and Service. Optionally, /api/ is routed to a SpringService in
+    the same environment.
+
+    Args:
+        name: Frontend and repository name (lowercase letters, numbers and dashes).
+        description: What the frontend lets its users do.
+        team: Owning team, for example platform-team.
+        environment: Ephemeral environment to deploy into (request_environment first).
+        backend_service: Optional SpringService name in the same environment.
+    """
+    if not re.match(r"^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$", name):
+        raise ValueError("name must be lowercase letters, numbers and dashes (max 40 characters).")
+    _check_name(team, "team")
+    if backend_service and not re.match(r"^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$", backend_service):
+        raise ValueError("backend_service must be a SpringService name (lowercase letters, numbers and dashes).")
+    if environment:
+        _check_name(environment, "environment")
+        if platform.get_environment(environment) is None:
+            return {"status": "failed", "reason": f"Environment '{environment}' does not exist. Request it with request_environment first."}
+    agent = agent_name(ctx)
+    values: dict[str, Any] = {
+        "name": name,
+        "description": description,
+        "owner": f"group:default/{team}",
+        "requestedBy": f"agent:{agent}",
+    }
+    if environment:
+        values["environment"] = environment
+    if backend_service:
+        values["backendService"] = backend_service
+    try:
+        portal.run_template("angular-app", values)
+    except portal.TemplateFailed as failed:
+        platform.record("RequestFailed", f"{agent} could not create frontend {name}: {failed}",
+                        name, warning=True, actor=agent, kind="Component")
+        return {"status": "failed", "reason": str(failed)}
+    platform.record("RequestAccepted", f"{agent} created Angular frontend {name} for team {team}",
+                    name, actor=agent, kind="Component")
+    deliver = (
+        f" Commit and push to main to run frontend tests and deploy App into env-{environment}. "
+        f"Use get_service_status(name='{name}', environment='{environment}', resource_kind='App') to follow it."
+        if environment else ""
+    )
+    return {
+        "status": "created",
+        "repository": portal.repository_url(name),
+        "clone": f"git clone {portal.push_url(name)}",
+        "catalog_entity": f"component:default/{name}",
+        "environment": environment,
+        "backend_service": backend_service,
+        "next_step": (
+            "Read AGENTS.md and the frontend-angular-v1 architecture rules from the portal MCP server, "
+            "implement the user journeys and tests, then run npm install, npm test and npm run build." + deliver
+        ),
+    }
 
 
 @mcp.tool(title="Request a capability")
