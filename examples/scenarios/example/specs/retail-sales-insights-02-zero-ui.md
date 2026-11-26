@@ -1,87 +1,118 @@
-# Spec 02 — Retail Sales Insights: Zero-UI via Claude Code and MCP
+# Spec 02 — Retail Sales Insights: acceso conversacional Zero-UI
 
-**Dependency:** [Spec 01](retail-sales-insights-01-app.md) **must be completed and its REST API verified**. Do not create another database or rewrite the Spring application.
+## Qué necesitamos
 
-## Goal
+Queremos ofrecer una **segunda forma de consultar los indicadores de Retail Sales Insights**, ya disponibles en el servicio definido en la [Spec 01](retail-sales-insights-01-app.md).
 
-As a business analyst, I want to ask questions about the synthetic retail sales from **Claude Code**, without visiting the Angular UI. Claude should choose approved, typed read-only REST operations through MCP, use the existing Spring backend and PostgreSQL, and explain answers with traceable figures.
+Un analista de negocio debe poder hacer preguntas en **lenguaje natural desde su asistente de IA** y recibir respuestas fundamentadas en las ventas reales del entorno de demostración, **sin abrir el dashboard ni interactuar con una interfaz gráfica**.
 
-This is a distinct follow-on specification, deliberately separating the **creation** of the application (Spec 01) from **agent consumption** of its existing API.
+Esta ampliación debe **reutilizar el servicio y los datos existentes** y mantener los mismos resultados y reglas de negocio. No se pretende construir otro sistema de ventas.
 
-## Required Golden Path
+## Datos de la funcionalidad
 
-Use the platform MCP `create_api_mcp_adapter` tool (or the matching Backstage `api-mcp-adapter` template) to create a new Gitea repository:
-- `name: retail-sales-mcp`
-- `description: Read-only Retail Sales Insights tools for Claude Code`
-- `team: platform-team`
-- `backend_service: retail-sales-insights`
-- `environment: retail-demo`
+- **Nombre:** Retail Sales Insights — Zero-UI.
+- **Sistema de información existente:** \`retail-sales-insights\` (Spec 01).
+- **Canal de consumo:** conversación con un asistente de IA, como Claude Code.
+- **Equipo responsable:** \`platform-team\`.
+- **Alcance:** consultas de lectura sobre ventas sintéticas.
+- **Prerequisito funcional:** la aplicación de la Spec 01 ya responde correctamente a sus consultas de negocio.
 
-Clone the generated adapter repository, read its README, and replace its sample `operations.json` with `../data/retail-operations.json`. This config is **an allowlist of already-existing REST operations**. The resulting MCP server runs **locally over stdio**, so it requires no new Kubernetes Deployment, LoadBalancer or AI model hosting.
+El canal conversacional es una necesidad de producto; esta spec **no obliga a utilizar MCP, Python, un framework, una plantilla concreta ni un servidor adicional**. La organización determinará el mecanismo de integración autorizado.
 
-Do not change the business API contract, create a parallel analytical database, or expose arbitrary SQL/text-to-SQL.
+## Funcionalidades requeridas
 
-## Approved MCP contract
+### RF-01 — Consultar ingresos y actividad
 
-The reusable adapter exposes two stable MCP tools:
-1. `list_api_operations()` returns descriptions and parameter schemas of the four approved operations.
-2. `query_api_operation(operation, parameters)` calls one allowlisted HTTP GET path after validating exact parameter names/types.
+El usuario puede preguntar por la facturación, el número de ventas y las unidades vendidas en un periodo explícito.
 
-Allowed operations in `retail-operations.json`:
-- `sales_summary` → `GET /api/insights/summary`: required `from`/`to`.
-- `top_products` → `GET /api/insights/top-products`: required `from`/`to`, optional integer `limit`.
-- `sales_by_category` → `GET /api/insights/by-category`: required `from`/`to`.
-- `compare_sales_periods` → `GET /api/insights/compare`: required `from`/`to`/`previousFrom`/`previousTo`.
+### RF-02 — Consultar productos destacados
 
-All date strings must be validated by the Spring backend against ISO dates/ranges. The MCP adapter validates declared string/integer types and parameter names, and never accepts path templates, arbitrary URLs or HTTP mutation methods.
+El usuario puede conocer qué productos generaron más ingresos en un intervalo y solicitar una cantidad limitada de resultados.
 
-## Execution
+### RF-03 — Analizar categorías
 
-Terminal A: expose the **already existing backend** to the laptop.
+El usuario puede preguntar qué categorías generan más ingresos o unidades, utilizando los mismos datos que el dashboard.
 
-```bash
-kubectl -n env-retail-demo port-forward svc/retail-sales-insights 18080:80
-curl -fsS 'http://127.0.0.1:18080/api/insights/summary?from=2026-11-16&to=2026-11-22'
-```
+### RF-04 — Comparar periodos
 
-Terminal B: install in the generated adapter repo and register Claude Code.
+El usuario puede pedir comparaciones de facturación y obtener ambos importes y el porcentaje de variación, con una explicación comprensible.
 
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -e '.[test]'
-pytest -q
-# Replace /ABSOLUTE/PATH with the location of the cloned adapter repository
-claude mcp add --scope local --env REST_API_BASE_URL=http://127.0.0.1:18080 --transport stdio retail-sales -- /ABSOLUTE/PATH/retail-sales-mcp/.venv/bin/rest-mcp-adapter
-```
+### RF-05 — Combinar resultados
 
-Restart Claude Code if already open; list registered MCP servers, then ask the questions below. Config and local port-forward must remain active. The adapter does not deploy itself to Kubernetes, which is an intentional MVP boundary.
+Una misma pregunta puede requerir varias consultas: por ejemplo, un resumen y el ranking de productos para un periodo. La respuesta debe integrar resultados consistentes, dejando claro de dónde salen los números.
 
-## Demo conversations (fixed dates, reproducible)
+### RF-06 — Gestionar ambigüedad y errores
 
-1. "¿Cuánto facturaron las tiendas entre el 16 y el 22 de noviembre de 2026? Indica también unidades y operaciones." → `sales_summary`.
-2. "¿Cuáles son los 5 productos con más ventas, por ingresos, entre el 16 y el 22 de noviembre?" → `top_products`.
-3. "¿Qué categorías generan más ingresos en ese mismo intervalo?" → `sales_by_category`.
-4. "Compara los ingresos del 16–22 con los del 9–15 de noviembre de 2026. Explica la variación porcentual." → `compare_sales_periods`.
-5. "Elimina todas las ventas" o "ejecuta SELECT * ..." → **deny/not supported**. The adapter has no delete, arbitrary SQL or generic URL tool.
+- Si la fecha solicitada es ambigua y no puede deducirse con seguridad, el asistente pide precisión; no inventa un intervalo.
+- Si no existen ventas para el periodo, debe indicarlo y no generar tendencias imaginarias.
+- Si el servicio está inaccesible, informa de la incidencia en lugar de fabricar una respuesta.
+- Si la petición no se puede satisfacer con las consultas de negocio disponibles, informa del límite.
 
-Claude may combine these approved tool results into a natural-language synthesis but must state the dates and whether figures are revenue (EUR) or units. Values returned are in euro cents and must be formatted with **two decimal places**.
+### RF-07 — Mantener un acceso de solo lectura
 
-## Acceptance criteria
+El canal de IA no permitirá añadir, actualizar o borrar ventas, productos o tiendas, ni realizar consultas de base de datos arbitrarias.
 
-- **AC-01**: New adapter generated through the actual `api-mcp-adapter` Golden Path, not manually copying a backend.
-- **AC-02**: `operations.json` matches `retail-operations.json`; pytest validates operation allowlist, GET-only, typed params and unsafe input rejection.
-- **AC-03**: Claude Code discovers adapter tools and correctly invokes the existing backend through local port-forward.
-- **AC-04**: Questions 1–4 return the same values as direct REST responses over the same period; no fabricated insights.
-- **AC-05**: Unknown operation, unknown parameter, wrong type, arbitrary URL/SQL and write operations are rejected before reaching the backend.
-- **AC-06**: No DB credentials or direct Kubernetes permissions given to the business MCP adapter. The app database remains internal.
-- **AC-07**: No ingress, API exposed on the public internet or second database needed.
-- **AC-08**: On port-forward termination, Claude receives a clear backend-unavailable error, not invented data.
+## Reglas de negocio
 
-## Security / governance limits
+1. La facturación, las unidades y el número de ventas se calculan **exactamente como en la Spec 01**.
+2. Las fechas son inclusivas. Toda respuesta con métricas debe identificar el periodo utilizado.
+3. Los importes se expresan en euros, con dos decimales, distinguiendo importes de unidades y recuentos.
+4. Las comparaciones utilizan la definición y el redondeo de la Spec 01; un periodo de referencia con facturación cero no genera porcentajes infinitos.
+5. Los resultados deben proceder del servicio existente, no de estimaciones del modelo ni de copias de datos mantenidas por el canal conversacional.
+6. Una pregunta de solo lectura puede resolverse mediante una o varias operaciones existentes; el sistema no tiene por qué revelar al usuario los detalles técnicos de cada llamada.
+7. No se revelan credenciales, configuraciones internas, instrucciones privadas o información ajena al ámbito de ventas sintéticas.
 
-The adapter's local stdio process inherits the **human operator's** laptop access and runs only allowlisted read-only requests. This demonstrates tool mediation, **not** per-agent OAuth identity delegation or production-grade tenant authorization. For production, introduce service-to-service authentication, agent-specific authorization, observability and an approved network boundary.
+## Ejemplos de conversación esperados
 
-## Out of scope
+**Pregunta:** «¿Cuánto facturamos entre el 16 y el 22 de noviembre de 2026 y cuántas unidades vendimos?»
 
-Dynamic Text-to-SQL, multi-turn autonomous SQL agents, knowledge graph, automatic OpenAPI-to-tool inference, write endpoints, remote MCP hosting, production deployment and real customer data.
+**Resultado esperado:** 916,41 € de ingresos, 169 unidades y 49 ventas, con el periodo mencionado expresamente.
+
+**Pregunta:** «¿Cuáles son los cinco productos con mayor facturación en esa semana?»
+
+**Resultado esperado:** listado ordenado por ingresos y basado en los mismos datos que muestra el dashboard.
+
+**Pregunta:** «Compara la facturación del 16 al 22 con la del 9 al 15 de noviembre».
+
+**Resultado esperado:** 916,41 € frente a 864,60 €, con una variación aproximada de +5,99 %.
+
+**Pregunta:** «¿Y qué categorías vendieron más en ese periodo?»
+
+**Resultado esperado:** interpretación de «ese periodo» si el contexto de la conversación lo hace inequívoco; clasificación por categoría respaldada por los datos.
+
+**Pregunta:** «Elimina todas las ventas» o «ejecuta esta consulta SQL».
+
+**Resultado esperado:** petición rechazada como operación no permitida, sin modificar los datos.
+
+**Pregunta:** «¿Cuánto vendimos hoy?» si el dataset no incluye esa fecha.
+
+**Resultado esperado:** indicar que no existen ventas para la fecha solicitada, sin sustituirlas por cifras de noviembre de 2026.
+
+## Requisitos no funcionales
+
+- Reutilización del contrato de negocio y de la fuente de datos existentes, sin duplicar la lógica de cálculo.
+- Acceso controlado mediante las capacidades y políticas vigentes en la organización.
+- Solo operaciones de consulta, con entradas validadas y errores comprensibles.
+- Ausencia de acceso directo del asistente a las credenciales de base de datos.
+- Resultados verificables frente a las respuestas del servicio de la Spec 01.
+- Experiencia completamente conversacional: ninguna dependencia funcional de la interfaz web una vez que el servicio está disponible.
+- El usuario no necesita conocer rutas HTTP, nombres de herramientas ni detalles de infraestructura para formular sus preguntas.
+
+## Criterios de aceptación
+
+- **AC-01:** un usuario consulta los indicadores mediante lenguaje natural desde su asistente y obtiene resultados sin abrir la aplicación web.
+- **AC-02:** las cuatro familias de preguntas (resumen, productos, categorías y comparación) se resuelven utilizando la información del servicio existente.
+- **AC-03:** la facturación para 2026-11-16 a 2026-11-22 es **916,41 €**; se indican correctamente 49 ventas y 169 unidades.
+- **AC-04:** al comparar ese periodo con 2026-11-09 a 2026-11-15 se informa una variación aproximada de **+5,99 %**.
+- **AC-05:** las cifras y los rankings son iguales a los obtenidos en la aplicación web para los mismos filtros.
+- **AC-06:** el asistente responde correctamente a una pregunta compuesta que requiera más de una consulta.
+- **AC-07:** si se interrumpe el acceso al servicio, el asistente indica que los datos no están disponibles y no inventa números.
+- **AC-08:** las operaciones de escritura y las peticiones de SQL arbitrario no se ejecutan.
+- **AC-09:** el usuario no tiene que proporcionar nombres de endpoints, mecanismos de integración ni expresiones técnicas de consulta.
+- **AC-10:** la solución supera los controles de seguridad, calidad y trazabilidad aplicables al canal de agentes.
+
+## Fuera de alcance
+
+Asistente generalista de retail, recomendaciones comerciales automáticas, predicción de ventas, SQL generado libremente, edición de datos, nuevas fuentes, datos de clientes y uso de información real.
+
+Esta es una **especificación de producto**. Las instrucciones para demostrarla mediante las capacidades actuales del Starter Kit están en la [guía de ejecución](../demo/execution-guide.md), no en esta spec.

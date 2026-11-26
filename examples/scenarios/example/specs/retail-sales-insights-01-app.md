@@ -1,89 +1,154 @@
-# Spec 01 — Retail Sales Insights: Spring API + Angular dashboard
+# Spec 01 — Retail Sales Insights: aplicación de análisis de ventas
 
-**Status:** ready for implementation by a coding agent · **depends on:** Starter Kit (platform MCP, portal MCP, Spring/Angular Golden Paths, ephemeral environments, PostgreSQL, Gitea/Argo CD). **No MCP business adapter yet**; that is Spec 02.
+## Qué necesitamos
 
-## Goal and bounded scope
+Una cadena ficticia de tiendas quiere consultar de forma sencilla el comportamiento de sus ventas. Necesita una **aplicación web** con un dashboard que muestre indicadores de negocio y permita analizar distintos periodos, productos y categorías.
 
-As a retail manager, I want to inspect sales KPIs for a synthetic chain of three stores through a minimal browser dashboard. Build an independently deployed Spring Boot service `retail-sales-insights` and an Angular app `retail-sales-web`, using **existing platform Golden Paths**, not manually provisioning Kubernetes resources. No external API or user/customer personal data. Use the fixed demo dataset in `../data/`.
+La solución se denominará **Retail Sales Insights**. Esta primera entrega incluye un servicio de consulta de ventas y una interfaz web. La [Spec 02](retail-sales-insights-02-zero-ui.md) añadirá otra forma de acceder a la misma información.
 
-This spec describes an application to **be generated and implemented by an agent**; the files under `data/` are its authoritative reproducible fixture. It is not a claim that the resulting application is already deployed.
+La solución utilizará exclusivamente datos sintéticos, sin información personal ni conexiones con sistemas de venta reales.
 
-## Platform journey (mandatory order)
+## Datos del producto
 
-1. Read the backend Spring v2 and frontend Angular v1 engineering standards from the **portal MCP**.
-2. Call platform MCP `request_environment(team="retail",name="retail-demo",purpose="Retail sales dashboard demo",size="small",ttl_hours=8)`; wait for Ready using `get_environment`.
-3. Call `create_service(name="retail-sales-insights",description="Retail sales metrics over synthetic orders",team="platform-team",module="sales",environment="retail-demo")`. The built-in Spring Golden Path already declares `PostgresDatabase retail-sales-insights-db` and maps DB credentials into the service. **Do not request a second database.** If the environment quota requires resizing, ask rather than bypass policy.
-4. Clone the returned Gitea repository, read its `AGENTS.md`, preserve the hexagonal module organization, implement the business API and Flyway migrations; run local tests before pushing.
-5. Call `create_angular_app(name="retail-sales-web",description="Sales metrics dashboard",team="platform-team",environment="retail-demo",backend_service="retail-sales-insights")`. This Golden Path configures Nginx to proxy **same-origin** `/api/` to the backend within the namespace. Implement UI and tests; do not hardcode a cluster address in the browser.
-6. Push code to each generated Gitea repository `main`, monitor both through `get_service_status`. Verify quality gates before presenting results.
+- **Aplicación:** Retail Sales Insights.
+- **Servicio de negocio:** \`retail-sales-insights\`.
+- **Aplicación web:** \`retail-sales-web\`.
+- **Equipo responsable:** \`platform-team\` (propietario organizativo del ejemplo).
+- **Ámbito:** consulta de datos de una cadena ficticia de tres tiendas.
+- **Disponibilidad requerida:** acceso a la aplicación desde el entorno de demostración, sin publicación pública en Internet.
+- **Cumplimiento:** estándares de arquitectura, desarrollo, seguridad y calidad aplicables en la organización.
 
-**Important:** `team` is the MCP logical owner and must correspond to an existing Backstage Group (`platform-team` in the starter kit). The environment's `team="retail"` is its budget owner; do not silently assume it exists in the catalog.
+Estos datos identifican el producto y sus restricciones, pero no prescriben herramientas, Golden Paths, pipelines ni procedimientos de aprovisionamiento.
 
-## Data contract — exact and deterministic
+## Información de negocio
 
-Files supplied in `../data/`:
-- `V1__create_sales_schema.sql`: Flyway DDL: `products`, `stores`, `sales`, foreign keys and useful indexes.
-- `V2__seed_demo_sales.sql`: full SQL INSERT fixture suitable for Flyway (no external CSV loader).
-- `sales.csv`: equivalent sales data for inspection and validation; **SQL is the runtime source**.
+El producto trabajará con tres conceptos:
 
-Copy the two SQL files to `retail-sales-insights/src/main/resources/db/migration/` in their filename order. Do not generate alternative random fixtures. Keep monetary values in **integer euro cents**; never use floating-point amounts for aggregation. Date range covers 2026-10-26 through 2026-11-22 inclusive (four Monday–Sunday weeks), and every query is parameterized by explicit dates; no dependence on today's date or relative-time clock.
+- **Producto:** identificador, SKU, nombre y categoría comercial.
+- **Tienda:** identificador, nombre y ciudad.
+- **Venta:** identificador, producto, tienda, fecha de venta, cantidad de unidades y precio unitario.
 
-Schema:
-- `products(id BIGINT PK, sku VARCHAR(32) UNIQUE, name VARCHAR(100), category VARCHAR(60))`.
-- `stores(id BIGINT PK, name VARCHAR(100), city VARCHAR(60))`.
-- `sales(id BIGINT PK, product_id FK, store_id FK, sold_at DATE, quantity INTEGER CHECK > 0, unit_price_cents INTEGER CHECK >= 0)`.
-- Revenue = `SUM(quantity * unit_price_cents)`. Each sale is a line item, not an order with taxes or discounts.
+Para que el resultado sea verificable, se facilita el [dataset de referencia](../data/README.md), con doce productos, tres tiendas y 196 líneas de venta. Los datos abarcan del **26 de octubre al 22 de noviembre de 2026**, ambos inclusive.
 
-## REST contract — implement and document in `contracts/openapi.yaml`
+Los ficheros SQL y CSV proporcionados son datos de entrada de la demostración, **no instrucciones sobre cómo se debe implementar la persistencia o la carga**. El resultado debe ser consistente con esos registros y no debe sustituirlos por valores aleatorios.
 
-All dates are ISO `YYYY-MM-DD`, inclusive; reject invalid dates, reversed ranges and unknown parameters with HTTP 400. JSON returns cents and counts; JSON keys must match exactly.
+## Funcionalidades requeridas
 
-| Method & path | Parameters | Response |
+### RF-01 — Resumen de ventas
+
+El usuario puede elegir un intervalo de fechas y consultar:
+
+- Facturación total en euros.
+- Número de ventas (líneas registradas).
+- Número de unidades vendidas.
+
+### RF-02 — Ranking de productos
+
+El usuario puede consultar los productos con mayor facturación en el periodo elegido. El ranking presenta nombre, categoría, unidades e ingresos. Por defecto muestra los cinco primeros y admite hasta diez.
+
+### RF-03 — Análisis por categoría
+
+El usuario puede consultar la facturación y las unidades vendidas agrupadas por categoría, para el mismo intervalo de fechas.
+
+### RF-04 — Comparación entre periodos
+
+El usuario puede comparar los ingresos de dos periodos e identificar la variación porcentual. En el dashboard, el periodo de comparación por defecto es el intervalo inmediatamente anterior, con la misma duración que el seleccionado.
+
+### RF-05 — Actualización de filtros
+
+El usuario puede modificar las fechas y actualizar todos los indicadores de forma coherente, sin recargar manualmente toda la página.
+
+### RF-06 — Estados de la aplicación
+
+Cuando aún no hay datos cargados, no hay resultados para un filtro o el servicio no está disponible, la interfaz informa claramente de cada situación; nunca muestra cifras anteriores como si fueran las actuales.
+
+## Reglas de negocio
+
+1. **Facturación:** suma de \`cantidad × precio unitario\` de las líneas de venta del periodo, sin impuestos ni descuentos adicionales.
+2. **Precisión monetaria:** los cálculos no pueden sufrir errores de coma flotante. En la interfaz, el importe se muestra como euros con dos decimales.
+3. **Fechas:** los intervalos incluyen las fechas inicial y final. Las fechas son de calendario, no marcas temporales dependientes de zonas horarias.
+4. **Validación:** no se admiten fechas inexistentes, intervalos invertidos o parámetros de consulta no válidos; el usuario recibe un error comprensible.
+5. **Ranking:** productos ordenados por facturación descendente y, en caso de empate, por identificador ascendente.
+6. **Categorías:** ordenadas por facturación descendente y, en caso de empate, alfabéticamente.
+7. **Periodos sin ventas:** la facturación y los contadores son cero; los rankings no muestran productos ficticios.
+8. **Variación porcentual:** \`(ingresos actuales − ingresos anteriores) / ingresos anteriores × 100\`, redondeado a dos decimales. Si el periodo anterior tiene ingresos cero, la variación es *no calculable*, nunca infinito.
+9. **Consistencia:** dashboard y servicio deben mostrar los mismos importes y recuentos para los mismos filtros.
+
+## Contrato de consulta
+
+La solución ofrecerá un servicio de consulta que pueda utilizarse independientemente de la pantalla. Su contrato funcional mínimo es:
+
+| Operación | Parámetros | Información devuelta |
 |---|---|---|
-| `GET /api/insights/summary` | `from`, `to` | `{from,to,revenueCents,salesCount,unitsSold}` |
-| `GET /api/insights/top-products` | `from`, `to`, `limit` (default 5, max 10) | `{from,to,items:[{productId,productName,category,revenueCents,unitsSold}]}` |
-| `GET /api/insights/by-category` | `from`, `to` | `{from,to,items:[{category,revenueCents,unitsSold}]}` |
-| `GET /api/insights/compare` | `from`, `to`, `previousFrom`, `previousTo` | `{currentRevenueCents,previousRevenueCents,changePercent}` |
+| \`GET /api/insights/summary\` | \`from\`, \`to\` | \`{from,to,revenueCents,salesCount,unitsSold}\` |
+| \`GET /api/insights/top-products\` | \`from\`, \`to\`, \`limit\` opcional (5 por defecto, máximo 10) | \`{from,to,items:[{productId,productName,category,revenueCents,unitsSold}]}\` |
+| \`GET /api/insights/by-category\` | \`from\`, \`to\` | \`{from,to,items:[{category,revenueCents,unitsSold}]}\` |
+| \`GET /api/insights/compare\` | \`from\`, \`to\`, \`previousFrom\`, \`previousTo\` | \`{currentRevenueCents,previousRevenueCents,changePercent}\` |
 
-Sorting: top products by `revenueCents DESC`, then `productId ASC`; categories by `revenueCents DESC`, then category alphabetically. No rows => numeric zero and an empty `items` array. `changePercent` must be `null` if previous revenue is zero; otherwise round to two decimal places. Responses should not include DB passwords, connection strings or stack traces.
+Las fechas del contrato se expresan como \`YYYY-MM-DD\` y los importes monetarios como **céntimos enteros**. La variación es un porcentaje numérico con hasta dos decimales o \`null\` cuando no pueda calcularse. Una solicitud inválida obtiene una respuesta de error de cliente, sin divulgar detalles internos.
 
-Implement services and repository ports with Spring Data/JPA or parameterized JDBC/JPQL aggregates **without raw user-supplied SQL**. Controllers adapt DTOs; business logic does not depend on web or persistence packages. No login is necessary for this local synthetic dataset, but only expose the UI and backend to the laptop by port-forward for the demo.
+Este contrato es un requisito de interoperabilidad: no impone arquitectura interna, librerías ni mecanismos de despliegue.
 
-## Frontend acceptance scope
+## Experiencia y diseño visual del dashboard
 
-Angular standalone component(s), read-only, one page. Show:
-- Title `Retail Sales Insights`, selected date range default `2026-11-16` to `2026-11-22`.
-- Three KPI cards: revenue in EUR formatted from cents, sales count and units sold.
-- Top five products and category breakdown as two simple responsive HTML tables.
-- A comparison card against `2026-11-09` to `2026-11-15`.
-- Loading, empty-data and error states (including backend unreachable).
-- A date-range control that refreshes queries. For comparison, derive previous period by shifting the selected inclusive range by its full length.
-- No charting library, no authentication screen, no LLM in the frontend.
+**Se espera una interfaz visualmente cuidada, moderna y coherente con un producto de analítica empresarial.** Una página con tipografía HTML por defecto, tablas sin formato y cifras alineadas como texto plano **no satisface esta especificación**, aunque las consultas devuelvan HTTP 200.
 
-Use Angular HttpClient and relative paths `/api/insights/...` exclusively so the frontend Nginx proxy calls the Spring Service. A browser at `http://localhost:18090` should work without CORS configuration.
+### Composición y jerarquía
 
-## Tests / acceptance criteria
+- **Encabezado reconocible:** nombre “Retail Sales Insights”, breve descripción de la vista y zona de selección del periodo.
+- **Área de filtros:** fechas inicial y final con etiquetas claras y acción “Aplicar”, integradas en una banda o panel visualmente diferenciado.
+- **Indicadores principales:** tres tarjetas independientes para *Facturación*, *Ventas* y *Unidades vendidas*. Cifra principal de gran tamaño, unidad y etiqueta secundaria.
+- **Comparación:** una tarjeta o sección de tendencia con importe del periodo anterior, variación porcentual y distinción visual entre crecimiento, descenso y dato no calculable.
+- **Detalle:** dos paneles diferenciados para *Productos más vendidos* y *Ventas por categoría*, con tablas legibles y encabezados descriptivos.
+- **Espacios y alineación:** contenido centrado con ancho máximo razonable; márgenes, separación entre secciones y alineación de importes consistentes.
 
-- **AC-01**: Calling existing MCP tools creates one small ephemeral environment, Spring repo and Angular repo; each appears in the platform catalog.
-- **AC-02**: Flyway migrations run once against the platform PostgreSQL and seed the fixed dataset; count matches `sales.csv` (see dataset README).
-- **AC-03**: Each REST operation returns the documented keys, validated date parameters and deterministic values matching SQL aggregates; unknown/untrusted input cannot become SQL.
-- **AC-04**: `./mvnw verify` passes with unit tests, controller tests, PostgreSQL Testcontainers integration tests and ArchUnit rules; Gitea quality pipeline succeeds.
-- **AC-05**: `npm run lint && npm test && npm run build` passes; mock HttpClient tests cover happy path, loading and failures.
-- **AC-06**: Argo CD reconciles backend and frontend and the portal reports Ready.
-- **AC-07**: `kubectl -n env-retail-demo port-forward svc/retail-sales-web 18090:80` serves the UI; `kubectl -n env-retail-demo port-forward svc/retail-sales-insights 18080:80` serves the API.
-- **AC-08**: Both frontend and API are accessed only via local port-forward; no LoadBalancer, external ingress or direct DB access is required.
+### Lenguaje visual esperado
 
-## Demonstration commands
+- Estética de **dashboard SaaS profesional**: limpia, contenida y con jerarquía clara, no una pantalla de administración sin estilos.
+- Fondo neutro suave; superficies o tarjetas con contraste respecto al fondo; bordes o sombras discretos.
+- Tipografía sans-serif legible, títulos diferenciados, números destacados y etiquetas secundarias menos prominentes.
+- Paleta consistente con uno o dos colores de acento y significado claro para tendencias positivas/negativas. No depender únicamente del color para transmitir significado.
+- Filas de tabla con separación adecuada; importes alineados a la derecha y datos comparables fáciles de leer.
+- Estados de carga, error y ausencia de resultados presentados como componentes diseñados, no como mensajes técnicos.
+- Evitar adornos excesivos, animaciones innecesarias y bibliotecas visuales pesadas para una pantalla tan sencilla.
 
-```bash
-kubectl -n env-retail-demo get springservices,apps,postgresdatabases,pods
-kubectl -n env-retail-demo port-forward svc/retail-sales-web 18090:80
-# separate terminal:
-kubectl -n env-retail-demo port-forward svc/retail-sales-insights 18080:80
-curl -fsS 'http://127.0.0.1:18080/api/insights/summary?from=2026-11-16&to=2026-11-22'
-# browser: http://127.0.0.1:18090
-```
+### Responsividad, accesibilidad y calidad visual
 
-## Out of scope
+- **Escritorio:** a 1440 × 900, se debe apreciar una composición equilibrada, sin enormes espacios vacíos ni tablas arrinconadas; los KPI se disponen en una fila o grid.
+- **Móvil:** a 390 × 844, los filtros siguen siendo utilizables, las tarjetas se reorganizan y las tablas mantienen legibilidad mediante diseño adaptado o desplazamiento horizontal controlado.
+- Controles con etiquetas, navegación mediante teclado, estados de foco visibles, contraste suficiente y semántica adecuada para tablas.
+- Importes con formato europeo, por ejemplo \`916,41 €\`; fechas comprensibles para el usuario.
+- La interfaz debe sentirse acabada tanto con datos como en carga, vacío y error.
 
-No autonomous SQL generation, real customer sales, streaming ingestion, shopping cart, admin CRUD, payment operations, BI engine, GraphRAG, multiple tenants or internet exposure. Once AC-01..AC-08 pass, continue with [Spec 02](retail-sales-insights-02-zero-ui.md).
+Estos son **resultados visuales y de usabilidad exigibles**, no una prescripción de framework CSS, biblioteca de componentes, color hexadecimal o estructura de archivos. El equipo implementador elegirá cómo cumplirlos.
+
+## Requisitos no funcionales
+
+- Aplicación y servicio desplegables y accesibles en un entorno temporal de pruebas.
+- Datos persistidos durante la vida del entorno y sin exposición de credenciales al navegador.
+- Consultas de solo lectura, con validación de entradas y sin operaciones de modificación de ventas.
+- Estándares corporativos de arquitectura, seguridad, pruebas y calidad aplicables.
+- Evidencia automatizada de las reglas de negocio y de los estados principales del frontend.
+- Tiempos de respuesta adecuados para el pequeño dataset sin requerir paginación compleja.
+- Sin uso de datos personales, analítica externa ni dependencias de servicios de terceros.
+
+## Criterios de aceptación
+
+- **AC-01:** aplicación web y servicio de negocio disponibles y funcionando, cada uno identificable y con propietario responsable.
+- **AC-02:** dataset completo accesible para las consultas: 12 productos, 3 tiendas y 196 ventas, sin registros duplicados.
+- **AC-03:** para 2026-11-16 a 2026-11-22, resumen de **916,41 €**, **49 ventas** y **169 unidades**.
+- **AC-04:** para 2026-11-09 a 2026-11-15, facturación **864,60 €**; la variación respecto al periodo posterior es aproximadamente **+5,99 %**.
+- **AC-05:** ranking y agrupación por categoría coinciden con los cálculos del dataset; límites y ordenaciones respetan las reglas de negocio.
+- **AC-06:** el servicio rechaza intervalos inválidos y no divulga errores internos; no se puede manipular libremente su consulta de datos.
+- **AC-07:** cambiar el intervalo actualiza todos los componentes que dependen de él; se muestran correctamente estados de carga, vacío y error.
+- **AC-08:** dashboard **visualmente diseñado**, con tarjetas KPI, filtros agrupados, paneles de análisis, tipografía jerarquizada, espaciado, colores coherentes y tablas legibles. **No se acepta HTML sin estilizar.**
+- **AC-09:** vista comprobada en **1440 × 900 y 390 × 844**, sin solapamientos, desbordamientos no controlados ni pérdida de información importante.
+- **AC-10:** el usuario puede acceder por teclado a filtros y acciones; los datos numéricos, etiquetas y estados son comprensibles sin depender exclusivamente del color.
+- **AC-11:** comprobaciones de calidad y pruebas automatizadas aplicables superadas.
+- **AC-12:** la solución puede ser consultada desde una aplicación cliente y desde otras interfaces mediante el contrato descrito.
+
+## Fuera de alcance
+
+Compras o pedidos nuevos, devoluciones, administración de inventario, edición de ventas, datos reales, cuentas de clientes, pagos, ingestión continua, herramientas BI externas, consultas SQL libres y el acceso conversacional de la Spec 02.
+
+**La especificación no prescribe el proceso de construcción.** Para la ejecución guiada de la demo, existe una [guía separada](../demo/execution-guide.md).
