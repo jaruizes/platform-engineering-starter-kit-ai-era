@@ -3,7 +3,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 import { describeStandard, slugify, splitSections, StandardsLibrary } from './standards';
 
-const root = path.resolve(__dirname, '../../../../../engineering/standards');
+const root = path.resolve(__dirname, '../../../../../../platform/cognitive/knowledge/standards');
 const library = new StandardsLibrary(root, 'http://portal/docs');
 
 describe('describeStandard', () => {

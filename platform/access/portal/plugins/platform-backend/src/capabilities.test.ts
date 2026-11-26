@@ -11,9 +11,9 @@ import {
 } from './capabilities';
 import { compact, definitionErrors, pullRequestBody } from './scaffolder';
 
-const repo = resolve(__dirname, '../../../../..');
-const xrd = YAML.parse(readFileSync(`${repo}/platform/capabilities/postgres-database/definition.yaml`, 'utf8'));
-const definition = YAML.parse(readFileSync(`${repo}/platform/capabilities/postgres-database/capability.yaml`, 'utf8'));
+const repo = resolve(__dirname, '../../../../../..');
+const xrd = YAML.parse(readFileSync(`${repo}/platform/capabilities/infrastructure/postgres-database/definition.yaml`, 'utf8'));
+const definition = YAML.parse(readFileSync(`${repo}/platform/capabilities/infrastructure/postgres-database/capability.yaml`, 'utf8'));
 const schema = JSON.parse(
   readFileSync(`${repo}/platform/capabilities/schema/capability-definition.schema.json`, 'utf8'),
 );
@@ -38,7 +38,7 @@ describe('capabilities', () => {
   it('points the documentation at its folder in the platform repository', () => {
     const entity = capabilityEntity(cap, 'http://portal', 'http://git/platform/repo');
     expect(entity.metadata.annotations?.['backstage.io/techdocs-ref']).toBe(
-      'url:http://git/platform/repo/src/branch/main/platform/capabilities/postgres-database',
+      'url:http://git/platform/repo/src/branch/main/platform/capabilities/infrastructure/postgres-database',
     );
     expect(entity.metadata.links?.map(l => l.title)).toEqual(['Request a PostgreSQL database', 'Documentation']);
   });

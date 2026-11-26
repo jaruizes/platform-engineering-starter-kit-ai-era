@@ -1,5 +1,5 @@
 # Existing services of the sample organization, each on a different
-# architecture (see engineering/standards/architectures.yaml). Agents call
+# architecture (see platform/cognitive/knowledge/standards/architectures.yaml). Agents call
 # platform.get-standards-for-entity with one of them to learn which rules
 # apply before changing it.
 apiVersion: backstage.io/v1alpha1
