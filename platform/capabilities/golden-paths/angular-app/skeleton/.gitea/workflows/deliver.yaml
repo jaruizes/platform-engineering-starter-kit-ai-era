@@ -28,7 +28,9 @@ jobs:
 
       - name: Unit tests with coverage
         if: always()
-        run: python3 .platform/quality/check.py unit-tests npm test
+        run: |
+          python3 .platform/quality/check.py unit-tests npm test
+          node --test tools/normalize-lcov.test.mjs
 
       - name: Production build and bundle budgets
         if: always()
@@ -75,8 +77,20 @@ jobs:
           mkdir -p /tmp/angular-image/usr/share/nginx/html
           cp -a dist/. /tmp/angular-image/usr/share/nginx/html/
           tar -C /tmp/angular-image -cf /tmp/angular-image.tar .
-          crane append --base nginxinc/nginx-unprivileged:1.27-alpine \
-            --file /tmp/angular-image.tar --tag "$IMAGE"
+          # Append the same static-content layer to both base architectures.
+          # The runner may be amd64 while Kubernetes nodes are arm64.
+          for ARCH in amd64 arm64; do
+            crane append --platform "linux/$ARCH" \
+              --base nginxinc/nginx-unprivileged:1.27-alpine \
+              --new_layer /tmp/angular-image.tar \
+              --new_tag "$IMAGE-$ARCH"
+          done
+          crane index append \
+            --manifest "$IMAGE-amd64" \
+            --manifest "$IMAGE-arm64" \
+            --tag "$IMAGE"
+          # Fail before GitOps if the final multi-architecture image is absent.
+          crane manifest "$IMAGE" > /dev/null
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
       - name: Deploy (GitOps)
         run: |
