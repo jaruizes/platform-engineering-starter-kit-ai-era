@@ -39,7 +39,7 @@ variable "allowed_cidrs" {
 }
 
 variable "ca_cert_pem" {
-  description = "Certificate of the CA that signs the load balancer certificate (bootstrap/aws/up.sh creates it once)."
+  description = "Certificate of the CA that signs the load balancer certificate (deploy/aws/up.sh creates it once)."
   type        = string
 }
 

@@ -1,6 +1,6 @@
 # Local only: the registry the pipelines push service images to. The nodes
 # pull from its fixed address (k3d registry mirror in
-# bootstrap/local/k3d-config.yaml). On AWS the images go to ECR instead.
+# deploy/local/k3d-config.yaml). On AWS the images go to ECR instead.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

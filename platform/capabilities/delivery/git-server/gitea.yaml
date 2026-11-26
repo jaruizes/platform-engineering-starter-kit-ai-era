@@ -64,7 +64,7 @@ spec:
             - name: GITEA__repository__DEFAULT_BRANCH
               value: main
             # Pipelines (Gitea Actions) for the service repositories. The
-            # runner registers with this token (platform/delivery/deploy/runner.yaml).
+            # runner registers with this token (platform/capabilities/delivery/deploy/runner.yaml).
             - name: GITEA__actions__ENABLED
               value: "true"
             - name: GITEA_RUNNER_REGISTRATION_TOKEN

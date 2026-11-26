@@ -89,7 +89,7 @@ spec:
     local: Plain PostgreSQL in the environment (no operator), with persistent storage.
     aws: Amazon RDS for PostgreSQL (not built yet).
     constraints:
-      - Follow the technology policy (engineering/standards/docs/technology-policy.md).
+      - Follow the technology policy (platform/cognitive/knowledge/standards/docs/common/technology-policy.md).
       - No new operators or controllers in the cluster for the local version.
 
   lifecycle:
