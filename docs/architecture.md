@@ -8,7 +8,7 @@ The source tree follows the [Platform Engineering 2.0 logical architecture](../R
 | Core Engineering | `platform/capabilities` | Golden Paths, infrastructure self-service, quality and delivery |
 | AI & Agent | `platform/ai/agent-tooling` | Agent clients, shared instructions and skills; externally managed agent execution |
 | Cognitive & Knowledge | `platform/cognitive/knowledge/standards` | Versioned engineering standards, architecture context and TechDocs |
-| Platform Governance | `platform/governance/policies` | Kyverno identity stamping, quotas, agent guardrails and audit constraints |
+| Platform Governance | `platform/governance/policies/policies` | Kyverno identity stamping, quotas, agent guardrails and audit constraints |
 | Technology integrations | `platform/integrations/crossplane` | Crossplane control plane support |
 | Deployment | `deploy/local`, `deploy/aws`, `deploy/install.sh` | k3d and EKS foundation, platform installation |
 
