@@ -12,6 +12,6 @@ Run `make up`, then open the repository with your client. Review the project tru
 
 The platform server handles actions; the portal server supplies context and engineering standards. Identity, policies and approvals remain server responsibilities. A config adapter prepares compatibility; live interoperability still needs each CLI and a running platform.
 
-For new capability skills, create `platform/ai/agent-tooling/skills/<name>/SKILL.md` and link `platform/capabilities/<name>/SKILL.md` to it with `../../../platform/ai/agent-tooling/skills/<name>/SKILL.md`. The client skill directory links expose it automatically.
+For new capability skills, create `platform/ai/agent-tooling/skills/<name>/SKILL.md` and link `platform/capabilities/infrastructure/<name>/SKILL.md` to it with `../../../ai/agent-tooling/skills/<name>/SKILL.md`. The client skill directory links expose it automatically.
 
 Configuration references: [Claude Code MCP](https://code.claude.com/docs/en/mcp), [Codex MCP](https://developers.openai.com/codex/mcp), [Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/).

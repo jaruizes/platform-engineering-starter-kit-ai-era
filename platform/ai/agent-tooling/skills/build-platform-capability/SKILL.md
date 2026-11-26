@@ -1,11 +1,11 @@
 ---
 name: build-platform-capability
-description: Use when a platform engineer asks you to build, implement or update a platform capability from a CapabilityDefinition (platform/capabilities/<name>/capability.yaml), usually from a "New platform capability" pull request opened by the developer portal.
+description: Use when a platform engineer asks you to build, implement or update a platform capability from a CapabilityDefinition (platform/capabilities/infrastructure/<name>/capability.yaml), usually from a "New platform capability" pull request opened by the developer portal.
 ---
 
 # Building a platform capability from its definition
 
-A platform engineer wrote `platform/capabilities/<name>/capability.yaml`: **what** the
+A platform engineer wrote `platform/capabilities/infrastructure/<name>/capability.yaml`: **what** the
 capability is (interface), **its limits** (guardrails) and **how to know it
 works** (acceptance criteria). You decide **how** to build it. A person on
 the platform team validates your work against the definition before it is
@@ -30,11 +30,11 @@ trace back to a line of the definition.
 
 1. **Get the definition.** It is usually on a branch `capability/<name>-...` of
    the platform repository, opened as a pull request by the portal. Check it
-   out and read `platform/capabilities/<name>/capability.yaml` completely. Run
+   out and read `platform/capabilities/infrastructure/<name>/capability.yaml` completely. Run
    `python platform/capabilities/tools/capctl.py validate <name> --definition-only`.
-2. **Learn from what exists.** `platform/capabilities/postgres-database/` is a
-   complete example; `engineering/golden-paths/` shows the composition style used here.
-3. **Generate the files** in `platform/capabilities/<name>/`:
+2. **Learn from what exists.** `platform/capabilities/infrastructure/postgres-database/` is a
+   complete example; `platform/capabilities/golden-paths/` shows the composition style used here.
+3. **Generate the files** in `platform/capabilities/infrastructure/<name>/`:
 
    | From | Generate |
    |---|---|
@@ -46,7 +46,7 @@ trace back to a line of the definition.
    | `guardrails` | `tests/kyverno/kyverno-test.yaml` and its resources: at least one pass and one fail case per rule, with the rule id in the test or resource names. |
    | `acceptance` | `tests/e2e/test_acceptance.py`: one pytest test per criterion, named `test_ac_<n>_<what>`. A criterion checked `as: both` is parametrized with the `requester` fixture so it runs as a human and as an agent. Use the helpers in `platform/capabilities/tools/e2e.py`. |
    | `purpose`, `interface`, `lifecycle`, `ownership` | `docs/index.md` and `mkdocs.yml` (TechDocs): what it is for, how to request it (portal, kubectl, MCP), what you get, the guardrails, cost and lifecycle. |
-   | `purpose`, `interface.examples` | `agents/skills/<name>/SKILL.md`: when an agent should use the capability and how (`request_capability` in the platform MCP server), and when not to. Keep only a relative link at `platform/capabilities/<name>/SKILL.md` pointing to `../../../agents/skills/<name>/SKILL.md`. All clients discover the canonical skill through their skills directory link. |
+   | `purpose`, `interface.examples` | `platform/ai/agent-tooling/skills/<name>/SKILL.md`: when an agent should use the capability and how (`request_capability` in the platform MCP server), and when not to. Keep only a relative link at `platform/capabilities/infrastructure/<name>/SKILL.md` pointing to `../../../platform/ai/agent-tooling/skills/<name>/SKILL.md`. All clients discover the canonical skill through their skills directory link. |
 
 4. **Check it** with `make capability NAME=<name>` (`platform/capabilities/tools/check.sh <name>`). It runs what CI
    runs: the definition and the generated files against each other
