@@ -19,6 +19,7 @@ def check(ok, message):
 for folder in (
     'platform/integrations/crossplane', 'platform/capabilities', 'platform/governance/policies',
     'platform/capabilities/delivery', 'platform/access/portal', 'platform/access/mcp',
+    'platform/access/identity', 'platform/access/cli', 'platform/capabilities/api',
     'platform/cognitive/knowledge/standards', 'platform/capabilities/golden-paths', 'platform/capabilities/infrastructure',
     'platform/ai/agent-tooling/skills', 'platform/ai/agent-tooling/instructions',
     'platform/ai/agent-tooling/clients', 'examples/scenarios', 'deploy',
@@ -60,6 +61,19 @@ for name, server in claude.items():
     check(server['url'] == gemini[name]['httpUrl'] == codex[name]['url'], f'{name}: client URLs differ')
     check(server.get('headers', {}) == gemini[name].get('headers', {}) == codex[name].get('http_headers', {}),
           f'{name}: client headers differ')
+
+# The platform MCP server is an OAuth resource server: each client signs in
+# with its own Keycloak client, which must exist in the realm.
+realm = json.loads((ROOT / 'platform/access/identity/realm/platform-realm.json').read_text())
+clients = {c['clientId']: c for c in realm['clients']}
+for agent, client_id in (('claude', claude['platform'].get('oauth', {}).get('clientId')),
+                         ('gemini', gemini['platform'].get('oauth', {}).get('clientId'))):
+    check(client_id in clients, f'{agent}: the platform server must sign in with a client of the platform realm')
+check(codex['platform'].get('bearer_token_env_var') == 'PLATFORM_TOKEN', 'codex: platform needs PLATFORM_TOKEN')
+check('codex' in clients and 'ci-agent' in clients, 'The realm needs the codex and ci-agent clients')
+callback = claude['platform'].get('oauth', {}).get('callbackPort')
+check(any(f':{callback}/' in uri for uri in clients.get('claude-code', {}).get('redirectUris', [])),
+      'claude-code: the callback port must be a redirect URI of its Keycloak client')
 
 if errors:
     raise SystemExit('\n'.join(errors))

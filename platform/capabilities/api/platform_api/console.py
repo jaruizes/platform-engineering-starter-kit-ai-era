@@ -15,7 +15,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from starlette.routing import Route
 
-from . import platform
+from . import cluster as platform
 
 INDEX = (Path(__file__).parent / "static" / "index.html").read_text()
 

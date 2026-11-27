@@ -22,7 +22,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: platform
-          image: platform-starter-kit/platform-mcp:dev
+          image: platform-starter-kit/platform-api:dev
           imagePullPolicy: Never
           command: [platform-console]
           env:

@@ -1,8 +1,11 @@
 """A scripted agent for the demo, for when there is no AI agent at hand.
 
 It talks to the platform MCP server exactly like a coding agent would and
-walks through the demo scenario: a small environment is granted, a large
-one goes to a human, and an out-of-policy one is stopped.
+walks through the demo scenario: a small environment is granted, another
+team's is refused, a large one goes to a human, and an out-of-policy one is
+stopped. It is the autonomous agent ci-agent of team checkout: it signs in
+to Keycloak with its own client credentials, so the platform knows who it is
+without trusting anything it says about itself.
 
 Run it inside the cluster:  make demo-agent
 """
@@ -18,10 +21,13 @@ import httpx2
 from mcp import ClientSession, types
 from mcp.client.streamable_http import streamable_http_client
 
+from .platform_api_client import client_credentials_token
+
 URL = os.environ.get("MCP_URL", "http://localhost:8081/mcp")
 CONSOLE_URL = os.environ.get("CONSOLE_URL", "http://localhost:8080")
 
 STEPS = [
+    ("Who does the platform think I am?", "whoami", {}),
     ("Which Golden Paths does this platform offer?", "list_golden_paths", {}),
     (
         "I need an environment to test this change.",
@@ -32,6 +38,11 @@ STEPS = [
         "Deploy the service into it.",
         "deploy_service",
         {"environment": "pr-123", "name": "checkout-api"},
+    ),
+    (
+        "And one for the payments team, while I am at it.",
+        "request_environment",
+        {"team": "payments", "name": "pay-test", "purpose": "Try something in payments"},
     ),
     (
         "Now a large environment for a load test.",
@@ -63,21 +74,21 @@ def _print_result(result: types.CallToolResult) -> None:
         return
     if isinstance(data, list) and len(data) == 1:
         data = data[0]
-    for key in ("status", "namespace", "url", "approval_id", "reason", "next_step"):
+    for key in ("kind", "agent", "teams", "status", "namespace", "url", "approval_id", "reason", "next_step"):
         if isinstance(data, dict) and data.get(key):
             print(f"   {key}: {data[key]}")
 
 
 async def main() -> None:
-    # The token of the platform MCP server, when it has one (on AWS).
-    token = os.environ.get("MCP_TOKEN")
+    # Its own access token from Keycloak (client credentials).
+    token = os.environ.get("MCP_TOKEN") or client_credentials_token()
     client = httpx2.AsyncClient(
-        headers={"Authorization": f"Bearer {token}"} if token else None,
+        headers={"Authorization": f"Bearer {token}"},
         timeout=httpx2.Timeout(30, read=300),
     )
     async with client, streamable_http_client(URL, http_client=client) as streams:
         read, write = streams[0], streams[1]
-        info = types.Implementation(name=os.environ.get("AGENT_NAME", "demo-agent"), version="1.0")
+        info = types.Implementation(name=os.environ.get("AGENT_NAME", "ci-agent"), version="1.0")
         async with ClientSession(read, write, client_info=info) as session:
             await session.initialize()
             for said, tool, args in STEPS:

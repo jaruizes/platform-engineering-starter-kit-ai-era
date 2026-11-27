@@ -8,7 +8,9 @@
 | Codex | `.codex/config.toml` → `clients/codex/config.toml` | `.platform/ai/agent-tooling/skills` → `platform/ai/agent-tooling/skills` | `AGENTS.md` links shared guidance |
 | Gemini CLI | `.gemini/settings.json` → `clients/gemini-cli/settings.json` | `.gemini/skills` → `platform/ai/agent-tooling/skills` | `GEMINI.md` imports shared guidance |
 
-Run `make up`, then open the repository with your client. Review the project trust/MCP prompts and verify both `platform` and `portal` servers in the client's MCP listing. All three clients connect to the existing Streamable HTTP services; changing clients does not install a second platform. The checked-in headers are for the local demo only. For AWS, use the public URLs printed by `make aws-up` and the deployment's tokens; keep real credentials outside version control. Codex project config is loaded only for trusted projects.
+Run `make up`, then open the repository with your client. Review the project trust/MCP prompts and verify both `platform` and `portal` servers in the client's MCP listing. All three clients connect to the existing Streamable HTTP services; changing clients does not install a second platform.
+
+The `platform` server is an OAuth resource server: each client signs the person in with Keycloak with its own client of the [platform realm](../../access/identity/README.md) (`claude-code` with callback port 33418, `gemini-cli`), and the platform API acts for that person, with their teams, as that agent. Codex sends a token of the `codex` client from `platformctl.py login --client codex` in `PLATFORM_TOKEN`. The portal server header is for the local demo only. For AWS, use the public URLs printed by `make aws-up` and the deployment's tokens; keep real credentials outside version control. Codex project config is loaded only for trusted projects.
 
 The platform server handles actions; the portal server supplies context and engineering standards. Identity, policies and approvals remain server responsibilities. A config adapter prepares compatibility; live interoperability still needs each CLI and a running platform.
 

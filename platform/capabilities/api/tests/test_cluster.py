@@ -2,7 +2,7 @@ import json
 
 from kubernetes.client.exceptions import ApiException
 
-from platform_mcp import platform
+from platform_api import cluster as platform
 
 
 def _denial(message: str) -> ApiException:
@@ -78,7 +78,8 @@ def test_summarize_capability_reads_the_xrd():
 
 def test_capability_manifest_marks_the_agent():
     cap = {"api_version": "platform.starterkit.dev/v1alpha1", "kind": "PostgresDatabase", "scope": "Namespaced"}
-    m = platform.capability_manifest(cap, "orders-db", "env-pr-42", {"size": "small"}, "claude-code")
+    m = platform.capability_manifest(cap, "orders-db", "env-pr-42", {"size": "small"},
+                                    {"platform.starterkit.dev/agent": "claude-code"})
     assert m["metadata"] == {"name": "orders-db", "namespace": "env-pr-42",
                              "annotations": {"platform.starterkit.dev/agent": "claude-code"}}
     assert m["spec"] == {"size": "small"}

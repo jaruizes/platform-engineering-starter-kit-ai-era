@@ -1,13 +1,18 @@
 """Platform MCP server: the platform's Golden Paths as tools for AI agents.
 
 Agents never get raw infrastructure access. They call the same Golden Paths
-a developer uses, with the platform's identity for agents, and the same
-guardrails apply. Requests outside the guardrails go to a human.
+a developer uses, through the platform API, and the same guardrails apply.
+Requests outside the guardrails go to a human.
+
+The server is an OAuth 2.1 resource server (MCP authorization): an agent
+signs its person in with Keycloak and sends the access token; the server
+forwards that token to the platform API, which knows which agent acts for
+which person and decides. This server holds no Kubernetes access and makes
+no authorization decision of its own.
 """
 
 from __future__ import annotations
 
-import hmac
 import os
 import re
 import time
@@ -17,11 +22,10 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 from starlette.requests import Request
-from starlette.responses import PlainTextResponse
+from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from . import delivery, platform, platform_api_client, quality
-from .platform import Denied
+from . import platform_api_client as api
 
 NAME_PATTERN = re.compile(r"^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$")
 
@@ -31,7 +35,8 @@ mcp = MCPServer(
     instructions=(
         "Use this server to get environments and deploy services and frontend apps through the "
         "company's Golden Paths, and capabilities such as databases, instead of writing "
-        "infrastructure code. Start with list_golden_paths. Use get_quality_status for read-only, "
+        "infrastructure code. Start with list_golden_paths. You act for the person who signed in: whoami shows "
+        "their teams, and requests are only allowed for those teams. Use get_quality_status for read-only, "
         "commit-linked quality evidence and findings. Requests are checked by policy; if one needs human "
         "approval, tell the user and give them the approval id. When you build a new service, deliver it so "
         "the user can try it: unless they say otherwise, reuse a ready environment of the team or request a "
@@ -41,20 +46,28 @@ mcp = MCPServer(
 )
 
 
-def agent_name(ctx: Context | None) -> str:
-    """Name the MCP client reports for itself, for example 'claude-code'."""
+def _token(ctx: Context | None) -> str | None:
+    """The agent's access token, forwarded as is to the platform API."""
     try:
-        params = ctx.session.client_params if ctx else None
-        if params and params.client_info:
-            return params.client_info.name
-    except Exception:  # noqa: BLE001 - older or stateless clients
-        pass
-    return "unknown-agent"
+        authorization = (ctx.headers or {}).get("authorization", "") if ctx else ""
+    except Exception:  # noqa: BLE001 - outside a request
+        authorization = ""
+    return authorization[7:].strip() if authorization.lower().startswith("bearer ") else None
 
 
-def _requester(agent: str) -> str:
-    """How the platform API records an agent: agent:<name>, with a safe name."""
-    return "agent:" + (re.sub(r"[^A-Za-z0-9_.-]+", "-", agent).strip("-._")[:63] or "unknown-agent")
+def _call(ctx: Context | None, method: str, path: str, body: dict[str, Any] | None = None,
+          query: dict[str, Any] | None = None) -> Any:
+    """A platform API operation, as a tool result an agent can act on."""
+    try:
+        return api.request(_token(ctx), method, path, body, query)
+    except api.RequestFailed as failed:
+        status = {401: "unauthenticated", 403: "denied", 404: "not_found", 409: "exists", 422: "invalid"}.get(
+            failed.status, "failed")
+        result: dict[str, Any] = {"status": status, "reason": str(failed)}
+        if status == "denied":
+            result["next_step"] = ("The platform refused it for the person you act for. Tell the user why; do not "
+                                   "retry for another team.")
+        return result
 
 
 def _check_name(value: str, field: str) -> None:
@@ -63,25 +76,34 @@ def _check_name(value: str, field: str) -> None:
 
 
 @mcp.tool(title="List Golden Paths")
-def list_golden_paths() -> list[dict[str, Any]]:
+def list_golden_paths(ctx: Context | None = None) -> list[dict[str, Any]] | dict[str, Any]:
     """Lists the Golden Paths and capabilities this platform offers, with their parameters and guardrails.
 
     Capabilities (databases and the like) are all requested with request_capability.
     """
-    return platform.GOLDEN_PATHS + platform.list_capabilities()
+    return _call(ctx, "GET", "/v1/offering")
+
+
+@mcp.tool(title="Who am I")
+def whoami(ctx: Context | None = None) -> dict[str, Any]:
+    """Who the platform sees: this agent, the person it acts for, and their teams.
+
+    Requests are only allowed for those teams.
+    """
+    return _call(ctx, "GET", "/v1/me")
 
 
 @mcp.tool(
     title="Get service quality status",
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
 )
-def get_quality_status(service: str) -> dict[str, Any]:
+def get_quality_status(service: str, ctx: Context | None = None) -> dict[str, Any]:
     """Reads the latest committed quality gate evidence and findings for a service.
 
     Args:
         service: Service repository name, for example inventory-service.
     """
-    return quality.quality_status(service)
+    return _call(ctx, "GET", f"/v1/services/{api.quote(service, safe='')}/quality")
 
 
 @mcp.tool(title="Request an environment")
@@ -93,10 +115,10 @@ def request_environment(
     ttl_hours: int = 8,
     ctx: Context | None = None,
 ) -> dict[str, Any]:
-    """Requests an ephemeral environment to test a change.
+    """Requests an ephemeral environment to test a change, for one of the user's teams.
 
     Args:
-        team: Team that owns the environment and pays for it.
+        team: Team that owns the environment and pays for it (one of the user's teams, see whoami).
         name: Short name for the environment (lowercase, numbers, dashes).
         purpose: What it is for, for example the change to test.
         size: small (default), medium or large.
@@ -104,66 +126,21 @@ def request_environment(
     """
     _check_name(team, "team")
     _check_name(name, "name")
-    if size not in platform.SIZES:
-        raise ValueError("size must be small, medium or large.")
-    agent = agent_name(ctx)
-    manifest = platform.environment_manifest(team, name, purpose, size, ttl_hours, agent)
-    try:
-        platform.create_environment(manifest)
-    except Denied as denied:
-        if denied.needs_human_approval:
-            approval_id = platform.create_approval_request(manifest, agent, denied.reason)
-            platform.record("RequestNeedsApproval", f"{agent} asked for a {size} environment for team {team}: {denied.reason}",
-                            name, warning=True, actor=agent)
-            return {
-                "status": "pending_approval",
-                "approval_id": approval_id,
-                "reason": denied.reason,
-                "next_step": (
-                    "Tell the user this request needs human approval in the developer portal "
-                    "(AI Platform page) or the platform console "
-                    f"(approval id {approval_id}). Use get_approval_status to follow it, or ask for "
-                    "a small environment instead."
-                ),
-            }
-        platform.record("RequestDenied", f"{agent} asked for a {size} environment for team {team}: {denied.reason}",
-                        name, warning=True, actor=agent)
-        return {"status": "denied", "reason": denied.reason}
-    platform.record("RequestAccepted", f"{agent} got a {size} environment for team {team}: {purpose}", name, actor=agent)
-    return {
-        "status": "accepted",
-        "environment": name,
-        "namespace": f"env-{name}",
-        "next_step": "Use get_environment to check when it is ready, then deploy_service to deploy into it.",
-    }
+    return _call(ctx, "POST", "/v1/environments",
+                 {"team": team, "name": name, "purpose": purpose, "size": size, "ttlHours": ttl_hours})
 
 
 @mcp.tool(title="Get an environment")
-def get_environment(name: str) -> dict[str, Any]:
+def get_environment(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Returns the status of an environment: readiness, namespace, cost, requester and expiry."""
-    env = platform.get_environment(name)
-    if env is None:
-        return {"status": "not_found", "name": name}
-    return platform.summarize_environment(env)
+    _check_name(name, "name")
+    return _call(ctx, "GET", f"/v1/environments/{name}")
 
 
 @mcp.tool(title="List environments")
-def list_environments(team: str | None = None) -> list[dict[str, Any]]:
-    """Lists active environments, optionally for one team."""
-    envs = [platform.summarize_environment(e) for e in platform.list_environments()]
-    return [e for e in envs if team is None or e["team"] == team]
-
-
-def _wait_until_ready(environment: str, timeout: float = 60) -> bool:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        env = platform.get_environment(environment)
-        if env is None:
-            return False
-        if platform.summarize_environment(env)["ready"]:
-            return True
-        time.sleep(2)
-    return False
+def list_environments(team: str | None = None, ctx: Context | None = None) -> list[dict[str, Any]] | dict[str, Any]:
+    """Lists the active environments of the user's teams, optionally for one team."""
+    return _call(ctx, "GET", "/v1/environments", query={"team": team})
 
 
 @mcp.tool(title="Deploy a service")
@@ -186,21 +163,14 @@ def deploy_service(
         replicas: Number of replicas, 1 to 3.
     """
     _check_name(name, "name")
-    agent = agent_name(ctx)
-    namespace = f"env-{environment}"
-    if not _wait_until_ready(environment):
-        return {
-            "status": "not_ready",
-            "reason": f"Environment '{environment}' does not exist or is not ready yet. Check it with get_environment.",
-        }
-    try:
-        platform.create_spring_service(namespace, name, image, replicas, agent)
-    except Denied as denied:
-        platform.record("RequestDenied", f"{agent} tried to deploy {name} in {namespace}: {denied.reason}",
-                        environment, warning=True, actor=agent)
-        return {"status": "denied", "reason": denied.reason}
-    platform.record("RequestAccepted", f"{agent} deployed {name} in {namespace}", environment, actor=agent)
-    return {"status": "accepted", "url": f"http://{name}.{namespace}.svc.cluster.local"}
+    _check_name(environment, "environment")
+    return _call(ctx, "POST", f"/v1/environments/{environment}/services",
+                 {"name": name, "image": image, "replicas": replicas})
+
+
+def _repository(ctx: Context | None, golden_path: str, parameters: dict[str, Any]) -> dict[str, Any]:
+    """Runs a code Golden Path: the platform renders the skeleton and creates the repository."""
+    return _call(ctx, "POST", f"/v1/golden-paths/{golden_path}/repositories", {"parameters": parameters})
 
 
 @mcp.tool(title="Create a service")
@@ -224,7 +194,7 @@ def create_service(
     Args:
         name: Service and repository name (lowercase letters, numbers and dashes).
         description: What the service does, in the domain language.
-        team: Team that owns the service, for example platform-team.
+        team: Team that owns the service, one of the user's teams.
         module: First functional module, a business capability such as records.
         environment: Ephemeral environment to deploy to (request_environment first).
             Without it, only the repository is created and nothing is deployed, so
@@ -238,23 +208,13 @@ def create_service(
     _check_name(team, "team")
     if environment:
         _check_name(environment, "environment")
-    agent = agent_name(ctx)
-    parameters = {
-        "name": name,
-        "description": description,
-        "owner": team,
-        "basePackage": base_package,
-        "module": module,
-    }
+    parameters = {"name": name, "description": description, "owner": team, "basePackage": base_package,
+                  "module": module}
     if environment:
         parameters["environment"] = environment
-    # The platform renders the skeleton and creates the repository, as for
-    # every channel; it also checks that the environment exists.
-    try:
-        created = platform_api_client.create_repository("spring-service", parameters, _requester(agent))
-    except platform_api_client.RequestFailed as failed:
-        return {"status": "failed", "reason": str(failed)}
-    repository = created["repository"]
+    created = _repository(ctx, "spring-service", parameters)
+    if created.get("status") != "created":
+        return created
     deliver = (
         f" Then commit and push to main: the platform builds and deploys it to env-{environment} "
         f"(the skeleton is already on its way). Follow it with get_service_status(name='{name}', "
@@ -263,9 +223,9 @@ def create_service(
     )
     return {
         "status": "created",
-        "repository": repository,
+        "repository": created["repository"],
         # With the Git server account for agents, so a push needs no prompt.
-        "clone": f"git clone {platform_api_client.push_url(name)}",
+        "clone": f"git clone {api.push_url(name)}",
         "catalog_entity": created["catalogEntity"],
         "environment": environment,
         "next_step": (
@@ -278,7 +238,8 @@ def create_service(
 
 
 @mcp.tool(title="Get the status of a service")
-def get_service_status(name: str, environment: str, resource_kind: str = "SpringService") -> dict[str, Any]:
+def get_service_status(name: str, environment: str, resource_kind: str = "SpringService",
+                       ctx: Context | None = None) -> dict[str, Any]:
     """How the delivery of a service or frontend created with a Golden Path is going.
 
     Puts together its pipeline (tests and image), GitOps (Argo CD) and its pods,
@@ -293,7 +254,8 @@ def get_service_status(name: str, environment: str, resource_kind: str = "Spring
     _check_name(environment, "environment")
     if resource_kind not in ("SpringService", "App"):
         raise ValueError("resource_kind must be SpringService or App.")
-    return delivery.status(name, environment, resource_kind)
+    return _call(ctx, "GET", f"/v1/environments/{environment}/services/{api.quote(name, safe='')}/status",
+                 query={"kind": resource_kind})
 
 
 @mcp.tool(title="Create an Angular frontend")
@@ -316,7 +278,7 @@ def create_angular_app(
     Args:
         name: Frontend and repository name (lowercase letters, numbers and dashes).
         description: What the frontend lets its users do.
-        team: Owning team, for example platform-team.
+        team: Owning team, one of the user's teams.
         environment: Ephemeral environment to deploy into (request_environment first).
         backend_service: Optional SpringService name in the same environment.
     """
@@ -329,16 +291,14 @@ def create_angular_app(
         _check_name(environment, "environment")
     if backend_service and not environment:
         raise ValueError("backend_service needs the environment where it runs.")
-    agent = agent_name(ctx)
     parameters: dict[str, Any] = {"name": name, "description": description, "owner": team}
     if environment:
         parameters["environment"] = environment
     if backend_service:
         parameters["backendService"] = backend_service
-    try:
-        created = platform_api_client.create_repository("angular-app", parameters, _requester(agent))
-    except platform_api_client.RequestFailed as failed:
-        return {"status": "failed", "reason": str(failed)}
+    created = _repository(ctx, "angular-app", parameters)
+    if created.get("status") != "created":
+        return created
     deliver = (
         f" Commit and push to main to run frontend tests and deploy App into env-{environment}. "
         f"Use get_service_status(name='{name}', environment='{environment}', resource_kind='App') to follow it."
@@ -347,7 +307,7 @@ def create_angular_app(
     return {
         "status": "created",
         "repository": created["repository"],
-        "clone": f"git clone {platform_api_client.push_url(name)}",
+        "clone": f"git clone {api.push_url(name)}",
         "catalog_entity": created["catalogEntity"],
         "environment": environment,
         "backend_service": backend_service,
@@ -382,22 +342,20 @@ def create_api_mcp_adapter(
             raise ValueError(f"{field} must be a DNS-safe lowercase name (max 40 characters).")
     _check_name(team, "team")
     _check_name(environment, "environment")
-    agent = agent_name(ctx)
     # The platform checks that the backend is deployed in that environment.
-    try:
-        created = platform_api_client.create_repository("api-mcp-adapter", {
-            "name": name,
-            "description": description,
-            "owner": team,
-            "backendService": backend_service,
-            "environment": environment,
-        }, _requester(agent))
-    except platform_api_client.RequestFailed as failed:
-        return {"status": "failed", "reason": str(failed)}
+    created = _repository(ctx, "api-mcp-adapter", {
+        "name": name,
+        "description": description,
+        "owner": team,
+        "backendService": backend_service,
+        "environment": environment,
+    })
+    if created.get("status") != "created":
+        return created
     return {
         "status": "created",
         "repository": created["repository"],
-        "clone": f"git clone {platform_api_client.push_url(name)}",
+        "clone": f"git clone {api.push_url(name)}",
         "catalog_entity": created["catalogEntity"],
         "backend_service": backend_service,
         "environment": environment,
@@ -432,95 +390,35 @@ def request_capability(
         parameters: Parameters of the capability, for example {"size": "small"}. Omit to use the defaults.
     """
     _check_name(name, "name")
-    cap = platform.find_capability(capability)
-    if cap is None:
-        names = ", ".join(c["kind"] for c in platform.list_capabilities()) or "none yet"
-        return {"status": "not_found", "reason": f"There is no capability '{capability}'. Available: {names}."}
-    namespace = None
-    if cap["scope"] == "Namespaced":
-        if not environment:
-            return {"status": "denied", "reason": f"{cap['kind']} lives in an environment: tell me which one."}
+    if environment:
         _check_name(environment, "environment")
-        namespace = f"env-{environment}"
-    agent = agent_name(ctx)
-    manifest = platform.capability_manifest(cap, name, namespace, parameters or {}, agent)
-    subject = f"{cap['kind']} {name}" + (f" in {namespace}" if namespace else "")
-    try:
-        platform.create_resource(manifest)
-    except Denied as denied:
-        if denied.needs_human_approval:
-            approval_id = platform.create_approval_request(manifest, agent, denied.reason)
-            platform.record("RequestNeedsApproval", f"{agent} asked for {subject}: {denied.reason}",
-                            name, warning=True, actor=agent, kind=cap["kind"])
-            return {
-                "status": "pending_approval",
-                "approval_id": approval_id,
-                "reason": denied.reason,
-                "next_step": (
-                    "Tell the user this request needs human approval in the developer portal "
-                    f"(AI Platform page) or the platform console (approval id {approval_id}). "
-                    "Use get_approval_status to follow it."
-                ),
-            }
-        platform.record("RequestDenied", f"{agent} asked for {subject}: {denied.reason}",
-                        name, warning=True, actor=agent, kind=cap["kind"])
-        return {"status": "denied", "reason": denied.reason}
-    platform.record("RequestAccepted", f"{agent} requested {subject}", name, actor=agent, kind=cap["kind"])
-    return {
-        "status": "accepted",
-        "capability": cap["kind"],
-        "name": name,
-        "namespace": namespace,
-        "outputs": cap["outputs"],
-        "next_step": "Use get_capability_request to check when it is ready and what it returns.",
-    }
+    return _call(ctx, "POST", f"/v1/capabilities/{api.quote(capability, safe='')}/requests",
+                 {"name": name, "environment": environment, "parameters": parameters or {}})
 
 
 @mcp.tool(title="Get a capability request")
-def get_capability_request(capability: str, name: str, environment: str | None = None) -> dict[str, Any]:
+def get_capability_request(capability: str, name: str, environment: str | None = None,
+                           ctx: Context | None = None) -> dict[str, Any]:
     """Returns the status of a capability request: readiness, outputs (for example the Secret name) and requester."""
-    cap = platform.find_capability(capability)
-    if cap is None:
-        return {"status": "not_found", "reason": f"There is no capability '{capability}'."}
-    namespace = f"env-{environment}" if cap["scope"] == "Namespaced" and environment else None
-    obj = platform.get_resource(cap, name, namespace)
-    if obj is None:
-        return {"status": "not_found", "name": name}
-    return platform.summarize_resource(obj)
+    _check_name(name, "name")
+    return _call(ctx, "GET", f"/v1/capabilities/{api.quote(capability, safe='')}/requests/{name}",
+                 query={"environment": environment})
 
 
 @mcp.tool(title="Get approval status")
-def get_approval_status(approval_id: str) -> dict[str, Any]:
+def get_approval_status(approval_id: str, ctx: Context | None = None) -> dict[str, Any]:
     """Returns whether a human approved or rejected a request."""
-    approval = platform.get_approval(approval_id)
-    if approval is None:
-        return {"status": "not_found", "approval_id": approval_id}
-    approval.pop("manifest", None)
-    return approval
+    return _call(ctx, "GET", f"/v1/approvals/{api.quote(approval_id, safe='')}")
 
 
 @mcp.tool(title="Delete an environment")
 def delete_environment(name: str, ctx: Context | None = None) -> dict[str, Any]:
-    """Deletes an environment that is no longer needed, to free the team's budget."""
-    agent = agent_name(ctx)
-    env = platform.get_environment(name)
-    if env is None:
-        return {"status": "not_found", "name": name}
-    # Agents only delete what agents requested; Kyverno enforces it too.
-    annotations = env.get("metadata", {}).get("annotations") or {}
-    if annotations.get(f"{platform.PREFIX}/requester-type") != "agent":
-        reason = "Agents can only delete environments that an agent requested. Ask a person to delete this one."
-        platform.record("RequestDenied", f"{agent} tried to delete environment {name}: {reason}",
-                        name, warning=True, actor=agent)
-        return {"status": "denied", "name": name, "reason": reason}
-    try:
-        platform.delete_environment(name)
-    except Denied as denied:
-        platform.record("RequestDenied", f"{agent} tried to delete environment {name}: {denied.reason}",
-                        name, warning=True, actor=agent)
-        return {"status": "denied", "name": name, "reason": denied.reason}
-    platform.record("EnvironmentDeleted", f"{agent} deleted environment {name}", name, actor=agent)
-    return {"status": "deleted", "name": name}
+    """Deletes an environment that is no longer needed, to free the team's budget.
+
+    Agents can only delete environments that an agent requested for the same person.
+    """
+    _check_name(name, "name")
+    return _call(ctx, "DELETE", f"/v1/environments/{name}")
 
 
 @mcp.custom_route("/healthz", methods=["GET"])
@@ -528,36 +426,86 @@ async def healthz(_: Request) -> PlainTextResponse:
     return PlainTextResponse("ok")
 
 
-class BearerToken:
-    """Lets in only requests with the token MCP_TOKEN, when it is set.
+class OAuthResource:
+    """OAuth 2.1 resource server in front of the MCP endpoint (MCP authorization spec).
 
-    On localhost the server is open, as the demo runs on a laptop. Anywhere
-    else (AWS) agents send the token as `Authorization: Bearer <token>`.
+    Without a valid Keycloak access token it answers 401 with the protected
+    resource metadata, so MCP clients (Claude Code, Gemini CLI...) discover
+    Keycloak, sign the person in and retry with a token. The token is checked
+    with the platform API (GET /v1/me), cached for a minute, and forwarded
+    unchanged with every tool call.
     """
 
-    def __init__(self, app: ASGIApp, token: str) -> None:
+    PUBLIC = ("/healthz", "/.well-known/oauth-protected-resource")
+
+    def __init__(self, app: ASGIApp, resource: str, authorization_server: str, validate=None,
+                 cache_seconds: float = 60) -> None:
         self.app = app
-        self.expected = f"Bearer {token}".encode()
+        self.resource = resource.rstrip("/")
+        self.authorization_server = authorization_server
+        self.validate = validate or (lambda token: api.request(token, "GET", "/v1/me", timeout=10))
+        self.cache_seconds = cache_seconds
+        self._valid: dict[str, float] = {}
+        base = self.resource.rsplit("/mcp", 1)[0]
+        self.metadata_url = f"{base}/.well-known/oauth-protected-resource"
+
+    def metadata(self) -> dict[str, Any]:
+        return {
+            "resource": self.resource,
+            "authorization_servers": [self.authorization_server],
+            "bearer_methods_supported": ["header"],
+            "scopes_supported": ["openid", "profile"],
+            "resource_name": "Internal Developer Platform",
+        }
+
+    def _authenticated(self, token: str) -> tuple[bool, str]:
+        now = time.monotonic()
+        if self._valid.get(token, 0) > now:
+            return True, ""
+        try:
+            self.validate(token)
+        except api.RequestFailed as failed:
+            return False, str(failed)
+        self._valid = {t: exp for t, exp in self._valid.items() if exp > now}
+        self._valid[token] = now + self.cache_seconds
+        return True, ""
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] == "http" and scope["path"] != "/healthz":
-            sent = dict(scope["headers"]).get(b"authorization", b"")
-            if not hmac.compare_digest(sent, self.expected):
-                await PlainTextResponse("Missing or wrong bearer token.", status_code=401)(scope, receive, send)
-                return
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        path = scope["path"]
+        if path.startswith("/.well-known/oauth-protected-resource"):
+            await JSONResponse(self.metadata())(scope, receive, send)
+            return
+        if path in self.PUBLIC:
+            await self.app(scope, receive, send)
+            return
+        sent = dict(scope["headers"]).get(b"authorization", b"").decode("latin-1")
+        token = sent[7:].strip() if sent.lower().startswith("bearer ") else ""
+        valid, reason = self._authenticated(token) if token else (False, "")
+        if not valid:
+            challenge = f'Bearer resource_metadata="{self.metadata_url}"'
+            if token:
+                challenge += ', error="invalid_token"'
+            body = {"error": "invalid_token" if token else "unauthorized",
+                    "error_description": reason or "Sign in with the platform's identity provider."}
+            await JSONResponse(body, status_code=401, headers={"WWW-Authenticate": challenge})(scope, receive, send)
+            return
         await self.app(scope, receive, send)
 
 
 def main() -> None:
     import uvicorn
 
-    os.environ.setdefault("PLATFORM_COMPONENT", "platform-mcp")
-    platform.load_kube_config()
     allowed_hosts = os.environ.get("MCP_ALLOWED_HOSTS", "localhost:*,127.0.0.1:*").split(",")
     app: ASGIApp = mcp.streamable_http_app(
         transport_security=TransportSecuritySettings(allowed_hosts=allowed_hosts),
         host="0.0.0.0",
     )
-    if token := os.environ.get("MCP_TOKEN"):
-        app = BearerToken(app, token)
+    app = OAuthResource(
+        app,
+        resource=os.environ.get("MCP_RESOURCE_URL", "http://localhost:8081/mcp"),
+        authorization_server=os.environ.get("OIDC_ISSUER", "http://localhost:8180/realms/platform"),
+    )
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8081")))

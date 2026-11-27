@@ -66,11 +66,11 @@ The portal (Backstage) is no longer only for people. It is where humans and agen
 | | Humans | AI agents |
 |---|---|---|
 | **Context** | Catalog: who owns what, which environments exist, who asked for them (human or agent), who approved them, what they cost, live Kubernetes status | The same catalog, live status, search and team usage, as MCP tools ([Backstage MCP actions](https://backstage.io/docs/ai/mcp-actions)), read-only |
-| **Action** | Software Templates on top of the Golden Paths | The platform MCP server, with the agent identity, so the agent guardrails apply |
+| **Action** | Software Templates, `platformctl` or the platform API, on top of the Golden Paths | The platform MCP server, signed in with Keycloak for a person: the agent has that person's teams and the agent guardrails apply |
 | **Rules** | Guardrails as code (Kyverno) | The same guardrails, plus a catalog of AI resources: the rules agents follow, the skills that teach them to use the platform, and the MCP servers they can use |
 | **Decisions** | Approve or reject what agents cannot do alone, signed in with their own identity | Never: agents cannot approve their own requests |
 
-Every request is stamped with an identity the requester cannot forge: the agent identity (platform MCP server), the portal acting on behalf of a signed-in person, or the console recording who approved what.
+Every request is stamped with an identity the requester cannot forge, taken from a Keycloak token: which agent, on behalf of which person, and their teams. The platform API authorizes it first (team scope on reads and writes) and Kyverno checks it again; the console records who approved what.
 
 ### Engineering standards, for humans and agents
 
@@ -194,9 +194,9 @@ The repository is organized by logical platform architecture. See [architecture 
 
 ```text
 platform/
-  access/                     # Channels: Backstage portal, MCP servers, platformctl CLI
+  access/                     # Channels (Backstage portal, MCP servers, platformctl CLI) and identity (Keycloak)
   capabilities/
-    api/                      # Platform API: code Golden Paths, capability proposals
+    api/                      # Platform API: every capability, authenticated and authorized
     golden-paths/             # Spring and Angular templates
     infrastructure/           # Ephemeral environments, PostgreSQL
     delivery/                 # Gitea / Argo CD
@@ -273,8 +273,9 @@ make down            # remove everything
 |---|---|
 | Developer portal (Backstage) | <http://localhost:7007> |
 | Platform console (dashboard and approvals) | <http://localhost:8080> |
-| Platform MCP server, for agents (actions) | `http://localhost:8081/mcp` |
-| Platform API, for the portal, the MCP server and [`platformctl`](platform/access/cli/README.md) | `http://localhost:8083` (token `platform-api-local-demo`) |
+| Platform MCP server, for agents (actions, OAuth sign-in) | `http://localhost:8081/mcp` |
+| Platform API, for the portal, the MCP server and [`platformctl`](platform/access/cli/README.md) | `http://localhost:8083` (Keycloak tokens: `platformctl.py login`) |
+| Identity (Keycloak): people, teams and agents | <http://localhost:8180> (sample people `ana`, `marta`, `luis`, password `demo`; [details](platform/access/identity/README.md)) |
 | Portal MCP server, for agents (context, read-only) | `http://localhost:7007/api/mcp-actions/v1/context` |
 | Git server with the repositories the Golden Paths create | <http://localhost:3000> (to sign in as `platform-admin`: `kubectl -n platform-system get secret gitea-admin -o jsonpath='{.data.password}' \| base64 -d`) |
 | Metrics in Prometheus format | <http://localhost:8080/metrics> |
@@ -285,7 +286,9 @@ To connect a real agent, see [Claude Code, Codex and Gemini CLI setup](platform/
 
 To show the portal with the logo, title and texts of your company or a client, copy [`platform/access/portal/branding/`](platform/access/portal/branding), change it and run `BRANDING_DIR=<that folder> make up`. No code changes, and only the last layer of the portal image is rebuilt.
 
-> **Local demo only.** On a laptop the platform MCP server has no authentication (on AWS it requires a token), the portal signs everyone in as a guest (mapped to the sample user Ana), and agents reach the portal MCP server with a fixed token. All of this is fine on a laptop and is replaced by real identity (Keycloak, and OAuth for MCP clients) in the *Optimize* milestone.
+**Agents with identity.** Agents sign in with Keycloak (OAuth) on behalf of a person, and the platform API authorizes every operation, read or write, with that person's teams; Kyverno checks it again for what reaches Kubernetes. See [identity and access](docs/identity-and-access.md).
+
+> **Local demo only.** The sample people have the password `demo`, the portal still signs everyone in as a guest (mapped to Ana) until increment B of [identity and access](docs/identity-and-access.md), and agents reach the portal MCP server with a fixed token.
 
 ### Run it on AWS
 
@@ -325,7 +328,7 @@ Only your public IP can reach it. See [deploy/aws](deploy/aws/README.md) for the
 - [ ] **GitOps:** Argo CD for the platform itself
 - [ ] **Assess:** pulse check, DevEx survey and baseline scripts
 - [ ] **AWS:** the platform on EKS with OpenTofu (done); next, login with Keycloak, and RDS and EKS compositions
-- [ ] **Optimize:** agent identities, AI gateway, agent-ready and LLM-powered service Golden Paths, AI metrics dashboard
+- [ ] **Optimize:** agent identities (done: Keycloak, OAuth for MCP clients, team scope; people in the portal pending), AI gateway, agent-ready and LLM-powered service Golden Paths, AI metrics dashboard
 - [ ] **Run:** tests for compositions and policies, automated upgrades, SLOs, runbooks and playbook
 - [ ] Other clouds as overlays
 

@@ -1,0 +1,58 @@
+# What the platform API sends for Marta's agent: requester-teams comes from
+# her Keycloak groups.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: checkout-pr-1
+  annotations:
+    platform.starterkit.dev/agent: claude-code
+    platform.starterkit.dev/on-behalf-of: marta
+    platform.starterkit.dev/requester-teams: checkout
+spec:
+  team: checkout
+  size: small
+  ttlHours: 8
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: payments-pr-1
+  annotations:
+    platform.starterkit.dev/agent: claude-code
+    platform.starterkit.dev/on-behalf-of: marta
+    platform.starterkit.dev/requester-teams: checkout
+spec:
+  team: payments
+  size: small
+  ttlHours: 8
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: no-teams
+  annotations:
+    platform.starterkit.dev/agent: claude-code
+spec:
+  team: checkout
+  size: small
+  ttlHours: 8
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: orders-db
+  namespace: env-checkout-dev
+  annotations:
+    platform.starterkit.dev/requester-teams: checkout
+spec:
+  size: small
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: payments-db
+  namespace: env-payments-dev
+  annotations:
+    platform.starterkit.dev/requester-teams: checkout
+spec:
+  size: small

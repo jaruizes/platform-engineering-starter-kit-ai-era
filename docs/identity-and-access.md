@@ -1,6 +1,6 @@
 # Identity and access for humans and agents
 
-> **Status: design.** This document describes how authentication and authorization work for people and AI agents in the starter kit. The [current state](#1-current-state) section describes what the repository does today. Everything after it is the **target design** for the *Identity & access* component of the *Optimize* milestone, and is not implemented yet. The [implementation plan](#10-implementation-plan) says what comes first.
+> **Status: increments 0 and A are implemented; B is pending.** This document describes how authentication and authorization work for people and AI agents in the starter kit. The [current state](#1-current-state) section describes the starting point before increment 0. The rest is the design of the *Identity & access* component of the *Optimize* milestone; [what was built](#what-increment-a-built) and the [implementation plan](#10-implementation-plan) say which parts are in the repository.
 
 The platform answers three questions for every request, whoever sends it and through whichever channel:
 
@@ -88,7 +88,7 @@ What is missing in identity:
 | `team` is a free parameter | `request_environment(team=...)` and portal forms | Anyone, human or agent, can request resources for, and charge cost to, any team |
 | Platform MCP authentication is none (local) or one shared static token (AWS) | `BearerToken`, `MCP_TOKEN` | No per-agent or per-person revocation |
 | The portal signs everyone in as the guest Ana | [`app-config.yaml`](../platform/access/portal/app-config.yaml), `signIn` module | The approver is always Ana |
-| The console accepts the approver name from the request body | [`console.py`](../platform/access/mcp/platform_mcp/console.py), `decide()` | An approval can be recorded under someone else's name |
+| The console accepts the approver name from the request body | [`console.py`](../platform/capabilities/api/platform_api/console.py), `decide()` | An approval can be recorded under someone else's name |
 | No roles | — | Anyone can approve any request; no segregation of duties |
 
 ### 1.2 Authorization outside Kubernetes admission
@@ -107,7 +107,7 @@ Kyverno only sees what is **created or updated** in the Kubernetes API. Many pla
 
 ### 1.3 Coupling to Backstage
 
-Infrastructure Golden Paths are channel-independent: their API is Crossplane, and the portal and the MCP server both call it. **Code Golden Paths are not.** The skeletons live in [`platform/capabilities/golden-paths/`](../platform/capabilities/golden-paths), but they are executed by the Backstage scaffolder (`fetch:template` and `publish:gitea`). The platform MCP server runs them through the scaffolder API ([`portal.py`](../platform/access/mcp/platform_mcp/portal.py)).
+Infrastructure Golden Paths are channel-independent: their API is Crossplane, and the portal and the MCP server both call it. **Code Golden Paths are not.** The skeletons live in [`platform/capabilities/golden-paths/`](../platform/capabilities/golden-paths), but they are executed by the Backstage scaffolder (`fetch:template` and `publish:gitea`). The platform MCP server ran them through the scaffolder API (`portal.py`, removed in increment 0).
 
 | Capability | Works without Backstage? |
 |---|---|
@@ -205,7 +205,7 @@ Four trust boundaries, each with one job:
 
 ## 3. Platform API
 
-The platform API is the channel-independent core. It owns what today is spread between the MCP server package ([`platform.py`](../platform/access/mcp/platform_mcp/platform.py), [`delivery.py`](../platform/access/mcp/platform_mcp/delivery.py), [`quality.py`](../platform/access/mcp/platform_mcp/quality.py)), the console and the Backstage scaffolder actions.
+The platform API is the channel-independent core. It owns what used to be spread between the MCP server package, the console and the Backstage scaffolder actions: today [`cluster.py`](../platform/capabilities/api/platform_api/cluster.py), [`delivery.py`](../platform/capabilities/api/platform_api/delivery.py), [`quality.py`](../platform/capabilities/api/platform_api/quality.py) and [`golden_paths.py`](../platform/capabilities/api/platform_api/golden_paths.py) in the platform API.
 
 | Responsibility | What it does |
 |---|---|
@@ -232,9 +232,26 @@ What increment 0 built, and what it left for later:
 |---|---|---|
 | Code Golden Paths | In the platform API. Each Golden Path has a channel-neutral `golden-path.yaml` (parameters, values, repository); the Backstage `template.yaml` is only the form, with one step `platform:golden-path:create` | — |
 | Capability proposals | In the platform API (`platform:capability:propose` calls it) | — |
-| Channels | Portal, MCP server and `platformctl` call the API with a shared token (`PLATFORM_API_TOKEN`) and state the requester | Keycloak tokens (increment A) |
-| Environments, deployment, approvals, reads | Still in the MCP server package and the console, which work without Backstage | Move into the API with authorization (increment A) |
-| Delete rule | Kyverno `agent-deletes` and the same check in `delete_environment` | Team scope (increment A) |
+| Channels | Portal, MCP server and `platformctl` call the API with a shared token (`PLATFORM_API_TOKEN`) and state the requester | Keycloak tokens (done in increment A, except the portal: increment B) |
+| Environments, deployment, approvals, reads | Still in the MCP server package and the console, which work without Backstage | Moved into the API with authorization (increment A) |
+| Delete rule | Kyverno `agent-deletes` and the same check in `delete_environment` | Same person and team scope (increment A) |
+
+### What increment A built
+
+| Part | Where | What it does |
+|---|---|---|
+| Keycloak | [`platform/access/identity/`](../platform/access/identity/README.md) | Realm `platform`: teams as groups, roles, Ana, Marta and Luis, one client per agent type (`claude-code`, `gemini-cli`, `codex`), `platformctl` for people, and the autonomous agents `ci-agent` (checkout) and `capability-tests`. Deployed by `make up` (port 8180) and `make aws-up` |
+| Authentication | [`identity.py`](../platform/capabilities/api/platform_api/identity.py) | The platform API validates every token (JWKS, issuer, audience `platform`, expiry) and builds the identity: person, agent for a person, or autonomous agent; with the `act` chain when there is one |
+| Authorization | [`authorization.py`](../platform/capabilities/api/platform_api/authorization.py) | Team scope on reads and writes, delete rule, proposals only by people of platform-team. Every operation of the API, including the ones moved from the MCP server: environments, deploy, capabilities, delivery and quality status, approval status |
+| MCP server | [`mcp_server.py`](../platform/access/mcp/platform_mcp/mcp_server.py) | OAuth 2.1 resource server: `401` with the protected resource metadata, then forwards the agent's token to the platform API. No Kubernetes access and no decisions of its own; new `whoami` tool |
+| Kubernetes identity | [`05-identities.yaml`](../platform/capabilities/api/deploy/05-identities.yaml) | The platform API acts as itself for people and impersonates the agents' identity (`platform-mcp`) for agents, so every existing agent guardrail, including the ones generated for capabilities, keeps applying. Only the platform API may impersonate it |
+| Kyverno | [`40-team-membership.yaml`](../platform/governance/policies/40-team-membership.yaml), [`30-agent-guardrails.yaml`](../platform/governance/policies/30-agent-guardrails.yaml), [`10-identify-requester.yaml`](../platform/governance/policies/10-identify-requester.yaml) | `team-membership` on create and delete, `agent-deletes` for the same person, `protect-audit-trail` for the new annotations, requester taken from the platform API. Tests in [`tests/`](../platform/governance/policies/tests), run with `make policies` and in CI |
+| Channels | [`platformctl`](../platform/access/cli/README.md), [client adapters](../platform/ai/agent-tooling/README.md), [`make demo-agent`](../platform/access/mcp/platform_mcp/simulate_agent.py) | `platformctl login` (device flow); Claude Code and Gemini CLI sign in with OAuth; Codex with a token from `platformctl login --client codex`; the scripted agent is `ci-agent` with client credentials |
+
+Two choices made while building it:
+
+- **Deletes in Kyverno.** A Kubernetes delete carries no annotations, so just before deleting the platform API records `deleted-by`, `deleted-on-behalf-of` and `deleter-teams` on the resource. `team-membership` and `agent-deletes` check them, and `protect-audit-trail` lets only the platform API set them.
+- **The portal until increment B.** The portal still signs people in as a guest. It calls the platform API with the channel token and states the signed-in person and their catalog teams; that path never identifies an agent. Its own requests to Kubernetes (capability request forms, approvals in the AI Platform page) are not yet checked by `team-membership`.
 
 ---
 
@@ -373,7 +390,7 @@ How the rules are evaluated is an implementation choice: plain code with tests f
 | Operation | First line (platform API) | Second line (Kyverno) |
 |---|---|---|
 | `request_environment`, `deploy_service`, `request_capability` | Team scope, agent guardrails | `identify-requester`, `team-membership`, `cost-guardrails`, `agent-guardrails`, `protect-audit-trail` |
-| `delete_environment` | Team scope, delete rule | New: `DELETE` added to `team-membership` |
+| `delete_environment` | Team scope, delete rule | `team-membership` and `agent-deletes` on `DELETE` |
 | `create_service`, `create_angular_app`, `create_api_mcp_adapter` | Team scope, agent guardrails, then the Git provider | The delivered `SpringService`/`App`, as today |
 | Approve or reject | Approval rule | `protect-audit-trail` on the final create |
 | Propose a capability | Proposal rule | — (a pull request, reviewed by a person) |
@@ -385,7 +402,7 @@ How the rules are evaluated is an implementation choice: plain code with tests f
 | Policy | Rule | Status |
 |---|---|---|
 | `identify-requester` | Stamps `requested-by` and `requester-type` from the authenticated identity | Exists; reads the identity annotations set by the platform API |
-| `team-membership` | Owner team in `requester-teams`, on create, update and delete | **New** |
+| `team-membership` | Owner team in `requester-teams` on create, and in `deleter-teams` on delete | Done (increment A) |
 | `cost-guardrails` | TTL at most 72 hours, at most 3 active environments per team | Exists |
 | `agent-guardrails` | Small environments only, deploy only into `env-*`, never self-approve | Exists |
 | `protect-audit-trail` | Only the platform API sets `agent`, `on-behalf-of`, `requester-teams`, `agent-chain` and `approved-by`; nothing changes after creation | Exists; extended with the new annotations |
@@ -488,7 +505,7 @@ The scenarios use the sample organization of the demo: **Ana** (`platform-team`,
 | 8 | A client sends `on-behalf-of` or `approved-by` in its own request | MCP or direct | Any | Ignored (identity comes from the token) and **denied** by `protect-audit-trail` if it reaches Kubernetes | — |
 | 9 | Marta's agent lists environments | MCP | `sub=marta` | Only checkout environments are returned | — |
 | 10 | Marta's agent reads the quality status of a payments service | MCP | `sub=marta` | **Denied** by team scope, although it is not a Kubernetes resource | Denied, actor `claude-code` for `marta` |
-| 11 | Marta's agent deletes a payments environment | MCP | `sub=marta` | **Denied** by the platform API, and by Kyverno if it gets that far. Since increment 0, agents can only delete environments that an agent requested; team scope arrives with increment A | Denied |
+| 11 | Marta's agent deletes a payments environment | MCP | `sub=marta` | **Denied** by the platform API (team scope, and agents only delete what an agent requested for Marta), and by Kyverno (`team-membership`, `agent-deletes`) if it gets that far | Denied |
 | 12 | Zero-UI: Backstage is not deployed and Marta's agent creates a Spring service | MCP | `sub=marta` | Created: the platform API renders the skeleton and creates the repository. It appears in the catalog when a portal is added | requested-by `claude-code`, on-behalf-of `marta` |
 | 13 | Nightly `ci-agent` (owner team checkout) cleans and recreates an environment | MCP | Client credentials, `azp=ci-agent`, owner `checkout` | Created, only for checkout | requested-by `ci-agent`, type `agent`, no person |
 | 14 | Coordinator with three subagents implements a spec for Marta | MCP | Exchanged tokens, `sub=marta`, `act` chain | Each subagent limited to Marta's teams and the agent guardrails | agent-chain `tests > agent-platform`, on-behalf-of `marta` |
@@ -563,13 +580,13 @@ The zero-UI story (scenario 12) can close the demo: the same capabilities with t
 
 ## 10. Implementation plan
 
-Three increments, each usable on its own. **Increment 0 is implemented**; A and B are pending.
+Three increments, each usable on its own. **Increments 0 and A are implemented**; B is pending.
 
 | Increment | Scope | Repository areas | Estimate |
 |---|---|---|---|
 | **0. Platform API, channel-independent** (done) | Extract the core from the MCP server package into a platform API; render code Golden Paths and create repositories without the Backstage scaffolder; move capability proposals and approvals into it; MCP server and console become adapters; Backstage templates call the API. Prerequisite for authorization in one place and for zero-UI | New `platform/capabilities/api/`, `platform/access/mcp/`, `platform/access/portal/plugins/`, Golden Path templates | 4–6 days |
-| **A. Agents with identity** | Keycloak with the demo realm (local and AWS); OAuth resource server on the platform MCP server; token validation and the authorization model in the platform API (team scope on reads and writes, delete rule); `team-membership` Kyverno policy with tests; new annotations; `ci-agent` for `make demo-agent` | New `platform/access/identity/` (Keycloak deployment and realm export), `platform/capabilities/api/`, `platform/governance/policies/`, `deploy/install.sh`, `deploy/local`, `deploy/aws`, `.mcp.json` and client adapters | 6–8 days |
-| **B. People with identity** | Backstage OIDC sign-in, forwarding the person's token; approval rules (role and four eyes); read-only console; catalog card and AI Platform page with *on behalf of*; documentation and demo script | `platform/access/portal/`, `platform/access/mcp/platform_mcp/console.py`, `examples/scenarios/`, `README.md` | About 4 days |
+| **A. Agents with identity** (done) | Keycloak with the demo realm (local and AWS); OAuth resource server on the platform MCP server; token validation and the authorization model in the platform API (team scope on reads and writes, delete rule); `team-membership` Kyverno policy with tests; new annotations; `ci-agent` for `make demo-agent` | New `platform/access/identity/` (Keycloak deployment and realm export), `platform/capabilities/api/`, `platform/governance/policies/`, `deploy/install.sh`, `deploy/local`, `deploy/aws`, `.mcp.json` and client adapters | 6–8 days |
+| **B. People with identity** | Backstage OIDC sign-in, forwarding the person's token; approval rules (role and four eyes); read-only console; catalog card and AI Platform page with *on behalf of*; documentation and demo script | `platform/access/portal/`, `platform/capabilities/api/platform_api/console.py`, `examples/scenarios/`, `README.md` | About 4 days |
 
 The estimates are for one person working with an agent, without a prototype.
 
@@ -577,7 +594,7 @@ Out of scope for this component's MVP:
 
 - Secrets management (Vault, External Secrets).
 - Token exchange towards other systems, for example creating the Git repository as Marta instead of a platform account.
-- Kubernetes impersonation, so that the platform API acts in the Kubernetes API as the person, with RBAC per team namespace.
+- Kubernetes impersonation of the person, so that the platform API acts in the Kubernetes API as Marta, with RBAC per team namespace. (Increment A only impersonates the shared agents' identity, so Kyverno knows it is an agent.)
 - Roles per environment beyond ephemeral environments (the demo has no permanent environments).
 - Organization sync from Keycloak into the catalog.
 - OAuth and team scope on the portal MCP server.
@@ -592,7 +609,8 @@ Checks to keep green: `python3 deploy/check-repository.py`, `make test`, the Kyv
 - ~~**Git provider without the portal.**~~ Solved in increment 0: Gitea is always installed.
 - ~~**Template format.**~~ Solved in increment 0: the platform API renders the same `${{ }}` skeletons with a sandboxed Jinja2 environment, and the output is identical to the scaffolder's.
 - **`act` claim in Keycloak.** Standard token exchange is available in recent Keycloak versions (26.2 and later). Whether it emits the `act` claim for delegation has to be validated with the version used. If it does not, the agent platform can pass the chain and the platform API records it, with less assurance.
-- **Client registration.** Pre-created clients per agent type (proposed) or dynamic client registration. To be validated with the Claude Code version used in the demo.
+- **Client registration.** Increment A pre-creates one client per agent type (`claude-code` with callback port 33418, `gemini-cli`, `codex`). To be validated on a live run with the client versions used in the demo; dynamic client registration stays an option.
+- **Codex and OAuth.** Codex sends a token from `PLATFORM_TOKEN` (`platformctl login --client codex`, 1-hour tokens) because it is not configured with a pre-registered OAuth client. When it supports one, it signs in like Claude Code.
 - **Issuer and hostnames.** The browser and the cluster must see the same Keycloak issuer URL (locally `localhost`, on AWS the load balancer with the demo CA), or tokens will not validate.
 - **Four eyes always or configurable.** Proposed: enabled in the demo, configurable in the kit.
 - **Immediate revocation.** Short-lived tokens give revocation within minutes. Token introspection in the platform API would make it immediate at the cost of one call to Keycloak per request.

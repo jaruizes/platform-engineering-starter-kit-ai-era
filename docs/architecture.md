@@ -4,7 +4,7 @@ The source tree follows the [Platform Engineering 2.0 logical architecture](../R
 
 | Layer | Source | Responsibility |
 |---|---|---|
-| Access & Experience | `platform/access/portal`, `platform/access/mcp`, `platform/access/cli` | Channels: Backstage experience, platform/portal MCP contracts and the `platformctl` CLI. They hold no capability logic |
+| Access & Experience | `platform/access/portal`, `platform/access/mcp`, `platform/access/cli`, `platform/access/identity` | Channels: Backstage experience, platform/portal MCP contracts and the `platformctl` CLI, which hold no capability logic; and identity (Keycloak), which tells the platform who people and agents are |
 | Core Engineering | `platform/capabilities` | Platform API (`platform/capabilities/api`), Golden Paths, infrastructure self-service, quality and delivery |
 | AI & Agent | `platform/ai/agent-tooling` | Agent clients, shared instructions and skills; externally managed agent execution |
 | Cognitive & Knowledge | `platform/cognitive/knowledge/standards` | Versioned engineering standards, architecture context and TechDocs |

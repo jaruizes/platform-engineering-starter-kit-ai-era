@@ -49,6 +49,28 @@ def _sonar_snapshot(service: str) -> dict | None:
     }
 
 
+def owner_team(service: str) -> str | None:
+    """The owner team of a service repository, from its catalog-info.yaml (None if there is none)."""
+    if not SERVICE.fullmatch(service):
+        raise ValueError("service must be a lowercase repository name")
+    import yaml
+
+    base = os.getenv("QUALITY_GIT_URL", "http://gitea.platform-system.svc:3000").rstrip("/")
+    try:
+        with urlopen(f"{base}/platform/{service}/raw/branch/main/catalog-info.yaml", timeout=5) as response:
+            documents = list(yaml.safe_load_all(response.read()))
+    except HTTPError as error:
+        if error.code == 404:
+            return None
+        raise RuntimeError(f"The service repository could not be read (HTTP {error.code})") from error
+    except (URLError, TimeoutError, yaml.YAMLError) as error:
+        raise RuntimeError(f"The service repository could not be read: {error}") from error
+    for document in documents:
+        if isinstance(document, dict) and document.get("kind") == "Component":
+            return str((document.get("spec") or {}).get("owner", "")).split("/")[-1] or None
+    return None
+
+
 def quality_status(service: str) -> dict:
     if not SERVICE.fullmatch(service):
         raise ValueError("service must be a lowercase repository name")

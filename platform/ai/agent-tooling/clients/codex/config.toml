@@ -1,6 +1,10 @@
-# Local demo endpoints. For AWS, set the public URLs and bearer credentials.
+# Local demo endpoints. For AWS, set the public URLs printed by make aws-up.
+# The platform server needs a token of the codex client, for the person
+# who signs in:  platform/access/cli/platformctl.py login --client codex
+#                export PLATFORM_TOKEN="$(platform/access/cli/platformctl.py token --client codex)"
 [mcp_servers.platform]
 url = "http://localhost:8081/mcp"
+bearer_token_env_var = "PLATFORM_TOKEN"
 
 [mcp_servers.portal]
 url = "http://localhost:7007/api/mcp-actions/v1/context"

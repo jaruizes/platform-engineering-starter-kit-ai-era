@@ -1,7 +1,17 @@
 {
   "mcpServers": {
     "platform": {
-      "httpUrl": "http://localhost:8081/mcp"
+      "httpUrl": "http://localhost:8081/mcp",
+      "oauth": {
+        "enabled": true,
+        "clientId": "gemini-cli",
+        "authorizationUrl": "http://localhost:8180/realms/platform/protocol/openid-connect/auth",
+        "tokenUrl": "http://localhost:8180/realms/platform/protocol/openid-connect/token",
+        "scopes": [
+          "openid",
+          "profile"
+        ]
+      }
     },
     "portal": {
       "httpUrl": "http://localhost:7007/api/mcp-actions/v1/context",

@@ -13,15 +13,17 @@ make demo-reset    # before every demo: clean state
 
 Open the portal at <http://localhost:7007>, click **Enter** (you are Ana, from the platform team) and keep it visible during the whole demo. The lighter console at <http://localhost:8080> shows the same approvals and metrics.
 
-To use a real coding agent, connect it to the two MCP servers: `platform` (`http://localhost:8081/mcp`) to act, and `portal` (`http://localhost:7007/api/mcp-actions/v1/context`, with the header `Authorization: Bearer platform-starter-kit-local-demo`) to read context. This repository already includes a `.mcp.json` and two skills ([platform Golden Paths](../../platform/ai/agent-tooling/skills/platform-golden-paths/SKILL.md) and [Spring services](../../platform/ai/agent-tooling/skills/spring-service/SKILL.md)), so [Claude Code](https://claude.com/claude-code) opened in this folder offers both servers and knows how to use the platform. For any other agent:
+To use a real coding agent, connect it to the two MCP servers: `platform` (`http://localhost:8081/mcp`) to act, signing in with Keycloak, and `portal` (`http://localhost:7007/api/mcp-actions/v1/context`, with the header `Authorization: Bearer platform-starter-kit-local-demo`) to read context. This repository already includes a `.mcp.json` and two skills ([platform Golden Paths](../../platform/ai/agent-tooling/skills/platform-golden-paths/SKILL.md) and [Spring services](../../platform/ai/agent-tooling/skills/spring-service/SKILL.md)), so [Claude Code](https://claude.com/claude-code) opened in this folder offers both servers and knows how to use the platform. For any other agent:
 
 ```bash
-claude mcp add --transport http platform http://localhost:8081/mcp
+claude mcp add --transport http --client-id claude-code --callback-port 33418 platform http://localhost:8081/mcp
 claude mcp add --transport http portal http://localhost:7007/api/mcp-actions/v1/context \
   --header "Authorization: Bearer platform-starter-kit-local-demo"
 ```
 
-No agent at hand, or no network? `make demo-agent` runs a scripted agent that makes the same calls.
+The first time the agent uses the `platform` server, the browser opens the Keycloak sign-in: sign in as **marta** (team checkout, password `demo`). From then on the agent acts for Marta, with her teams and nothing more, and the platform records both (`/mcp` in Claude Code shows the connection). Gemini CLI signs in the same way; Codex uses a token from `platform/access/cli/platformctl.py login --client codex` (see [platformctl](../../platform/access/cli/README.md)).
+
+No agent at hand, or no network? `make demo-agent` runs a scripted agent that makes the same calls. It is `ci-agent`, an autonomous agent of team checkout with its own client credentials, so it needs no sign-in.
 
 ## Act 1: the developer (Platform Engineering 1.0)
 
@@ -46,23 +48,27 @@ Ask the agent, in plain language:
 2. **"I need an environment to test the new discount rules for the checkout team, and deploy the checkout service there."**
    - *Context:* the agent asks the portal how many environments the checkout team has and what they cost, before asking for a new one.
    - *Request:* the agent calls the platform MCP server.
-   - *Identify:* the platform knows it is an agent, which one, and for which team (see the console).
+   - *Identify:* the platform knows it is an agent, which one (Claude Code), for whom (Marta) and which teams she is in, from the Keycloak token, not from what the agent says (see the console and the annotations of the environment).
    - *Golden Path:* the same template the developer used, not ad-hoc infrastructure.
    - *Observe:* the environment and the service appear in the portal catalog, tagged as requested by an agent, charged to the checkout team.
-3. **"Now I need a large environment for a load test, for 24 hours."**
+3. **"And another one for the payments team."**
+   - *Team scope:* denied. The agent has Marta's teams and nothing more: no escalation. The platform API refuses it, and Kyverno (`team-membership`) would refuse it too if it got that far. The denial is in the audit trail with the agent and Marta.
+4. **"Now I need a large environment for a load test, for 24 hours."**
    - *Guardrails:* the policy stops it. Agents only get small environments on their own.
    - The request goes to a human: it appears in the portal's **AI Platform** page under **Agent requests waiting for a human decision**. The agent tells the user and gives the approval id.
    - Approve it in the portal. You do not type your name: the portal knows who you are. The environment is created with the agent as requester and Ana as approver.
-4. **"And one that stays for two weeks."**
+5. **"And one that stays for two weeks."**
    - Stopped by the cost guardrail that applies to everyone, humans included: environments live at most 72 hours. Approval cannot bypass it.
 
-5. **"Implement the spec examples/scenarios/example/specs/loyalty-points.md and deploy it in that environment."**
+6. **"Implement the spec examples/scenarios/example/specs/loyalty-points.md and deploy it in that environment."**
    - *Golden Path:* the agent calls `create_service` with the environment: a repository from the Spring service template, with its pipeline and its `deploy/` folder (the `SpringService` and its PostgreSQL database).
    - *Delivery:* the agent implements the spec and pushes to `main`. The pipeline (Gitea Actions) runs the tests and the architecture rules, builds the image with Jib and writes it into `deploy/spring-service.yaml`; Argo CD applies `deploy/` to the environment ([localhost:8082](http://localhost:8082)).
    - *Guardrails:* Argo CD deploys with its own identity, but the platform still knows the agent asked for it, so the agent guardrails apply too.
    - *Observe:* the agent follows `get_service_status` (pipeline, Argo CD and pods, with the logs if it does not start) until it is ready, and gives you the `kubectl port-forward` and `curl` to try it.
 
-With the scripted agent, `make demo-agent` runs steps 1 to 4 in one go; then approve the load test in the portal.
+With the scripted agent, `make demo-agent` runs steps 1 to 5 in one go as `ci-agent` (team checkout); then approve the load test in the portal.
+
+**Kill switch (optional):** in the Keycloak console (<http://localhost:8180/admin>, user `admin`), disable the `claude-code` client or sign Marta out. Within five minutes the agent's next call gets a 401 and the platform stops it, with nothing to change in the platform.
 
 **The contrast to tell:** without a platform, the agent writes its own infrastructure code, with its own credentials, outside any standard. Nobody knows what was created, by whom, or how much it costs.
 

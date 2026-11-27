@@ -24,6 +24,8 @@ ports:
     nodeFilters: [loadbalancer]
   - port: 8083:30083
     nodeFilters: [loadbalancer]
+  - port: 8180:30180
+    nodeFilters: [loadbalancer]
 options:
   k3s:
     extraArgs:

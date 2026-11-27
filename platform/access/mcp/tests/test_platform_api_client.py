@@ -24,13 +24,12 @@ def test_runs_code_golden_paths_in_the_platform_api(monkeypatch):
         return Response(json.dumps({"status": "created", "repository": "http://git/platform/orders"}).encode())
 
     monkeypatch.setattr(api.urllib.request, "urlopen", urlopen)
-    monkeypatch.setenv("PLATFORM_API_TOKEN", "s3cret")
-    result = api.create_repository("spring-service", {"name": "orders"}, "agent:claude-code")
+    result = api.create_repository("agent-token", "spring-service", {"name": "orders"})
     assert result["status"] == "created"
     request = sent[0]
     assert request.full_url.endswith("/v1/golden-paths/spring-service/repositories")
-    assert request.get_header("Authorization") == "Bearer s3cret"
-    assert json.loads(request.data) == {"parameters": {"name": "orders"}, "requester": "agent:claude-code"}
+    assert request.get_header("Authorization") == "Bearer agent-token"
+    assert json.loads(request.data) == {"parameters": {"name": "orders"}}
 
 
 def test_reports_why_the_platform_refused(monkeypatch):
@@ -39,8 +38,9 @@ def test_reports_why_the_platform_refused(monkeypatch):
                                      io.BytesIO(b'{"error": "Environment \'x\' does not exist. Request it first."}'))
 
     monkeypatch.setattr(api.urllib.request, "urlopen", urlopen)
-    with pytest.raises(api.RequestFailed, match="does not exist"):
-        api.create_repository("spring-service", {}, "agent:claude-code")
+    with pytest.raises(api.RequestFailed, match="does not exist") as failed:
+        api.create_repository("t", "spring-service", {})
+    assert failed.value.status == 422
 
 
 def test_says_when_the_platform_api_is_not_reachable(monkeypatch):
@@ -49,7 +49,7 @@ def test_says_when_the_platform_api_is_not_reachable(monkeypatch):
 
     monkeypatch.setattr(api.urllib.request, "urlopen", urlopen)
     with pytest.raises(api.RequestFailed, match="not reachable"):
-        api.create_repository("spring-service", {}, "agent:claude-code")
+        api.create_repository("t", "spring-service", {})
 
 
 def test_clone_url_carries_the_push_account(monkeypatch):

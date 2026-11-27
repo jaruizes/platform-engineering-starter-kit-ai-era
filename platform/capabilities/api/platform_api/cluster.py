@@ -1,9 +1,11 @@
-"""Access to the platform API (Crossplane composite resources) shared by the
-MCP server and the console.
+"""The platform's resources in Kubernetes (Crossplane composite resources),
+approvals and audit trail, for the platform API and the console.
 
-Every request goes through the Kubernetes API with the identity of the
-process that makes it, so the same guardrails (Kyverno policies) apply to
-agents and humans.
+The platform API authorizes every operation first (authorization.py). Then
+it acts in Kubernetes as itself for people, and as the agents' identity
+(the platform-mcp service account, by impersonation) for agents, so that
+Kyverno applies the agent guardrails as a second line. The identity of the
+person and the agent travels in the platform.starterkit.dev annotations.
 """
 
 from __future__ import annotations
@@ -23,6 +25,9 @@ VERSION = "v1alpha1"
 PREFIX = "platform.starterkit.dev"
 NAMESPACE = os.environ.get("PLATFORM_NAMESPACE", "platform-system")
 APPROVAL_LABEL = f"{PREFIX}/approval-request"
+# How agents appear in the Kubernetes API. Only the platform API may act as
+# it (RBAC: impersonate), so Kyverno can trust what it carries.
+AGENT_IDENTITY = os.environ.get("AGENT_IDENTITY", "system:serviceaccount:platform-system:platform-mcp")
 
 HUMAN_APPROVAL_MARKER = "Human approval required"
 
@@ -63,8 +68,18 @@ def is_policy_denial(err: ApiException) -> bool:
     return err.status in (400, 403, 422) and "admission webhook" in (err.body or "")
 
 
-def _custom() -> client.CustomObjectsApi:
-    return client.CustomObjectsApi()
+_agent_client: client.ApiClient | None = None
+
+
+def _custom(as_agent: bool = False) -> client.CustomObjectsApi:
+    """The Kubernetes API as the platform, or as the agents' identity."""
+    global _agent_client
+    if not as_agent:
+        return client.CustomObjectsApi()
+    if _agent_client is None:
+        _agent_client = client.ApiClient()
+        _agent_client.set_default_header("Impersonate-User", AGENT_IDENTITY)
+    return client.CustomObjectsApi(_agent_client)
 
 
 def _core() -> client.CoreV1Api:
@@ -190,28 +205,15 @@ SIZES = {"small", "medium", "large"}
 
 
 def environment_manifest(
-    team: str, name: str, purpose: str, size: str, ttl_hours: int, agent: str | None
+    team: str, name: str, purpose: str, size: str, ttl_hours: int, identity: dict[str, str]
 ) -> dict[str, Any]:
-    annotations = {f"{PREFIX}/purpose": purpose}
-    if agent:
-        annotations[f"{PREFIX}/agent"] = agent
+    annotations = {f"{PREFIX}/purpose": purpose, **identity}
     return {
         "apiVersion": f"{GROUP}/{VERSION}",
         "kind": "Environment",
         "metadata": {"name": name, "annotations": annotations},
         "spec": {"team": team, "purpose": purpose, "size": size, "ttlHours": ttl_hours},
     }
-
-
-def create_environment(manifest: dict[str, Any]) -> dict[str, Any]:
-    try:
-        return _custom().create_cluster_custom_object(GROUP, VERSION, "environments", manifest)
-    except ApiException as err:
-        if is_policy_denial(err):
-            raise Denied(denial_reason(err)) from err
-        if err.status == 409:
-            raise Denied(f"An environment called '{manifest['metadata']['name']}' already exists.") from err
-        raise
 
 
 def get_environment(name: str) -> dict[str, Any] | None:
@@ -227,33 +229,33 @@ def list_environments() -> list[dict[str, Any]]:
     return _custom().list_cluster_custom_object(GROUP, VERSION, "environments")["items"]
 
 
-def delete_environment(name: str) -> None:
+def delete_environment(name: str, deletion: dict[str, str], as_agent: bool) -> None:
+    """Deletes an environment, first recording who deletes it and for which
+    teams, so that Kyverno (team-membership, agent-deletes) can check it."""
+    api = _custom(as_agent)
     try:
-        _custom().delete_cluster_custom_object(GROUP, VERSION, "environments", name)
+        api.patch_cluster_custom_object(GROUP, VERSION, "environments", name,
+                                        {"metadata": {"annotations": deletion}})
+        api.delete_cluster_custom_object(GROUP, VERSION, "environments", name)
     except ApiException as err:
         if is_policy_denial(err):
             raise Denied(denial_reason(err)) from err
+        if err.status == 404:
+            raise Denied(f"There is no environment called '{name}'.") from err
         raise
 
 
-def create_spring_service(namespace: str, name: str, image: str | None, replicas: int, agent: str | None) -> dict[str, Any]:
+def spring_service_manifest(namespace: str, name: str, image: str | None, replicas: int,
+                            identity: dict[str, str]) -> dict[str, Any]:
     spec: dict[str, Any] = {"replicas": replicas}
     if image:
         spec["image"] = image
-    manifest = {
+    return {
         "apiVersion": f"{GROUP}/{VERSION}",
         "kind": "SpringService",
-        "metadata": {"name": name, "annotations": {f"{PREFIX}/agent": agent} if agent else {}},
+        "metadata": {"name": name, "namespace": namespace, "annotations": dict(identity)},
         "spec": spec,
     }
-    try:
-        return _custom().create_namespaced_custom_object(GROUP, VERSION, namespace, "springservices", manifest)
-    except ApiException as err:
-        if is_policy_denial(err):
-            raise Denied(denial_reason(err)) from err
-        if err.status == 409:
-            raise Denied(f"A service called '{name}' already exists in {namespace}.") from err
-        raise
 
 
 def list_spring_services() -> list[dict[str, Any]]:
@@ -278,6 +280,7 @@ def summarize_environment(env: dict[str, Any]) -> dict[str, Any]:
         "requested_by": annotations.get(f"{PREFIX}/requested-by"),
         "requester_type": annotations.get(f"{PREFIX}/requester-type"),
         "approved_by": annotations.get(f"{PREFIX}/approved-by"),
+        "on_behalf_of": annotations.get(f"{PREFIX}/on-behalf-of"),
         "created_at": created.isoformat(),
         "expires_at": (created + timedelta(hours=spec.get("ttlHours", 8))).isoformat(),
     }
@@ -368,22 +371,23 @@ def _plural(kind: str) -> str:
 
 
 def capability_manifest(
-    capability: dict[str, Any], name: str, namespace: str | None, parameters: dict[str, Any], agent: str | None
+    capability: dict[str, Any], name: str, namespace: str | None, parameters: dict[str, Any], identity: dict[str, str]
 ) -> dict[str, Any]:
-    metadata: dict[str, Any] = {"name": name, "annotations": {f"{PREFIX}/agent": agent} if agent else {}}
+    metadata: dict[str, Any] = {"name": name, "annotations": dict(identity)}
     if capability["scope"] == "Namespaced":
         metadata["namespace"] = namespace
     return {"apiVersion": capability["api_version"], "kind": capability["kind"], "metadata": metadata, "spec": parameters}
 
 
-def create_resource(manifest: dict[str, Any]) -> dict[str, Any]:
-    """Creates any Golden Path or capability request, with this process's identity."""
-    plural = _plural(manifest["kind"])
+def create_resource(manifest: dict[str, Any], as_agent: bool = False) -> dict[str, Any]:
+    """Creates any Golden Path or capability request, as the platform or as the agents' identity."""
+    plural = "environments" if manifest["kind"] == "Environment" else _plural(manifest["kind"])
     namespace = manifest["metadata"].get("namespace")
+    api = _custom(as_agent)
     try:
         if namespace:
-            return _custom().create_namespaced_custom_object(GROUP, VERSION, namespace, plural, manifest)
-        return _custom().create_cluster_custom_object(GROUP, VERSION, plural, manifest)
+            return api.create_namespaced_custom_object(GROUP, VERSION, namespace, plural, manifest)
+        return api.create_cluster_custom_object(GROUP, VERSION, plural, manifest)
     except ApiException as err:
         if is_policy_denial(err):
             raise Denied(denial_reason(err)) from err
@@ -433,7 +437,8 @@ def summarize_resource(obj: dict[str, Any]) -> dict[str, Any]:
 # resource with its own identity and records who approved it.
 
 
-def create_approval_request(manifest: dict[str, Any], agent: str, reason: str) -> str:
+def create_approval_request(manifest: dict[str, Any], agent: str, reason: str, team: str | None = None,
+                            on_behalf_of: str | None = None) -> str:
     approval_id = f"{manifest['metadata']['name']}-{secrets.token_hex(2)}"
     body = client.V1ConfigMap(
         metadata=client.V1ObjectMeta(
@@ -442,7 +447,8 @@ def create_approval_request(manifest: dict[str, Any], agent: str, reason: str) -
             labels={APPROVAL_LABEL: "true", f"{PREFIX}/approval-status": "pending"},
             annotations={f"{PREFIX}/agent": agent},
         ),
-        data={"manifest": json.dumps(manifest), "reason": reason, "agent": agent},
+        data={"manifest": json.dumps(manifest), "reason": reason, "agent": agent,
+              "team": team or "", "on_behalf_of": on_behalf_of or ""},
     )
     _core().create_namespaced_config_map(NAMESPACE, body)
     return approval_id
@@ -471,6 +477,8 @@ def _summarize_approval(cm: client.V1ConfigMap) -> dict[str, Any]:
         "id": cm.metadata.name.removeprefix("approval-"),
         "status": cm.metadata.labels.get(f"{PREFIX}/approval-status", "pending"),
         "agent": cm.data.get("agent"),
+        "team": cm.data.get("team") or None,
+        "on_behalf_of": cm.data.get("on_behalf_of") or None,
         "reason": cm.data.get("reason"),
         "decided_by": (cm.metadata.annotations or {}).get(f"{PREFIX}/decided-by"),
         "decision_note": (cm.metadata.annotations or {}).get(f"{PREFIX}/decision-note"),
@@ -517,12 +525,19 @@ def decide_approval(approval_id: str, approve: bool, approver: str) -> dict[str,
 
 
 def record(
-    action: str, message: str, subject: str, warning: bool = False, actor: str = "", kind: str = "Environment"
+    action: str, message: str, subject: str, warning: bool = False, actor: str = "", kind: str = "Environment",
+    on_behalf_of: str | None = None,
 ) -> None:
+    """actor is agent:<name> for agents and the person's name otherwise."""
     timestamp = now()
+    annotations = {
+        f"{PREFIX}/actor": actor.removeprefix("agent:").removeprefix("user:default/"),
+        f"{PREFIX}/requester-type": "agent" if actor.startswith("agent:") else "human",
+    }
+    if on_behalf_of:
+        annotations[f"{PREFIX}/on-behalf-of"] = on_behalf_of
     event = client.CoreV1Event(
-        metadata=client.V1ObjectMeta(generate_name="platform-", namespace=NAMESPACE,
-                                     annotations={f"{PREFIX}/actor": actor}),
+        metadata=client.V1ObjectMeta(generate_name="platform-", namespace=NAMESPACE, annotations=annotations),
         # Events must live in the namespace of the object they describe, so the
         # trail points to the environment by name from platform-system.
         involved_object=client.V1ObjectReference(
@@ -531,7 +546,7 @@ def record(
         reason=action,
         message=message,
         type="Warning" if warning else "Normal",
-        source=client.V1EventSource(component=os.environ.get("PLATFORM_COMPONENT", "platform")),
+        source=client.V1EventSource(component=os.environ.get("PLATFORM_COMPONENT", "platform-api")),
         first_timestamp=timestamp,
         last_timestamp=timestamp,
         count=1,
@@ -556,6 +571,7 @@ def list_activity(limit: int = 50) -> list[dict[str, Any]]:
             "message": e.message,
             "actor": (e.metadata.annotations or {}).get(f"{PREFIX}/actor", ""),
             "requester_type": (e.metadata.annotations or {}).get(f"{PREFIX}/requester-type", ""),
+            "on_behalf_of": (e.metadata.annotations or {}).get(f"{PREFIX}/on-behalf-of", ""),
             "warning": e.type == "Warning",
         }
         for e in events[:limit]

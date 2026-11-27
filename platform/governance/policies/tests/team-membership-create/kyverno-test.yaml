@@ -1,0 +1,34 @@
+# Team scope on create (policy team-membership): the platform API, for an
+# agent of Marta (team checkout).
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: team-membership-create
+policies:
+  - ../../40-team-membership.yaml
+resources:
+  - resources.yaml
+clusterResources:
+  - cluster.yaml
+userinfo: user-info.yaml
+results:
+  - policy: team-membership
+    isValidatingPolicy: true
+    resources: [checkout-pr-1]
+    kind: Environment
+    result: pass
+  - policy: team-membership
+    isValidatingPolicy: true
+    resources: [payments-pr-1, no-teams]
+    kind: Environment
+    result: fail
+  - policy: team-membership
+    isValidatingPolicy: true
+    resources: [env-checkout-dev/orders-db]
+    kind: PostgresDatabase
+    result: pass
+  - policy: team-membership
+    isValidatingPolicy: true
+    resources: [env-payments-dev/payments-db]
+    kind: PostgresDatabase
+    result: fail

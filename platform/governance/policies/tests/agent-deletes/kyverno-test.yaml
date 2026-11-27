@@ -1,4 +1,4 @@
-# Agents only delete what agents requested (policy agent-deletes).
+# Agents only delete what an agent requested for the same person (policy agent-deletes).
 apiVersion: cli.kyverno.io/v1alpha1
 kind: Test
 metadata:
@@ -12,11 +12,11 @@ userinfo: user-info.yaml
 results:
   - policy: agent-deletes
     isValidatingPolicy: true
-    resources: [agent-load-test]
+    resources: [agent-load-test, nightly]
     kind: Environment
     result: pass
   - policy: agent-deletes
     isValidatingPolicy: true
-    resources: [payments-dev, unstamped]
+    resources: [payments-dev, unstamped, luis-agent-env, cleanup-bot-env]
     kind: Environment
     result: fail

@@ -2,7 +2,11 @@
   "mcpServers": {
     "platform": {
       "type": "http",
-      "url": "http://localhost:8081/mcp"
+      "url": "http://localhost:8081/mcp",
+      "oauth": {
+        "clientId": "claude-code",
+        "callbackPort": 33418
+      }
     },
     "portal": {
       "type": "http",

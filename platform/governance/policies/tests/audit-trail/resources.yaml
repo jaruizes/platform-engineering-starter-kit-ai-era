@@ -1,0 +1,52 @@
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: plain
+spec:
+  team: checkout
+  size: small
+  ttlHours: 8
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: forged-agent
+  annotations:
+    platform.starterkit.dev/agent: claude-code
+spec:
+  team: checkout
+  size: small
+  ttlHours: 8
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: forged-teams
+  annotations:
+    platform.starterkit.dev/requester-teams: payments
+spec:
+  team: checkout
+  size: small
+  ttlHours: 8
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: forged-person
+  annotations:
+    platform.starterkit.dev/on-behalf-of: luis
+spec:
+  team: checkout
+  size: small
+  ttlHours: 8
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: forged-deletion
+  annotations:
+    platform.starterkit.dev/deleted-by: luis
+spec:
+  team: checkout
+  size: small
+  ttlHours: 8

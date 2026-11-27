@@ -54,16 +54,18 @@ if [[ ! -f "$STATE/ca.pem" ]]; then
     -keyout "$STATE/ca.key" -out "$STATE/ca.pem" -subj "/CN=Platform Starter Kit demo CA" \
     -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" 2>/dev/null
 fi
-# The tokens of the MCP servers, kept too so .mcp.json survives a new demo.
+# The tokens and the password of the sample people, kept too so a new demo
+# keeps working with the same client configuration.
 if [[ ! -f "$STATE/tokens.env" ]]; then
   cat > "$STATE/tokens.env" <<TOKENS
 PORTAL_MCP_TOKEN=$(openssl rand -hex 24)
-PLATFORM_MCP_TOKEN=$(openssl rand -hex 24)
 PLATFORM_API_TOKEN=$(openssl rand -hex 24)
+DEMO_PASSWORD=$(openssl rand -hex 8)
 TOKENS
 fi
-# Demos created before the platform API had no token for it.
+# Demos created before the platform API and Keycloak had none.
 grep -q '^PLATFORM_API_TOKEN=' "$STATE/tokens.env" || echo "PLATFORM_API_TOKEN=$(openssl rand -hex 24)" >> "$STATE/tokens.env"
+grep -q '^DEMO_PASSWORD=' "$STATE/tokens.env" || echo "DEMO_PASSWORD=$(openssl rand -hex 8)" >> "$STATE/tokens.env"
 set -a
 source "$STATE/tokens.env"
 set +a
@@ -110,18 +112,22 @@ cat <<MSG
   Trust the CA of the demo once, so the browser shows no warning (macOS):
     sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain $STATE/ca.pem
 
+  Sign in as ana, marta or luis (Keycloak, $base:8180) with the password $DEMO_PASSWORD
+
   Connect Claude Code to the MCP servers on AWS (local scope: it takes
-  precedence over .mcp.json in this folder; make aws-down removes them):
-    claude mcp add --scope local --transport http platform $base:8081/mcp \\
-      --header "Authorization: Bearer $PLATFORM_MCP_TOKEN"
+  precedence over .mcp.json in this folder; make aws-down removes them).
+  The platform server asks you to sign in (OAuth with Keycloak) on first use:
+    claude mcp add --scope local --transport http --client-id claude-code --callback-port 33418 \\
+      platform $base:8081/mcp
     claude mcp add --scope local --transport http portal $base:7007/api/mcp-actions/v1/context \\
       --header "Authorization: Bearer $PORTAL_MCP_TOKEN"
   and start it so it trusts the CA:
     NODE_EXTRA_CA_CERTS=$STATE/ca.pem claude
 
   Use the platform from the terminal (no portal needed):
-    PLATFORM_API_URL=$base:8083 PLATFORM_API_TOKEN=$PLATFORM_API_TOKEN SSL_CERT_FILE=$STATE/ca.pem \\
-      platform/access/cli/platformctl.py golden-paths
+    export PLATFORM_API_URL=$base:8083 PLATFORM_ISSUER=$base:8180/realms/platform SSL_CERT_FILE=$STATE/ca.pem
+    platform/access/cli/platformctl.py login
+    platform/access/cli/platformctl.py whoami
 
   To clone the repositories of the Git server:
     git config --global http.$base:3000/.sslCAInfo $STATE/ca.pem

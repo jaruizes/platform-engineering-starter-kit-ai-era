@@ -90,7 +90,7 @@ spec:
                 kind: Group
                 name: team:{{ $team }}
             ---
-            # The platform MCP server tells agents how their services are
+            # The platform API tells agents and people how their services are
             # doing here: pods and their logs, read-only.
             apiVersion: rbac.authorization.k8s.io/v1
             kind: RoleBinding
@@ -106,7 +106,7 @@ spec:
               name: platform:services:observer
             subjects:
               - kind: ServiceAccount
-                name: platform-mcp
+                name: platform-api
                 namespace: platform-system
             ---
             apiVersion: {{ $xr.apiVersion }}

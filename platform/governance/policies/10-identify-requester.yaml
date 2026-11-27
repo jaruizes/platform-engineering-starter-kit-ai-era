@@ -25,6 +25,10 @@ spec:
       expression: "'system:serviceaccount:platform-system:platform-console'"
     - name: portalIdentity
       expression: "'system:serviceaccount:platform-system:portal'"
+    # The platform API acts for people as itself, and for agents as the
+    # agents' identity above (impersonation), after checking their tokens.
+    - name: apiIdentity
+      expression: "'system:serviceaccount:platform-system:platform-api'"
     # GitOps (Argo CD) delivers what a service repository declares. The
     # requester is whoever created the service, recorded in the repository
     # by the Spring service template; the commits are the rest of the trail.
@@ -38,16 +42,17 @@ spec:
         request.userInfo.username in [variables.agentIdentity, variables.approverIdentity] ? 'agent' :
         request.userInfo.username == variables.gitopsIdentity && variables.serviceCreatedBy.startsWith('agent:') ? 'agent' :
         'human'
-    # Agents identify themselves through the MCP server, which runs with its
-    # own identity. A human approving in the console keeps the agent as requester.
-    # The portal acts on behalf of the signed-in person, whose user it passes on.
+    # Agents act through the platform API, which acts as the agents' identity
+    # and names the agent (from its Keycloak token). A human approving in the
+    # console keeps the agent as requester. The platform API and the portal act
+    # on behalf of the signed-in person, whose name they pass on.
     - name: requestedBy
       expression: >-
         request.userInfo.username == variables.gitopsIdentity && variables.serviceCreatedBy != ''
           ? variables.serviceCreatedBy.replace('agent:', '')
           : variables.requesterType == 'agent'
             ? object.metadata.?annotations[?'platform.starterkit.dev/agent'].orValue(request.userInfo.username)
-            : request.userInfo.username == variables.portalIdentity
+            : request.userInfo.username in [variables.portalIdentity, variables.apiIdentity]
               ? object.metadata.?annotations[?'platform.starterkit.dev/on-behalf-of'].orValue(request.userInfo.username)
               : request.userInfo.username
   mutations:

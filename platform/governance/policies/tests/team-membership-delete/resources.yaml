@@ -1,0 +1,34 @@
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: checkout-dev
+  annotations:
+    platform.starterkit.dev/requested-by: marta
+    platform.starterkit.dev/deleted-by: marta
+    platform.starterkit.dev/deleter-teams: checkout
+spec:
+  team: checkout
+  size: small
+  ttlHours: 8
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: payments-dev
+  annotations:
+    platform.starterkit.dev/requested-by: luis
+    platform.starterkit.dev/deleted-by: marta
+    platform.starterkit.dev/deleter-teams: checkout
+spec:
+  team: payments
+  size: small
+  ttlHours: 8
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: unmarked
+spec:
+  team: checkout
+  size: small
+  ttlHours: 8

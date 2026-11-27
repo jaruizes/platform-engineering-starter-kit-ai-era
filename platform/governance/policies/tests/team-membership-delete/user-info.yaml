@@ -1,0 +1,7 @@
+# The platform API, for a person.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: UserInfo
+metadata:
+  name: platform-api
+userInfo:
+  username: system:serviceaccount:platform-system:platform-api

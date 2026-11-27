@@ -5,7 +5,10 @@ capability has: the platform API with kubectl, as a person, and the platform
 MCP server, as an AI agent. Both go through the same guardrails.
 
     PLATFORM_MCP_URL   platform MCP server (default http://localhost:8081/mcp)
-    PLATFORM_MCP_TOKEN its bearer token, if it has one
+    PLATFORM_ISSUER    Keycloak realm (default http://localhost:8180/realms/platform)
+    PLATFORM_MCP_TOKEN an access token to use; by default the tests sign in as
+                       the autonomous agent capability-tests (team
+                       capability-tests), with its secret from the cluster
 """
 
 from __future__ import annotations
@@ -93,8 +96,23 @@ class Human:
         return Outcome("denied", result.stderr.strip())
 
 
+def agent_token() -> str:
+    """Access token of the autonomous agent capability-tests (client credentials)."""
+    import base64
+    import urllib.parse
+    import urllib.request
+
+    secret = base64.b64decode(kubectl("-n", "platform-system", "get", "secret", "capability-tests-client",
+                                      "-o", "jsonpath={.data.secret}").stdout).decode()
+    issuer = os.environ.get("PLATFORM_ISSUER", "http://localhost:8180/realms/platform")
+    data = urllib.parse.urlencode({"grant_type": "client_credentials", "client_id": "capability-tests",
+                                   "client_secret": secret}).encode()
+    with urllib.request.urlopen(f"{issuer}/protocol/openid-connect/token", data=data, timeout=30) as response:
+        return json.loads(response.read())["access_token"]
+
+
 class Agent:
-    """An AI agent using the platform MCP server."""
+    """An AI agent using the platform MCP server, signed in as capability-tests."""
 
     kind = "agent"
 
@@ -106,9 +124,9 @@ class Agent:
         from mcp import ClientSession, types
         from mcp.client.streamable_http import streamable_http_client
 
-        token = os.environ.get("PLATFORM_MCP_TOKEN")
+        token = os.environ.get("PLATFORM_MCP_TOKEN") or agent_token()
         client = httpx2.AsyncClient(
-            headers={"Authorization": f"Bearer {token}"} if token else None,
+            headers={"Authorization": f"Bearer {token}"},
             timeout=httpx2.Timeout(30, read=300),
         )
         async with client, streamable_http_client(MCP_URL, http_client=client) as streams:

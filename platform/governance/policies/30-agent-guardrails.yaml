@@ -29,7 +29,11 @@ spec:
         (request.userInfo.username == 'system:serviceaccount:argocd:argocd-application-controller' &&
          object.metadata.?annotations[?'platform.starterkit.dev/service-created-by'].orValue('').startsWith('agent:'))
   validations:
-    - expression: object.kind != 'Environment' || object.spec.size == 'small'
+    # Updates only check what changes (the platform API records who deletes
+    # an environment just before deleting it).
+    - expression: >-
+        object.kind != 'Environment' || object.spec.size == 'small' ||
+        (request.operation == 'UPDATE' && object.spec.size == oldObject.spec.size)
       messageExpression: >-
         'Human approval required: agents can only request small environments on their own, requested ' +
         object.spec.size + '.'
@@ -41,7 +45,7 @@ spec:
       message: Agents can only deploy frontend applications into ephemeral environments (env-* namespaces).
       reason: Forbidden
     - expression: >-
-        !has(object.metadata.annotations) ||
+        request.operation == 'UPDATE' || !has(object.metadata.annotations) ||
         !('platform.starterkit.dev/approved-by' in object.metadata.annotations)
       message: Agents cannot approve their own requests.
       reason: Forbidden
@@ -54,9 +58,9 @@ metadata:
   annotations:
     policies.kyverno.io/title: Protect the audit trail
     policies.kyverno.io/description: >-
-      Only the platform console can record an approval, only the portal can
-      act on behalf of a person, and requester annotations cannot be changed
-      after creation.
+      Only the platform console can record an approval, only the platform
+      API (and, until it signs people in, the portal) can say who a request
+      is for, and requester annotations cannot be changed after creation.
 spec:
   validationActions: [Deny]
   evaluation:
@@ -73,7 +77,19 @@ spec:
       expression: >-
         ['platform.starterkit.dev/requested-by', 'platform.starterkit.dev/requester-type',
          'platform.starterkit.dev/approved-by', 'platform.starterkit.dev/on-behalf-of',
-         'platform.starterkit.dev/delivered-by']
+         'platform.starterkit.dev/delivered-by', 'platform.starterkit.dev/agent',
+         'platform.starterkit.dev/requester-teams', 'platform.starterkit.dev/agent-chain']
+    # The platform API, as itself or as the agents' identity, and the console
+    # replaying an approved request the platform API stored.
+    - name: platformIdentities
+      expression: >-
+        ['system:serviceaccount:platform-system:platform-api',
+         'system:serviceaccount:platform-system:platform-mcp',
+         'system:serviceaccount:platform-system:platform-console']
+    - name: deletionKeys
+      expression: >-
+        ['platform.starterkit.dev/deleted-by', 'platform.starterkit.dev/deleter-teams',
+         'platform.starterkit.dev/deleted-on-behalf-of']
     - name: annotations
       expression: object.metadata.?annotations.orValue({})
     - name: oldAnnotations
@@ -88,8 +104,24 @@ spec:
     - expression: >-
         !('platform.starterkit.dev/on-behalf-of' in variables.annotations) ||
         request.operation == 'UPDATE' ||
+        request.userInfo.username in variables.platformIdentities ||
         request.userInfo.username == 'system:serviceaccount:platform-system:portal'
-      message: Only the developer portal can act on behalf of a person.
+      message: Only the platform API can act on behalf of a person.
+      reason: Forbidden
+    - expression: >-
+        request.operation == 'UPDATE' || request.userInfo.username in variables.platformIdentities ||
+        !['platform.starterkit.dev/agent', 'platform.starterkit.dev/requester-teams',
+          'platform.starterkit.dev/agent-chain'].exists(k, k in variables.annotations)
+      message: >-
+        Only the platform API records the agent, the requester's teams and the agent chain (from the
+        Keycloak token).
+      reason: Forbidden
+    - expression: >-
+        request.userInfo.username in ['system:serviceaccount:platform-system:platform-api',
+                                      'system:serviceaccount:platform-system:platform-mcp'] ||
+        variables.deletionKeys.all(k, variables.annotations[?k].orValue('') ==
+          (request.operation == 'UPDATE' ? variables.oldAnnotations[?k].orValue('') : ''))
+      message: Only the platform API records who deletes a resource.
       reason: Forbidden
     - expression: >-
         request.operation == 'CREATE' ||
@@ -97,10 +129,13 @@ spec:
       message: Requester and approval annotations cannot be changed.
       reason: Forbidden
 ---
-# Agents only delete what agents requested. The platform MCP server checks
-# it first (delete_environment); this is the guarantee at the platform API
-# (Kubernetes), for every Golden Path and capability. People delete through
-# the portal or kubectl; expired environments are removed by Kyverno itself.
+# Agents only delete what an agent requested for the same person (or the
+# same autonomous agent). The platform API checks it first; this is the
+# second line in Kubernetes, for every Golden Path and capability. Just
+# before deleting, the platform API records who deletes and for whom
+# (deleted-by, deleted-on-behalf-of, deleter-teams). People delete through
+# the platform API, the portal or kubectl; expired environments are removed
+# by Kyverno itself.
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:
@@ -109,7 +144,7 @@ metadata:
     policies.kyverno.io/title: Agents only delete what agents requested
     policies.kyverno.io/description: >-
       An AI agent cannot delete environments, services or capabilities that a
-      person requested.
+      person, or an agent of another person, requested.
 spec:
   validationActions: [Deny]
   evaluation:
@@ -124,11 +159,27 @@ spec:
   matchConditions:
     - name: deleted-by-an-agent
       expression: request.userInfo.username == 'system:serviceaccount:platform-system:platform-mcp'
+  variables:
+    - name: annotations
+      expression: oldObject.metadata.?annotations.orValue({})
+    - name: onBehalfOf
+      expression: variables.annotations[?'platform.starterkit.dev/on-behalf-of'].orValue('')
   validations:
     - expression: >-
-        oldObject.metadata.?annotations[?'platform.starterkit.dev/requester-type'].orValue('') == 'agent'
+        variables.annotations[?'platform.starterkit.dev/requester-type'].orValue('') == 'agent'
       messageExpression: >-
         'Agents can only delete what an agent requested: ' + oldObject.kind + ' ' + oldObject.metadata.name +
         ' was requested by ' +
-        oldObject.metadata.?annotations[?'platform.starterkit.dev/requested-by'].orValue('a person') + '.'
+        variables.annotations[?'platform.starterkit.dev/requested-by'].orValue('a person') + '.'
+      reason: Forbidden
+    - expression: >-
+        variables.onBehalfOf != ''
+          ? variables.onBehalfOf == variables.annotations[?'platform.starterkit.dev/deleted-on-behalf-of'].orValue('')
+          : variables.annotations[?'platform.starterkit.dev/requested-by'].orValue('') ==
+            variables.annotations[?'platform.starterkit.dev/deleted-by'].orValue('-')
+      messageExpression: >-
+        'Agents can only delete what an agent requested for the same person: ' + oldObject.kind + ' ' +
+        oldObject.metadata.name + ' was requested for ' +
+        (variables.onBehalfOf != '' ? variables.onBehalfOf :
+         variables.annotations[?'platform.starterkit.dev/requested-by'].orValue('someone else')) + '.'
       reason: Forbidden

@@ -95,13 +95,13 @@ spec:
 EOF
 kubectl wait "environment.platform.starterkit.dev/$ENVIRONMENT" --for=condition=Ready --timeout=180s
 
-step "Creating $SERVICE with the Spring service Golden Path, as an agent (platform API, no portal)"
+step "Creating $SERVICE with the Spring service Golden Path, as the agent ci-agent of checkout (platform API, no portal)"
 kubectl -n platform-system exec deploy/platform-mcp -- python -c "
 import json
 from platform_mcp import platform_api_client as api
-created = api.create_repository('spring-service', {
+created = api.create_repository(api.client_credentials_token(), 'spring-service', {
     'name': '$SERVICE', 'description': 'Loyalty points of the customers', 'owner': 'checkout',
-    'module': 'points', 'environment': '$ENVIRONMENT'}, 'agent:e2e')
+    'module': 'points', 'environment': '$ENVIRONMENT'})
 print(json.dumps(created, indent=2))
 assert created['status'] == 'created', created
 "
@@ -125,16 +125,15 @@ echo "$health"
 step "Checking who is recorded as the requester"
 annotations="$(kubectl -n "$NS" get springservices.platform.starterkit.dev "$SERVICE" -o jsonpath='{.metadata.annotations}')"
 echo "$annotations"
-[[ "$annotations" == *'"platform.starterkit.dev/requested-by":"e2e"'* ]]
+[[ "$annotations" == *'"platform.starterkit.dev/requested-by":"ci-agent"'* ]]
 [[ "$annotations" == *'"platform.starterkit.dev/requester-type":"agent"'* ]]
 [[ "$annotations" == *'"platform.starterkit.dev/delivered-by":"gitops"'* ]]
 
-step "Asking the platform MCP server how the service is doing"
+step "Asking the platform API how the service is doing, as ci-agent"
 kubectl -n platform-system exec deploy/platform-mcp -- python -c "
 import json
-from platform_mcp import delivery, platform
-platform.load_kube_config()
-status = delivery.status('$SERVICE', '$ENVIRONMENT')
+from platform_mcp import platform_api_client as api
+status = api.request(api.client_credentials_token(), 'GET', '/v1/environments/$ENVIRONMENT/services/$SERVICE/status')
 print(json.dumps({k: status[k] for k in ('state', 'pipeline', 'gitops', 'next_step')}, indent=2))
 assert status['state'] == 'ready', status
 "

@@ -1,3 +1,13 @@
+# The platform MCP server: a channel of the platform API for AI agents. It
+# has no Kubernetes access of its own: it checks that agents bring a Keycloak
+# token and forwards it to the platform API, which decides.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: platform-mcp-server
+  namespace: platform-system
+automountServiceAccountToken: false
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,7 +25,7 @@ spec:
       labels:
         app.kubernetes.io/name: platform-mcp
     spec:
-      serviceAccountName: platform-mcp
+      serviceAccountName: platform-mcp-server
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -30,37 +40,30 @@ spec:
               value: "8081"
             - name: MCP_ALLOWED_HOSTS
               value: "localhost:*,127.0.0.1:*,platform-mcp.platform-system.svc:*"
-            # Agents must send it as a bearer token. Empty on localhost.
-            - name: MCP_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: platform-mcp-token
-                  key: token
-                  optional: true
+            # OAuth 2.1 resource server: agents sign their person in with
+            # Keycloak and send the token; the MCP server forwards it.
+            - name: MCP_RESOURCE_URL
+              value: http://localhost:8081/mcp
+            - name: OIDC_ISSUER
+              value: http://localhost:8180/realms/platform
             # Where the repositories created by create_service are browsed.
             - name: GIT_URL
               value: http://localhost:3000
-            - name: QUALITY_GIT_URL
-              value: http://gitea.platform-system.svc:3000
-            - name: SONAR_HOST_URL
-              value: http://sonarqube.quality.svc:9000
-            - name: SONAR_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: sonar-pipeline-auth
-                  key: token
             # Shown by the scripted agent (make demo-agent).
             - name: CONSOLE_URL
               value: http://localhost:8080
-            # Code Golden Paths (create_service, create_angular_app,
-            # create_api_mcp_adapter) run in the platform API, with or without a portal.
+            # Every tool is a platform API operation, with or without a portal.
             - name: PLATFORM_API_URL
               value: http://platform-api.platform-system.svc:8083
-            - name: PLATFORM_API_TOKEN
+            # The scripted agent (make demo-agent) is the autonomous agent
+            # ci-agent: it gets its own token from Keycloak, inside the cluster.
+            - name: OIDC_TOKEN_ISSUER
+              value: http://keycloak.platform-system.svc:8180/realms/platform
+            - name: AGENT_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: platform-api-token
-                  key: token
+                  name: ci-agent-client
+                  key: secret
             # The Git server account agents push service changes with.
             - name: GIT_PUSH_USERNAME
               valueFrom:

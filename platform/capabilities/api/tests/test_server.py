@@ -1,48 +1,107 @@
 from starlette.testclient import TestClient
 
+from platform_api.identity import Authenticator, Unauthenticated, identity_from_claims
 from platform_api.server import create_app
 
 SPRING = {"name": "loyalty-points", "description": "Loyalty points", "owner": "checkout", "module": "points"}
 
+TOKENS = {
+    "marta": {"azp": "platformctl", "preferred_username": "marta", "groups": ["checkout"], "client_kind": "person"},
+    "ana": {"azp": "platformctl", "preferred_username": "ana", "groups": ["/platform-team"], "client_kind": "person"},
+    "martas-agent": {"azp": "claude-code", "preferred_username": "marta", "groups": ["checkout"],
+                     "client_kind": "agent"},
+}
 
-def client(platform, token="s3cret"):
-    return TestClient(create_app(platform, token))
+
+class FakeVerifier:
+    def claims(self, token):
+        if token not in TOKENS:
+            raise Unauthenticated("Invalid token")
+        return TOKENS[token]
 
 
-def test_channels_need_the_token(platform):
+def client(platform):
+    return TestClient(create_app(platform, Authenticator(FakeVerifier(), "portal-s3cret")))
+
+
+def bearer(token):
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_every_request_needs_a_valid_token(platform):
     api = client(platform)
-    assert api.get("/v1/golden-paths").status_code == 401
-    assert api.get("/v1/golden-paths", headers={"Authorization": "Bearer wrong"}).status_code == 401
+    missing = api.get("/v1/golden-paths")
+    assert missing.status_code == 401 and missing.headers["www-authenticate"].startswith("Bearer")
+    assert api.get("/v1/golden-paths", headers=bearer("forged")).status_code == 401
     assert api.get("/healthz").status_code == 200
 
 
-def test_lists_and_runs_code_golden_paths(platform):
+def test_who_am_i(platform):
+    me = client(platform).get("/v1/me", headers=bearer("martas-agent")).json()
+    assert (me["kind"], me["agent"], me["person"], me["teams"]) == ("agent", "claude-code", "marta", ["checkout"])
+    assert me["requester"] == "agent:claude-code"
+
+
+def test_the_identity_comes_from_the_token_not_the_body(platform):
     api = client(platform)
-    auth = {"Authorization": "Bearer s3cret"}
-    names = [p["name"] for p in api.get("/v1/golden-paths", headers=auth).json()]
-    assert sorted(names) == ["angular-app", "api-mcp-adapter", "spring-service"]
-    created = api.post("/v1/golden-paths/spring-service/repositories", headers=auth,
+    created = api.post("/v1/golden-paths/spring-service/repositories", headers=bearer("martas-agent"),
                        json={"parameters": SPRING, "requester": "user:default/ana"})
     assert created.status_code == 201
-    assert created.json()["repository"].endswith("/platform/loyalty-points")
-    again = api.post("/v1/golden-paths/spring-service/repositories", headers=auth,
-                     json={"parameters": SPRING, "requester": "user:default/ana"})
-    assert again.status_code == 409
-    invalid = api.post("/v1/golden-paths/spring-service/repositories", headers=auth,
-                       json={"parameters": {"name": "x"}, "requester": "user:default/ana"})
-    assert invalid.status_code == 422
+    assert created.json()["requestedBy"] == "agent:claude-code"
+    assert api.post("/v1/golden-paths/spring-service/repositories", headers=bearer("marta"),
+                    json={"parameters": SPRING}).status_code == 409
+    assert api.post("/v1/golden-paths/spring-service/repositories", headers=bearer("marta"),
+                    json={"parameters": {"name": "x"}}).status_code == 422
+
+
+def test_environments_over_http(platform):
+    api = client(platform)
+    denied = api.post("/v1/environments", headers=bearer("martas-agent"),
+                      json={"team": "payments", "name": "pr-9", "purpose": "x"})
+    assert denied.status_code == 403 and "Team scope" in denied.json()["error"]
+    ok = api.post("/v1/environments", headers=bearer("martas-agent"),
+                  json={"team": "checkout", "name": "pr-9", "purpose": "x"})
+    assert ok.status_code == 201 and ok.json()["status"] == "accepted"
+    names = {e["name"] for e in api.get("/v1/environments", headers=bearer("marta")).json()}
+    assert names == {"checkout-dev", "agent-env"}
+    assert api.get("/v1/environments/payments-dev", headers=bearer("marta")).status_code == 403
+    assert api.get("/v1/environments/nope", headers=bearer("marta")).status_code == 404
+    assert api.delete("/v1/environments/checkout-dev", headers=bearer("martas-agent")).status_code == 403
+    assert api.delete("/v1/environments/agent-env", headers=bearer("martas-agent")).json()["status"] == "deleted"
 
 
 def test_capability_proposals(platform, postgres_definition):
     api = client(platform)
-    auth = {"Authorization": "Bearer s3cret"}
-    by_agent = api.post("/v1/capability-proposals", headers=auth,
-                        json={"definition": postgres_definition, "requester": "agent:claude-code"})
-    assert by_agent.status_code == 403
-    bad = api.post("/v1/capability-proposals", headers=auth,
-                   json={"definition": {"kind": "CapabilityDefinition"}, "requester": "user:default/ana"})
+    assert api.post("/v1/capability-proposals", headers=bearer("martas-agent"),
+                    json={"definition": postgres_definition}).status_code == 403
+    assert api.post("/v1/capability-proposals", headers=bearer("marta"),
+                    json={"definition": postgres_definition}).status_code == 403
+    bad = api.post("/v1/capability-proposals", headers=bearer("ana"), json={"definition": {"kind": "CapabilityDefinition"}})
     assert bad.status_code == 422 and bad.json()["errors"]
-    ok = api.post("/v1/capability-proposals", headers=auth,
-                  json={"definition": postgres_definition, "requester": "user:default/ana", "requesterName": "Ana"})
-    assert ok.status_code == 201
-    assert ok.json()["pullRequestNumber"] == 1
+    ok = api.post("/v1/capability-proposals", headers=bearer("ana"),
+                  json={"definition": postgres_definition, "requesterName": "Ana"})
+    assert ok.status_code == 201 and ok.json()["pullRequestNumber"] == 1
+
+
+def test_the_portal_states_the_person_until_it_signs_in_with_keycloak(platform):
+    api = client(platform)
+    portal = {**bearer("portal-s3cret"), "X-Platform-Requester": "user:default/marta",
+              "X-Platform-Teams": "group:default/checkout"}
+    created = api.post("/v1/golden-paths/spring-service/repositories", headers=portal, json={"parameters": SPRING})
+    assert created.status_code == 201 and created.json()["requestedBy"] == "user:default/marta"
+    # The channel token never identifies an agent.
+    agent = {**portal, "X-Platform-Requester": "agent:claude-code"}
+    assert api.get("/v1/me", headers=agent).status_code == 401
+
+
+def test_identity_from_keycloak_claims():
+    person = identity_from_claims(TOKENS["marta"])
+    assert (person.kind, person.person, person.is_agent) == ("person", "marta", False)
+    agent = identity_from_claims({**TOKENS["martas-agent"], "client_kind": None})
+    assert agent.kind == "agent", "an unknown client is treated as an agent"
+    robot = identity_from_claims({"azp": "ci-agent", "preferred_username": "service-account-ci-agent",
+                                  "groups": ["payments"], "owner_team": "checkout"})
+    assert (robot.kind, robot.agent, robot.teams) == ("autonomous", "ci-agent", ("checkout",))
+    chained = identity_from_claims({**TOKENS["martas-agent"], "azp": "test-runner",
+                                    "act": {"client_id": "coordinator", "act": {"client_id": "agent-platform"}}})
+    assert chained.annotations()["platform.starterkit.dev/agent-chain"] == "coordinator > agent-platform"

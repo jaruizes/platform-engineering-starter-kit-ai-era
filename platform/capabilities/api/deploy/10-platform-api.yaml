@@ -1,60 +1,12 @@
 # The platform API: the platform's capabilities, independent of the channel.
-# The portal, the platform MCP server and the CLI call it. It reads the state
-# of environments and services, and writes the audit trail (events).
+# The portal, the platform MCP server and the CLI call it with the person's
+# or the agent's Keycloak token. It authorizes every operation, then acts in
+# Kubernetes (its permissions are in 05-identities.yaml) and in the Git server.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: platform-api
   namespace: platform-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: platform:api:read
-rules:
-  # To check that an environment or a backend exists before creating a
-  # repository that deploys into it.
-  - apiGroups: [platform.starterkit.dev]
-    resources: [environments, springservices]
-    verbs: [get, list, watch]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: platform:api:read
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: platform:api:read
-subjects:
-  - kind: ServiceAccount
-    name: platform-api
-    namespace: platform-system
----
-# The audit trail lives in platform-system, with the console's and the MCP server's.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: platform:api:records
-  namespace: platform-system
-rules:
-  - apiGroups: [""]
-    resources: [events]
-    verbs: [create]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: platform:api:records
-  namespace: platform-system
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: platform:api:records
-subjects:
-  - kind: ServiceAccount
-    name: platform-api
-    namespace: platform-system
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -85,7 +37,16 @@ spec:
           env:
             - name: PORT
               value: "8083"
-            # Channels (portal, MCP server, CLI) send it as a bearer token.
+            # Who issues the tokens people and agents send (the public issuer),
+            # and where the platform API reads its keys (inside the cluster).
+            - name: OIDC_ISSUER
+              value: http://localhost:8180/realms/platform
+            - name: OIDC_JWKS_URL
+              value: http://keycloak.platform-system.svc:8180/realms/platform/protocol/openid-connect/certs
+            - name: OIDC_AUDIENCE
+              value: platform
+            # Until the portal signs people in with Keycloak (increment B), it
+            # calls with this channel token and states the signed-in person.
             - name: PLATFORM_API_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -107,6 +68,19 @@ spec:
                 secretKeyRef:
                   name: gitea-admin
                   key: password
+            # Delivery and quality status of services.
+            - name: GITEA_INTERNAL_URL
+              value: http://gitea.platform-system.svc:3000
+            - name: QUALITY_GIT_URL
+              value: http://gitea.platform-system.svc:3000
+            - name: SONAR_HOST_URL
+              value: http://sonarqube.quality.svc:9000
+            - name: SONAR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: sonar-pipeline-auth
+                  key: token
+                  optional: true
           ports:
             - name: http
               containerPort: 8083

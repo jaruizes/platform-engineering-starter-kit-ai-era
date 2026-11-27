@@ -3,7 +3,7 @@ from urllib.error import HTTPError
 
 import pytest
 
-from platform_mcp import quality
+from platform_api import quality
 
 
 def test_quality_status_returns_commit_and_failed_findings(monkeypatch):

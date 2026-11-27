@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Installs the platform on the cluster of the current kubectl context:
-# Crossplane v2, Kyverno, Golden Paths, policies, capabilities, platform API,
-# platform MCP server, console, Git server, delivery pipeline (Gitea Actions
-# runner and Argo CD) and developer portal.
+# Crossplane v2, Kyverno, Golden Paths, policies, capabilities, identity
+# (Keycloak), platform API, platform MCP server, console, Git server, delivery
+# pipeline (Gitea Actions runner and Argo CD) and developer portal.
 #
 # The same for every way of running the kit. deploy/local/up.sh runs it on
 # a k3d cluster and deploy/aws/up.sh on Amazon EKS, with these settings:
@@ -16,10 +16,10 @@
 #                               e.g. linux/arm64) instead of importing them
 #                               into the k3d cluster CLUSTER_NAME.
 #   PORTAL_MCP_TOKEN            token agents use for the portal MCP server.
-#   PLATFORM_MCP_TOKEN          token agents use for the platform MCP server
-#                               (none by default: open on localhost).
-#   PLATFORM_API_TOKEN          token the channels (portal, platform MCP server,
-#                               CLI) use for the platform API.
+#   PLATFORM_API_TOKEN          token the portal uses for the platform API until
+#                               it signs people in with Keycloak (increment B).
+#   DEMO_PASSWORD               password of the sample people in Keycloak (ana,
+#                               marta, luis). Default "demo" on localhost.
 #   PLATFORM_CA_FILE            CA the pods must trust to reach PUBLIC_HOST.
 #   GIT_URL                     where this script reaches the Git server
 #                               (default http://localhost:3000).
@@ -55,7 +55,7 @@ IMAGE_PLATFORM="${IMAGE_PLATFORM:-}"
 # Local demo only: on localhost these are not secrets.
 PORTAL_MCP_TOKEN="${PORTAL_MCP_TOKEN:-platform-starter-kit-local-demo}"
 PLATFORM_API_TOKEN="${PLATFORM_API_TOKEN:-platform-api-local-demo}"
-PLATFORM_MCP_TOKEN="${PLATFORM_MCP_TOKEN:-}"
+DEMO_PASSWORD="${DEMO_PASSWORD:-demo}"
 PLATFORM_CA_FILE="${PLATFORM_CA_FILE:-}"
 
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
@@ -170,13 +170,23 @@ diagnose() {
   exit 1
 }
 
-step "Creating the tokens of the MCP servers and the platform API"
+step "Creating the tokens of the portal MCP server and the platform API, and the identity secrets"
 kubectl apply -f "$ROOT/platform/access/mcp/deploy/00-namespace.yaml"
 secret portal-mcp-token --from-literal=token="$PORTAL_MCP_TOKEN"
 secret platform-api-token --from-literal=token="$PLATFORM_API_TOKEN"
-secret platform-mcp-token --from-literal=token="$PLATFORM_MCP_TOKEN"
-# The Git server's accounts and the registration token of the pipeline runner.
+kubectl -n platform-system delete secret platform-mcp-token --ignore-not-found >/dev/null
 random() { LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$1"; }
+# Keycloak: its administrator, the sample people and the ci-agent client.
+if ! kubectl -n platform-system get secret keycloak-admin >/dev/null 2>&1; then
+  secret keycloak-admin --from-literal=password="$(random 20)"
+fi
+secret identity-demo --from-literal=password="$DEMO_PASSWORD"
+for client in ci-agent capability-tests; do
+  if ! kubectl -n platform-system get secret "$client-client" >/dev/null 2>&1; then
+    secret "$client-client" --from-literal=secret="$(random 32)"
+  fi
+done
+# The Git server's accounts and the registration token of the pipeline runner.
 if ! kubectl -n platform-system get secret gitea-admin >/dev/null 2>&1; then
   secret gitea-admin --from-literal=username=platform-admin --from-literal=password="$(random 20)"
 fi
@@ -192,16 +202,26 @@ if [[ -n "$PLATFORM_CA_FILE" ]]; then
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 fi
 
-step "Building and deploying the platform API (code Golden Paths and capability proposals)"
+step "Deploying identity (Keycloak $KEYCLOAK_VERSION, realm platform): people, teams and agents"
+kubectl -n platform-system create configmap keycloak-realm \
+  --from-file=platform-realm.json="$ROOT/platform/access/identity/realm/platform-realm.json" \
+  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+sed "s|\${KEYCLOAK_VERSION}|$KEYCLOAK_VERSION|" "$ROOT/platform/access/identity/deploy/keycloak.yaml" | publish \
+  | kubectl apply -f -
+# A new realm file is imported on the next start.
+kubectl -n platform-system rollout restart deployment/keycloak >/dev/null
+kubectl -n platform-system rollout status deployment/keycloak --timeout=300s || diagnose keycloak
+
+step "Building and deploying the platform API (every capability, authorized) and the console"
 IMAGE="$(load_image "$API_IMAGE" "$ROOT/platform/capabilities/api" "--build-context golden-paths=$ROOT/platform/capabilities/golden-paths --build-context schema=$ROOT/platform/capabilities/schema ${API_BUILD_ARGS:-}")"
 deploy "$ROOT/platform/capabilities/api/deploy" platform-starter-kit/platform-api:dev "$IMAGE"
 kubectl -n platform-system rollout status deployment/platform-api --timeout=180s || diagnose platform-api
+kubectl -n platform-system rollout status deployment/platform-console --timeout=180s || diagnose platform-console
 
-step "Building and deploying the platform MCP server and console"
+step "Building and deploying the platform MCP server (OAuth with Keycloak)"
 IMAGE="$(load_image "$MCP_IMAGE" "$ROOT/platform/access/mcp" "${MCP_BUILD_ARGS:-}")"
 deploy "$ROOT/platform/access/mcp/deploy" platform-starter-kit/platform-mcp:dev "$IMAGE"
 kubectl -n platform-system rollout status deployment/platform-mcp --timeout=180s || diagnose platform-mcp
-kubectl -n platform-system rollout status deployment/platform-console --timeout=180s || diagnose platform-console
 
 # The platform's Git provider: code Golden Paths create repositories there,
 # with or without the portal.
@@ -265,8 +285,12 @@ step "Platform ready"
 cat <<MSG
   Developer portal (Backstage):       $(public_url 7007)
   Console (dashboard and approvals):  $(public_url 8080)
-  MCP server for agents:              $(public_url 8081)/mcp
-  Platform API (CLI and channels):    $(public_url 8083) (platform/access/cli/platformctl.py)
+  MCP server for agents (OAuth):      $(public_url 8081)/mcp
+  Platform API (CLI and channels):    $(public_url 8083) (platform/access/cli/platformctl.py login)
+  Identity (Keycloak, realm platform): $(public_url 8180)/realms/platform/account
+    Sample people: ana (platform-team, approver), marta (checkout), luis (payments, approver)
+    Their password: $( [[ "$DEMO_PASSWORD" == demo ]] && echo demo || echo "DEMO_PASSWORD" )
+    Keycloak administrator: admin / kubectl -n platform-system get secret keycloak-admin -o jsonpath='{.data.password}' | base64 -d
   Portal MCP server (context):        $(public_url 7007)/api/mcp-actions/v1/context
   Git server (repositories):          $(public_url 3000) (read-only without signing in)
   Argo CD (GitOps, read-only):        $(public_url 8082)

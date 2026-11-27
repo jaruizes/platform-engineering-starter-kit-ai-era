@@ -1,4 +1,5 @@
-# Environments as they are in the cluster, with the stamp of who requested them.
+# Environments as they are in the cluster, with the stamp of who requested
+# them and, just before the delete, who deletes them (set by the platform API).
 apiVersion: platform.starterkit.dev/v1alpha1
 kind: Environment
 metadata:
@@ -6,6 +7,9 @@ metadata:
   annotations:
     platform.starterkit.dev/requested-by: claude-code
     platform.starterkit.dev/requester-type: agent
+    platform.starterkit.dev/on-behalf-of: marta
+    platform.starterkit.dev/deleted-by: codex
+    platform.starterkit.dev/deleted-on-behalf-of: marta
 spec:
   team: checkout
   size: small
@@ -29,5 +33,49 @@ metadata:
   name: unstamped
 spec:
   team: payments
+  size: small
+  ttlHours: 8
+---
+# Requested by an agent, but for Luis; Marta's agent deletes it.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: luis-agent-env
+  annotations:
+    platform.starterkit.dev/requested-by: claude-code
+    platform.starterkit.dev/requester-type: agent
+    platform.starterkit.dev/on-behalf-of: luis
+    platform.starterkit.dev/deleted-by: claude-code
+    platform.starterkit.dev/deleted-on-behalf-of: marta
+spec:
+  team: checkout
+  size: small
+  ttlHours: 8
+---
+# The autonomous agent ci-agent deletes what it requested itself...
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: nightly
+  annotations:
+    platform.starterkit.dev/requested-by: ci-agent
+    platform.starterkit.dev/requester-type: agent
+    platform.starterkit.dev/deleted-by: ci-agent
+spec:
+  team: checkout
+  size: small
+  ttlHours: 8
+---
+# ...but not what another autonomous agent requested.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: cleanup-bot-env
+  annotations:
+    platform.starterkit.dev/requested-by: cleanup-bot
+    platform.starterkit.dev/requester-type: agent
+    platform.starterkit.dev/deleted-by: ci-agent
+spec:
+  team: checkout
   size: small
   ttlHours: 8

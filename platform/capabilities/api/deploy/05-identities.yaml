@@ -1,11 +1,17 @@
-# Two identities, two roles:
-# - platform-mcp is how AI agents act on the platform. Policies recognize it.
-# - platform-console is how humans approve what agents cannot do alone.
+# The identities the platform acts with in the Kubernetes API.
+# - platform-api: the platform API itself. Acts for people, with the person,
+#   their teams and the channel in platform.starterkit.dev annotations.
+# - platform-mcp: how AI agents appear in the Kubernetes API, so that Kyverno
+#   applies the agent guardrails. Nothing runs as it: only the platform API
+#   may act as it (impersonation), after authenticating the agent and its
+#   person with Keycloak and authorizing the request.
+# - platform-console: how a person approves what agents cannot do alone.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: platform-mcp
   namespace: platform-system
+automountServiceAccountToken: false
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -21,7 +27,7 @@ rules:
   # Every Golden Path and capability. The guardrails decide what each one can do.
   - apiGroups: [platform.starterkit.dev]
     resources: ["*"]
-    verbs: [get, list, watch, create, delete]
+    verbs: [get, list, watch, create, patch, delete]
   # To find the capabilities the platform offers.
   - apiGroups: [apiextensions.crossplane.io]
     resources: [compositeresourcedefinitions]
@@ -36,6 +42,9 @@ roleRef:
   kind: ClusterRole
   name: platform:golden-paths:consumer
 subjects:
+  - kind: ServiceAccount
+    name: platform-api
+    namespace: platform-system
   - kind: ServiceAccount
     name: platform-mcp
     namespace: platform-system
@@ -68,14 +77,41 @@ roleRef:
   name: platform:records
 subjects:
   - kind: ServiceAccount
-    name: platform-mcp
+    name: platform-api
     namespace: platform-system
   - kind: ServiceAccount
     name: platform-console
     namespace: platform-system
 ---
-# Granted in each environment (the Environment Golden Path binds it), so
-# agents can follow their services: pods and their logs, read-only.
+# Only the platform API acts as the agents' identity.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform:api:act-as-agents
+  namespace: platform-system
+rules:
+  - apiGroups: [""]
+    resources: [serviceaccounts]
+    resourceNames: [platform-mcp]
+    verbs: [impersonate]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform:api:act-as-agents
+  namespace: platform-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform:api:act-as-agents
+subjects:
+  - kind: ServiceAccount
+    name: platform-api
+    namespace: platform-system
+---
+# Granted in each environment (the Environment Golden Path binds it to the
+# platform API), so agents and people can follow their services: pods and
+# their logs, read-only.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:

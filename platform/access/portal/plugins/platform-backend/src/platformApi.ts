@@ -3,6 +3,11 @@
  * (new repositories) and capability proposals are platform capabilities: the
  * portal is one of their channels, like the platform MCP server and the CLI.
  * It sends what the person filled in, on their behalf, and shows the result.
+ *
+ * Until the portal signs people in with Keycloak (increment B of
+ * docs/identity-and-access.md), it calls with the channel token and states
+ * the person and their teams; the platform API authorizes with them and
+ * never takes this channel for an agent.
  */
 export type RepositoryCreated = {
   status: string;
@@ -23,13 +28,16 @@ export type CapabilityProposed = {
 
 export class PlatformApiError extends Error {}
 
+/** The signed-in person the portal acts for, and their teams in the catalog. */
+export type Person = { ref: string; name: string; teams: string[] };
+
 export class PlatformApiClient {
   constructor(
     private readonly baseUrl: string,
     private readonly token: string | undefined,
   ) {}
 
-  private async post<T>(path: string, body: unknown): Promise<T> {
+  private async post<T>(path: string, body: unknown, person: Person): Promise<T> {
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl}${path}`, {
@@ -37,6 +45,8 @@ export class PlatformApiClient {
         headers: {
           'Content-Type': 'application/json',
           ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+          'X-Platform-Requester': person.ref,
+          'X-Platform-Teams': person.teams.join(','),
         },
         body: JSON.stringify(body),
       });
@@ -50,18 +60,19 @@ export class PlatformApiClient {
     return data as T;
   }
 
-  createRepository(goldenPath: string, parameters: Record<string, unknown>, requester: string) {
+  createRepository(goldenPath: string, parameters: Record<string, unknown>, person: Person) {
     return this.post<RepositoryCreated>(
       `/v1/golden-paths/${encodeURIComponent(goldenPath)}/repositories`,
-      { parameters, requester },
+      { parameters },
+      person,
     );
   }
 
-  proposeCapability(definition: unknown, requester: string, requesterName: string) {
-    return this.post<CapabilityProposed>('/v1/capability-proposals', {
-      definition,
-      requester,
-      requesterName,
-    });
+  proposeCapability(definition: unknown, person: Person) {
+    return this.post<CapabilityProposed>(
+      '/v1/capability-proposals',
+      { definition, requesterName: person.name },
+      person,
+    );
   }
 }

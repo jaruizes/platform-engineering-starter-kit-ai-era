@@ -63,7 +63,7 @@ variables {
 run "create" {
   command = apply
   assert {
-    condition     = length(aws_lb_listener.services) == 6
+    condition     = length(aws_lb_listener.services) == 7
     error_message = "One HTTPS listener per service."
   }
   assert {

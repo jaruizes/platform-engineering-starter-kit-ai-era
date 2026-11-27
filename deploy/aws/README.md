@@ -47,7 +47,7 @@ ALLOWED_CIDRS=203.0.113.10/32,198.51.100.0/24 make aws-up
 At the end it prints the URLs, which are the name AWS gives the load balancer with each port (`https://platform-starter-kit-123456.eu-west-1.elb.amazonaws.com:7007`), and three commands:
 
 1. **Trust the CA of the demo**, once, so your browser shows no warning. The CA is created the first time and kept in `deploy/aws/.state`, so it stays the same demo after demo. Other people's browsers will show a warning they can accept.
-2. **Connect Claude Code** to the two MCP servers on AWS, with their tokens. They are added with local scope, so they replace the ones of `.mcp.json` in this folder until `make aws-down`. Start Claude Code with `NODE_EXTRA_CA_CERTS=deploy/aws/.state/ca.pem claude` so it trusts the CA.
+2. **Connect Claude Code** to the two MCP servers on AWS: the platform server with OAuth (sign in with Keycloak as `ana`, `marta` or `luis`, with the password `make aws-up` prints), the portal server with its token. They are added with local scope, so they replace the ones of `.mcp.json` in this folder until `make aws-down`. Start Claude Code with `NODE_EXTRA_CA_CERTS=deploy/aws/.state/ca.pem claude` so it trusts the CA.
 3. **Let git trust the CA** to clone the repositories the portal and the agents create.
 
 After that, `kubectl` points to the EKS cluster (context `platform-starter-kit-aws`, which needs the same AWS variables in your shell), and the demo is the same as on a laptop: [examples/scenarios/README.md](../../examples/scenarios/README.md), with `make demo-developer`, `make demo-agent`, `make demo-reset` and `make status`.
@@ -78,7 +78,7 @@ While it is up, about **0.35 USD per hour** in `eu-west-1`: the EKS control plan
 
 - **Only the allowed addresses** reach the load balancer and the Kubernetes API.
 - **HTTPS** with a certificate signed by the kit's own CA: there is no domain to get a public certificate for.
-- **The platform MCP server requires a token** on AWS (it is open on a laptop). The tokens of both MCP servers are random, created once and kept in `deploy/aws/.state`.
+- **Agents sign in with Keycloak** (port 8180) on AWS as on a laptop. The password of the sample people, the portal MCP token and the platform API channel token are random, created once and kept in `deploy/aws/.state`.
 - **No login yet**: the portal still signs everyone in as the guest Ana, and the console has no login. The allowed addresses are what protects them. A real login (Keycloak, for people and for agents) is the next step.
 - The AWS credentials are only used on your computer, by OpenTofu and the AWS CLI. Nothing in the cluster has them.
 

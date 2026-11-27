@@ -12,7 +12,9 @@ platform, through its two MCP servers:
 - `portal` (the developer portal, read-only) gives context: the catalog, who
   owns what, which environments a team has, live status and pending approvals.
 - `platform` (the platform MCP server) acts: it requests environments and
-  deploys services through the Golden Paths, with your agent identity.
+  deploys services through the Golden Paths. You sign in to it for the user
+  (OAuth, the first time): you act on their behalf, with their teams and
+  nothing more, and the agent guardrails apply on top.
 
 To create the code of a new service (a new repository), follow the
 `spring-service` skill: it uses `create_service`, not a hand-made scaffold.
@@ -27,7 +29,9 @@ and guardrails; request one with `request_capability` and follow it with
 
 1. Find the team. If the user did not say, look for the service in the catalog
    (`catalog.query-catalog-entities` or `catalog.get-catalog-entity`) and use
-   its owner.
+   its owner. `whoami` shows the user's teams: you can only request, deploy,
+   read and delete for those. If the team is not one of them, tell the user;
+   do not try another team. A `denied` answer for team scope is final.
 2. Check the team before asking for anything: `platform.get-team-usage` tells
    you its environments, its daily cost and how many environment slots are
    free (at most 3 per team). If there are none free, tell the user which

@@ -70,7 +70,7 @@ spec:
             duration: 15s
             maxDuration: 2m
 ---
-# The platform MCP server reads the applications to tell agents how a
+# The platform API reads the applications to tell agents and people how a
 # deployment is going.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -93,5 +93,5 @@ roleRef:
   name: platform-mcp-observer
 subjects:
   - kind: ServiceAccount
-    name: platform-mcp
+    name: platform-api
     namespace: platform-system

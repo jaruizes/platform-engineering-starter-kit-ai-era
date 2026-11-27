@@ -1,0 +1,56 @@
+# Team scope, second line: what the platform API creates or deletes, for a
+# person or an agent, belongs to one of the requester's teams. The platform
+# API authorizes it first; Kyverno checks it again for whatever reaches the
+# Kubernetes API, from the teams the platform API recorded from the Keycloak
+# token (requester-teams on create, deleter-teams just before a delete).
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: team-membership
+  annotations:
+    policies.kyverno.io/title: Team membership
+    policies.kyverno.io/description: >-
+      Environments, and anything inside an environment, are only created or
+      deleted for one of the requester's teams.
+spec:
+  validationActions: [Deny]
+  evaluation:
+    background:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [platform.starterkit.dev]
+        apiVersions: ["*"]
+        operations: [CREATE, DELETE]
+        resources: ["*"]
+  matchConditions:
+    - name: through-the-platform-api
+      expression: >-
+        request.userInfo.username in ['system:serviceaccount:platform-system:platform-api',
+                                      'system:serviceaccount:platform-system:platform-mcp']
+  variables:
+    - name: subject
+      expression: "request.operation == 'DELETE' ? oldObject : object"
+    - name: teamsKey
+      expression: >-
+        request.operation == 'DELETE' ? 'platform.starterkit.dev/deleter-teams' : 'platform.starterkit.dev/requester-teams'
+    - name: teams
+      expression: >-
+        variables.subject.metadata.?annotations[?variables.teamsKey].orValue('').split(',').filter(t, t != '')
+    # The owner team: of the environment itself, or of the environment
+    # namespace (env-*) the resource lives in, labeled by the Environment
+    # Golden Path.
+    - name: team
+      expression: >-
+        variables.subject.kind == 'Environment' ? string(variables.subject.spec.team) :
+        variables.subject.metadata.?namespace.orValue('').startsWith('env-')
+          ? dyn(resource.Get("v1", "namespaces", "", variables.subject.metadata.namespace))
+              .metadata.?labels[?'platform.starterkit.dev/team'].orValue('')
+          : ''
+  validations:
+    - expression: variables.team == '' || variables.team in variables.teams
+      messageExpression: >-
+        'Team scope: ' + variables.subject.kind + ' ' + variables.subject.metadata.name + ' belongs to team ' +
+        variables.team + ', and the requester is in ' +
+        (size(variables.teams) > 0 ? variables.teams.join(', ') : 'no team') + '.'
+      reason: Forbidden

@@ -5,7 +5,7 @@ import {
 } from '@backstage/plugin-scaffolder-node';
 import { summarizeCapability } from './capabilities';
 import { PlatformClient, PlatformDenied } from './kubernetes';
-import { PlatformApiClient, PlatformApiError } from './platformApi';
+import { PlatformApiClient, PlatformApiError, type Person } from './platformApi';
 
 const NAME = /^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$/;
 
@@ -15,9 +15,12 @@ const NAME = /^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$/;
  * so the agent guardrails always apply to them.
  */
 async function requester(ctx: {
-  user?: { ref?: string; entity?: { spec?: { profile?: { displayName?: string } } } };
+  user?: {
+    ref?: string;
+    entity?: { spec?: { profile?: { displayName?: string }; memberOf?: string[] } };
+  };
   getInitiatorCredentials(): Promise<{ principal: unknown }>;
-}): Promise<{ ref: string; name: string }> {
+}): Promise<Person> {
   const credentials = await ctx.getInitiatorCredentials();
   const principal = credentials.principal as { type?: string; userEntityRef?: string };
   const ref = principal?.type === 'user' ? principal.userEntityRef : undefined;
@@ -26,7 +29,10 @@ async function requester(ctx: {
       'Golden Path templates run on behalf of a person. AI agents use the platform MCP server.',
     );
   }
-  return { ref, name: ctx.user?.entity?.spec?.profile?.displayName ?? ref };
+  // Until the portal signs people in with Keycloak (increment B), their
+  // teams come from the catalog; the platform API authorizes with them.
+  const teams = (ctx.user?.entity?.spec?.memberOf ?? []).map(team => team.split('/').pop() ?? team);
+  return { ref, name: ctx.user?.entity?.spec?.profile?.displayName ?? ref, teams };
 }
 
 function friendly(error: unknown): never {
@@ -215,7 +221,7 @@ export function createGoldenPathAction(api: PlatformApiClient) {
       );
       ctx.logger.info(`Asking the platform to create ${parameters.name} with the ${ctx.input.goldenPath} Golden Path`);
       try {
-        const created = await api.createRepository(ctx.input.goldenPath, parameters, person.ref);
+        const created = await api.createRepository(ctx.input.goldenPath, parameters, person);
         ctx.output('repositoryUrl', created.repository);
         ctx.output('cloneUrl', created.cloneUrl);
         ctx.output('entityRef', created.catalogEntity);
@@ -248,7 +254,7 @@ export function createCapabilityProposalAction(api: PlatformApiClient) {
       const person = await requester(ctx);
       const definition = compact(ctx.input.definition);
       try {
-        const proposed = await api.proposeCapability(definition, person.ref, person.name);
+        const proposed = await api.proposeCapability(definition, person);
         ctx.logger.info(`Opened pull request #${proposed.pullRequestNumber}: ${proposed.pullRequestUrl}`);
         ctx.output('pullRequestUrl', proposed.pullRequestUrl);
         ctx.output('entityRef', proposed.entityRef);

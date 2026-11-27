@@ -1,0 +1,21 @@
+# Only for the policy tests: the Environment kind (cluster-scoped), as
+# Crossplane serves it from platform/capabilities/infrastructure/environments.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: environments.platform.starterkit.dev
+spec:
+  group: platform.starterkit.dev
+  scope: Cluster
+  names:
+    kind: Environment
+    plural: environments
+    singular: environment
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true

@@ -18,12 +18,13 @@ locals {
   # NodePort of its service (see the manifests in platform/access/mcp/deploy,
   # git-server and platform/access/portal/deploy).
   services = {
-    portal  = { port = 7007, node_port = 30007, health = "/.backstage/health/v1/readiness" }
-    console = { port = 8080, node_port = 30080, health = "/" }
-    mcp     = { port = 8081, node_port = 30081, health = "/healthz" }
-    git     = { port = 3000, node_port = 30300, health = "/api/healthz" }
-    argocd  = { port = 8082, node_port = 30082, health = "/healthz" }
-    api     = { port = 8083, node_port = 30083, health = "/healthz" }
+    portal   = { port = 7007, node_port = 30007, health = "/.backstage/health/v1/readiness" }
+    console  = { port = 8080, node_port = 30080, health = "/" }
+    mcp      = { port = 8081, node_port = 30081, health = "/healthz" }
+    git      = { port = 3000, node_port = 30300, health = "/api/healthz" }
+    argocd   = { port = 8082, node_port = 30082, health = "/healthz" }
+    api      = { port = 8083, node_port = 30083, health = "/healthz" }
+    keycloak = { port = 8180, node_port = 30180, health = "/realms/platform" }
   }
 }
 

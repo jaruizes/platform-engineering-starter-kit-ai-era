@@ -1,4 +1,4 @@
-from platform_mcp import delivery
+from platform_api import delivery
 
 DONE = {"status": "success", "url": "http://localhost:3000/platform/loyalty-points/actions/runs/2"}
 SYNCED = {"sync": "Synced", "health": "Healthy", "message": None}

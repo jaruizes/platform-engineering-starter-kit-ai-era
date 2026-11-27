@@ -1,0 +1,116 @@
+# Keycloak: who people and agents are. One realm, "platform", imported at
+# start from platform/access/identity/realm/platform-realm.json (the
+# installer creates the ConfigMap). Demo setup: development mode with its
+# embedded database, so the realm is imported again on every restart and
+# sign-ins do not survive one.
+#
+# KC_HOSTNAME is the issuer people, agents and the platform API agree on.
+# Pods reach Keycloak inside the cluster (backchannel) and still get tokens
+# issued for the public address.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/name: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: keycloak
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
+          args: [start-dev, --import-realm, --http-port=8180]
+          env:
+            - name: KC_HOSTNAME
+              value: http://localhost:8180
+            - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+              value: "true"
+            # On AWS the load balancer terminates TLS in front of it.
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: admin
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin
+                  key: password
+            # Read by the realm import (${DEMO_PASSWORD}, ${CI_AGENT_SECRET}...).
+            - name: DEMO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: identity-demo
+                  key: password
+            - name: CI_AGENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ci-agent-client
+                  key: secret
+            - name: CAPABILITY_TESTS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: capability-tests-client
+                  key: secret
+          ports:
+            - name: http
+              containerPort: 8180
+            - name: management
+              containerPort: 9000
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            periodSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: management
+            periodSeconds: 5
+            failureThreshold: 60
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+      volumes:
+        - name: realm
+          configMap:
+            name: keycloak-realm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: platform-system
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: keycloak
+  ports:
+    - name: http
+      port: 8180
+      targetPort: http
+      nodePort: 30180

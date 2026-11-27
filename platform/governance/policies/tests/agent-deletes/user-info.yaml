@@ -1,4 +1,4 @@
-# Deletes made by AI agents, through the platform MCP server identity.
+# Deletes made by AI agents: the platform API acting as the agents' identity.
 apiVersion: cli.kyverno.io/v1alpha1
 kind: UserInfo
 metadata:

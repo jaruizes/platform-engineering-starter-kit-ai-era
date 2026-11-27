@@ -1,0 +1,26 @@
+apiVersion: cli.kyverno.io/v1alpha1
+kind: ClusterResource
+metadata:
+  name: environments
+spec:
+  crds:
+    - ../crd-environment.yaml
+    - ../../../../capabilities/infrastructure/postgres-database/tests/kyverno/crd.yaml
+  resources:
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: env-checkout-dev
+        labels:
+          platform.starterkit.dev/team: checkout
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: env-payments-dev
+        labels:
+          platform.starterkit.dev/team: payments
+    # The CLI looks up a namespace for every resource it tests.
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: default

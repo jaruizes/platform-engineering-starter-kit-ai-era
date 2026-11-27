@@ -17,7 +17,7 @@ from typing import Any
 
 from kubernetes.client.exceptions import ApiException
 
-from . import platform
+from . import cluster as platform
 
 GITEA_URL = os.environ.get("GITEA_INTERNAL_URL", "http://gitea.platform-system.svc:3000")
 GIT_URL = os.environ.get("GIT_URL", "http://localhost:3000")
