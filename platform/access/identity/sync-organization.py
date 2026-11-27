@@ -49,7 +49,11 @@ def realm(org: dict) -> str:
         people.append({
             "username": p["name"], "enabled": True, "emailVerified": True,
             "firstName": first, "lastName": last, "email": f"{p['name']}@{EMAIL_DOMAIN}",
-            "groups": [f"/{t}" for t in p["teams"]], "realmRoles": list(p["roles"]),
+            "groups": [f"/{t}" for t in p["teams"]],
+            # Imported users get only the roles listed here, not the realm's
+            # default roles. offline_access lets MCP clients such as Claude
+            # Code get the refresh token they ask for (scope offline_access).
+            "realmRoles": ["offline_access", *p["roles"]],
             "credentials": [{"type": "password", "value": "${DEMO_PASSWORD}", "temporary": False}],
         })
     data["users"] = people + machines

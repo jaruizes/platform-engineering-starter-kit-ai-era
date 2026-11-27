@@ -52,6 +52,7 @@
         "/platform-team"
       ],
       "realmRoles": [
+        "offline_access",
         "developer",
         "approver"
       ],
@@ -74,6 +75,7 @@
         "/platform-team"
       ],
       "realmRoles": [
+        "offline_access",
         "developer"
       ],
       "credentials": [
@@ -95,6 +97,7 @@
         "/checkout"
       ],
       "realmRoles": [
+        "offline_access",
         "developer"
       ],
       "credentials": [
@@ -116,6 +119,7 @@
         "/checkout"
       ],
       "realmRoles": [
+        "offline_access",
         "developer",
         "approver"
       ],
@@ -138,6 +142,7 @@
         "/payments"
       ],
       "realmRoles": [
+        "offline_access",
         "developer",
         "approver"
       ],
@@ -160,6 +165,7 @@
         "/payments"
       ],
       "realmRoles": [
+        "offline_access",
         "developer"
       ],
       "credentials": [
@@ -181,6 +187,7 @@
         "/retail"
       ],
       "realmRoles": [
+        "offline_access",
         "developer",
         "approver"
       ],
@@ -203,6 +210,7 @@
         "/retail"
       ],
       "realmRoles": [
+        "offline_access",
         "developer"
       ],
       "credentials": [
@@ -225,6 +233,7 @@
         "/payments"
       ],
       "realmRoles": [
+        "offline_access",
         "developer"
       ],
       "credentials": [
@@ -244,6 +253,7 @@
       "email": "nora@starterkit.local",
       "groups": [],
       "realmRoles": [
+        "offline_access",
         "developer"
       ],
       "credentials": [
