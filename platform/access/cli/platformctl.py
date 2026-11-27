@@ -34,8 +34,11 @@ Settings (environment variables):
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import json
 import os
+import secrets
 import sys
 import time
 import urllib.error
@@ -81,7 +84,14 @@ def _save(client: str, tokens: dict[str, Any]) -> None:
 def login(client: str) -> None:
     """OAuth device authorization grant: sign in in a browser, from any terminal."""
     endpoint = f"{issuer()}/protocol/openid-connect"
-    device = _post_form(f"{endpoint}/auth/device", {"client_id": client, "scope": "openid profile"})
+    # The realm requires PKCE (S256) on every person-facing client, including
+    # the device flow (RFC 8628 with PKCE, as Keycloak implements it).
+    verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    device = _post_form(f"{endpoint}/auth/device", {
+        "client_id": client, "scope": "openid profile",
+        "code_challenge": challenge, "code_challenge_method": "S256",
+    })
     if "device_code" not in device:
         raise SystemExit(f"Could not start the sign-in: {device.get('error_description') or device}")
     print(f"Open {device.get('verification_uri_complete') or device['verification_uri']} and sign in"
@@ -93,6 +103,7 @@ def login(client: str) -> None:
         tokens = _post_form(f"{endpoint}/token", {
             "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
             "device_code": device["device_code"], "client_id": client,
+            "code_verifier": verifier,
         })
         error = tokens.get("error")
         if error == "authorization_pending":

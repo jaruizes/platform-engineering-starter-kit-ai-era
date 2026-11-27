@@ -82,3 +82,26 @@ def test_approvals(monkeypatch, capsys):
     assert sent == [("GET", "/v1/approvals?status=pending", None),
                     ("POST", "/v1/approvals/load-test-1a2b/decision", {"decision": "approve", "note": "ok"}),
                     ("POST", "/v1/approvals/load-test-1a2b/decision", {"decision": "reject", "note": ""})]
+
+
+def test_login_uses_pkce_in_the_device_flow(monkeypatch):
+    import base64
+    import hashlib
+    posts, saved = [], []
+
+    def post(url, data):
+        posts.append((url, data))
+        if url.endswith("/auth/device"):
+            return {"device_code": "dc", "user_code": "ABCD", "verification_uri": "http://kc/device", "interval": 0}
+        return {"access_token": "t"}
+
+    monkeypatch.setattr(platformctl, "_post_form", post)
+    monkeypatch.setattr(platformctl, "_save", lambda client, tokens: saved.append(client))
+    monkeypatch.setattr(platformctl.time, "sleep", lambda seconds: None)
+    platformctl.login("platformctl")
+    device, token = posts[0][1], posts[1][1]
+    # The realm requires S256 PKCE on the person-facing clients, device flow included.
+    assert device["code_challenge_method"] == "S256"
+    expected = base64.urlsafe_b64encode(hashlib.sha256(token["code_verifier"].encode()).digest()).rstrip(b"=").decode()
+    assert device["code_challenge"] == expected
+    assert saved == ["platformctl"]
