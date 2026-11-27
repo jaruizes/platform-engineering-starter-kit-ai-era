@@ -166,6 +166,8 @@ function requesterTag(type?: string): string[] {
 export function environmentEntity(env: KubeObject): Entity {
   const s = summarizeEnvironment(env);
   const approved = s.approvedBy ? `, approved by ${s.approvedBy}` : '';
+  const onBehalfOf = env.metadata.annotations?.[`${PREFIX}/on-behalf-of`];
+  const forWhom = s.requesterType === 'agent' && onBehalfOf ? ` on behalf of ${onBehalfOf}` : '';
   return {
     apiVersion: 'backstage.io/v1alpha1',
     kind: 'Resource',
@@ -173,7 +175,7 @@ export function environmentEntity(env: KubeObject): Entity {
       name: s.name,
       title: s.name,
       description:
-        `${s.purpose}. Requested by ${s.requesterType ?? 'unknown'} ${s.requestedBy ?? ''}${approved}. ` +
+        `${s.purpose}. Requested by ${s.requesterType ?? 'unknown'} ${s.requestedBy ?? ''}${forWhom}${approved}. ` +
         `${s.size}, ${s.estimatedDailyCostEur.toFixed(2)} EUR/day, expires ${s.expiresAt}.`,
       annotations: {
         ...base(s.name),

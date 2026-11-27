@@ -5,9 +5,10 @@ import type {
 } from '@kubernetes/client-node';
 
 /**
- * Access to the platform API (the Crossplane composite resources behind the
- * Golden Paths). The portal acts with its own Kubernetes identity, and the
- * Kyverno policies record which Backstage user it acts on behalf of.
+ * Read-only access to the Crossplane composite resources behind the Golden
+ * Paths, for the catalog and the agents' context. The portal never creates or
+ * changes them: every request goes through the platform API with the signed-in
+ * person's token (platformApi.ts).
  */
 
 export const GROUP = 'platform.starterkit.dev';
@@ -56,9 +57,6 @@ export type SpringServiceSummary = {
   requesterType?: string;
 };
 
-/** A guardrail (Kyverno policy) or a conflict rejected the request. */
-export class PlatformDenied extends Error {}
-
 type Clients = { kc: KubeConfig; custom: CustomObjectsApi; core: CoreV1Api };
 
 export class PlatformClient {
@@ -99,76 +97,6 @@ export class PlatformClient {
     return (res as { items: KubeObject[] }).items;
   }
 
-  async createEnvironment(options: {
-    name: string;
-    team: string;
-    purpose: string;
-    size: string;
-    ttlHours: number;
-    onBehalfOf: string;
-  }): Promise<void> {
-    const { custom } = await this.api();
-    const body = {
-      apiVersion: `${GROUP}/${VERSION}`,
-      kind: 'Environment',
-      metadata: {
-        name: options.name,
-        annotations: {
-          [`${PREFIX}/purpose`]: options.purpose,
-          [`${PREFIX}/on-behalf-of`]: options.onBehalfOf,
-        },
-      },
-      spec: {
-        team: options.team,
-        purpose: options.purpose,
-        size: options.size,
-        ttlHours: options.ttlHours,
-      },
-    };
-    await this.guard(`An environment called '${options.name}' already exists.`, () =>
-      custom.createClusterCustomObject({
-        group: GROUP,
-        version: VERSION,
-        plural: 'environments',
-        body,
-      }),
-    );
-  }
-
-  async createSpringService(options: {
-    environment: string;
-    name: string;
-    image?: string;
-    replicas: number;
-    onBehalfOf: string;
-  }): Promise<void> {
-    const { custom } = await this.api();
-    const namespace = `env-${options.environment}`;
-    const spec: Record<string, unknown> = { replicas: options.replicas };
-    if (options.image) {
-      spec.image = options.image;
-    }
-    const body = {
-      apiVersion: `${GROUP}/${VERSION}`,
-      kind: 'SpringService',
-      metadata: {
-        name: options.name,
-        namespace,
-        annotations: { [`${PREFIX}/on-behalf-of`]: options.onBehalfOf },
-      },
-      spec,
-    };
-    await this.guard(`A service called '${options.name}' already exists in ${namespace}.`, () =>
-      custom.createNamespacedCustomObject({
-        group: GROUP,
-        version: VERSION,
-        namespace,
-        plural: 'springservices',
-        body,
-      }),
-    );
-  }
-
   /** The XRDs of the capabilities built from a CapabilityDefinition. */
   async listCapabilityXrds(): Promise<KubeObject[]> {
     const { custom } = await this.api();
@@ -190,102 +118,6 @@ export class PlatformClient {
       plural: capability.plural,
     });
     return (res as { items: KubeObject[] }).items;
-  }
-
-  async createCapabilityRequest(options: {
-    capability: { kind: string; group: string; version: string; plural: string; scope: string };
-    name: string;
-    environment?: string;
-    parameters: Record<string, unknown>;
-    onBehalfOf: string;
-  }): Promise<{ namespace?: string }> {
-    const { custom } = await this.api();
-    const { capability } = options;
-    const namespace =
-      capability.scope === 'Namespaced' ? `env-${options.environment}` : undefined;
-    const body = {
-      apiVersion: `${capability.group}/${capability.version}`,
-      kind: capability.kind,
-      metadata: {
-        name: options.name,
-        ...(namespace ? { namespace } : {}),
-        annotations: { [`${PREFIX}/on-behalf-of`]: options.onBehalfOf },
-      },
-      spec: options.parameters,
-    };
-    const where = namespace ? ` in ${namespace}` : '';
-    await this.guard(`A ${capability.kind} called '${options.name}' already exists${where}.`, () =>
-      namespace
-        ? custom.createNamespacedCustomObject({
-            group: capability.group,
-            version: capability.version,
-            namespace,
-            plural: capability.plural,
-            body,
-          })
-        : custom.createClusterCustomObject({
-            group: capability.group,
-            version: capability.version,
-            plural: capability.plural,
-            body,
-          }),
-    );
-    return { namespace };
-  }
-
-  /** Records the action in the platform audit trail, next to the agents' actions. */
-  async record(action: string, message: string, subject: string, actor: string, kind = 'Environment') {
-    const { core } = await this.api();
-    const now = new Date();
-    try {
-      await core.createNamespacedEvent({
-        namespace: PLATFORM_NAMESPACE,
-        body: {
-          metadata: {
-            generateName: 'platform-',
-            namespace: PLATFORM_NAMESPACE,
-            annotations: { [`${PREFIX}/actor`]: actor },
-          },
-          involvedObject: {
-            apiVersion: `${GROUP}/${VERSION}`,
-            kind,
-            name: subject,
-            namespace: PLATFORM_NAMESPACE,
-          },
-          reason: action,
-          message,
-          type: 'Normal',
-          source: { component: 'platform-portal' },
-          firstTimestamp: now,
-          lastTimestamp: now,
-          count: 1,
-        },
-      });
-    } catch {
-      // The audit trail must never break the request itself.
-    }
-  }
-
-  private async guard(conflict: string, call: () => Promise<unknown>) {
-    try {
-      await call();
-    } catch (error: any) {
-      const code = error?.code;
-      const body = typeof error?.body === 'string' ? error.body : JSON.stringify(error?.body ?? '');
-      if (code === 409) {
-        throw new PlatformDenied(conflict);
-      }
-      if ([400, 403, 422].includes(code) && body.includes('admission webhook')) {
-        throw new PlatformDenied(denialReason(body));
-      }
-      if (code === 422) {
-        throw new PlatformDenied(`Invalid request: ${denialReason(body)}`);
-      }
-      if (code === 404) {
-        throw new PlatformDenied('The environment does not exist.');
-      }
-      throw error;
-    }
   }
 }
 

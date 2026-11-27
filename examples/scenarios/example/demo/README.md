@@ -11,6 +11,7 @@ La demo demuestra dos resultados distintos utilizando **especificaciones de prod
 - [Spec 02 — Acceso Zero-UI](../specs/retail-sales-insights-02-zero-ui.md).
 - [Dataset determinista y valores esperados](../data/README.md).
 - [Guía técnica del presentador](execution-guide.md).
+- [Usuarios y equipos](users-and-teams.md): con quién iniciar sesión en el portal, `platformctl` y los agentes, y la matriz de pruebas de identidad y aprobaciones.
 
 ## Qué se entrega al agente
 
@@ -25,6 +26,10 @@ La guía de ejecución existe para que el presentador compruebe el resultado y p
 - Si crea una solución de negocio correcta, con un **dashboard diseñado visualmente**, no HTML sin estilos.
 - Si reutiliza el servicio existente para el canal conversacional **mediante un MCP remoto en Kubernetes**.
 - Si reconoce los errores y límites de las herramientas sin inventar datos.
+
+## Identidad
+
+La demo se ejecuta como **diego** (equipo `retail`): el agente inicia sesión en Keycloak la primera vez que usa el servidor MCP `platform` y actúa en su nombre, con sus equipos. Las peticiones que superan los guardarraíles de agentes las aprueba **elena** (aprobadora de retail), nunca diego. Ver [usuarios y equipos](users-and-teams.md).
 
 ## Multiusuario: una misma instancia MCP, varios Claude Code
 

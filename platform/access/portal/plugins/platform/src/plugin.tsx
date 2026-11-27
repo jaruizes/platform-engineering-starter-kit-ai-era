@@ -4,6 +4,7 @@ import {
 } from '@backstage/frontend-plugin-api';
 import { EntityCardBlueprint } from '@backstage/plugin-catalog-react/alpha';
 import SmartToyIcon from '@material-ui/icons/Memory';
+import { platformIdentityApi, platformIdentityDecorator } from './identity';
 import { rootRouteRef } from './routes';
 
 /** AI-era platform view: agent approvals, metrics and activity. */
@@ -37,7 +38,13 @@ export const serviceQualityCard = EntityCardBlueprint.make({
 
 export const platformPlugin = createFrontendPlugin({
   pluginId: 'platform',
-  extensions: [aiPlatformPage, platformRequestCard, serviceQualityCard],
+  extensions: [
+    platformIdentityApi,
+    platformIdentityDecorator,
+    aiPlatformPage,
+    platformRequestCard,
+    serviceQualityCard,
+  ],
   routes: {
     root: rootRouteRef,
   },

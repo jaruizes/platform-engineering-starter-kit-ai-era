@@ -3,49 +3,59 @@ import {
   createTemplateAction,
   scaffolderActionsExtensionPoint,
 } from '@backstage/plugin-scaffolder-node';
-import { summarizeCapability } from './capabilities';
-import { PlatformClient, PlatformDenied } from './kubernetes';
-import { PlatformApiClient, PlatformApiError, type Person } from './platformApi';
+import { PlatformApiClient, PlatformApiError, type RequestResult } from './platformApi';
 
 const NAME = /^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$/;
 
+/** The secret the portal's form decorator "platform-identity" fills with the person's token. */
+export const TOKEN_SECRET = 'platformToken';
+
 /**
- * Software Templates run on behalf of a signed-in person. Agents do not use
- * them: they act through the platform MCP server, with their own identity,
- * so the agent guardrails always apply to them.
+ * Software Templates run on behalf of a signed-in person. The form decorator
+ * "platform-identity" (frontend plugin) passes the person's Keycloak access
+ * token as a task secret, and the actions call the platform API with it: the
+ * platform API decides with the person's own teams and roles. Agents do not
+ * use the templates: they act through the platform MCP server.
  */
-async function requester(ctx: {
-  user?: {
-    ref?: string;
-    entity?: { spec?: { profile?: { displayName?: string }; memberOf?: string[] } };
-  };
+export async function personToken(ctx: {
+  secrets?: Record<string, string>;
   getInitiatorCredentials(): Promise<{ principal: unknown }>;
-}): Promise<Person> {
+}): Promise<string> {
   const credentials = await ctx.getInitiatorCredentials();
-  const principal = credentials.principal as { type?: string; userEntityRef?: string };
-  const ref = principal?.type === 'user' ? principal.userEntityRef : undefined;
-  if (!ref) {
+  const principal = credentials.principal as { type?: string };
+  if (principal?.type !== 'user') {
+    throw new Error('Golden Path templates run on behalf of a person. AI agents use the platform MCP server.');
+  }
+  const token = ctx.secrets?.[TOKEN_SECRET];
+  if (!token) {
     throw new Error(
-      'Golden Path templates run on behalf of a person. AI agents use the platform MCP server.',
+      'The platform needs to know who you are: sign in to the portal with the platform identity ' +
+        '(Keycloak) and fill in the form again. (The template must declare the form decorator platform-identity.)',
     );
   }
-  // Until the portal signs people in with Keycloak (increment B), their
-  // teams come from the catalog; the platform API authorizes with them.
-  const teams = (ctx.user?.entity?.spec?.memberOf ?? []).map(team => team.split('/').pop() ?? team);
-  return { ref, name: ctx.user?.entity?.spec?.profile?.displayName ?? ref, teams };
+  return token;
 }
 
-function friendly(error: unknown): never {
-  if (error instanceof PlatformDenied) {
-    throw new Error(`The platform guardrails stopped this request: ${error.message}`);
+function friendly(error: unknown, what: string): never {
+  if (error instanceof PlatformApiError) {
+    throw new Error(`The platform did not ${what}: ${error.message}`);
   }
   throw error;
 }
 
-export function createEnvironmentAction(platform: PlatformClient) {
+/** People get what they ask for or a reason; only agents' requests wait for an approver. */
+function outcome(result: RequestResult, what: string): void {
+  if (result.status === 'accepted') return;
+  if (result.status === 'pending_approval') {
+    throw new Error(`${what} needs approval (${result.approval_id}): ${result.reason ?? ''}`);
+  }
+  throw new Error(`The platform guardrails stopped this request: ${result.reason ?? result.status}`);
+}
+
+export function createEnvironmentAction(api: PlatformApiClient) {
   return createTemplateAction({
     id: 'platform:environment:create',
-    description: 'Requests an ephemeral environment through the Environment Golden Path.',
+    description: 'Requests an ephemeral environment through the Environment Golden Path, as the signed-in person.',
     schema: {
       input: {
         name: z => z.string().regex(NAME).describe('Environment name'),
@@ -60,8 +70,7 @@ export function createEnvironmentAction(platform: PlatformClient) {
       },
     },
     async handler(ctx) {
-      const person = await requester(ctx);
-      const onBehalfOf = person.ref;
+      const token = await personToken(ctx);
       const { name, purpose, size, ttlHours } = ctx.input;
       // The EntityPicker returns a ref like group:default/checkout.
       const team = ctx.input.team.split('/').pop()!;
@@ -70,26 +79,20 @@ export function createEnvironmentAction(platform: PlatformClient) {
       }
       ctx.logger.info(`Requesting a ${size} environment '${name}' for team ${team}`);
       try {
-        await platform.createEnvironment({ name, team, purpose, size, ttlHours, onBehalfOf });
+        outcome(await api.requestEnvironment(token, { name, team, purpose, size, ttlHours }), 'The environment');
       } catch (error) {
-        friendly(error);
+        friendly(error, 'create the environment');
       }
-      await platform.record(
-        'RequestAccepted',
-        `${person.name} got a ${size} environment for team ${team} from the portal: ${purpose}`,
-        name,
-        onBehalfOf,
-      );
       ctx.output('entityRef', `resource:default/${name}`);
       ctx.output('namespace', `env-${name}`);
     },
   });
 }
 
-export function createServiceAction(platform: PlatformClient) {
+export function createServiceAction(api: PlatformApiClient) {
   return createTemplateAction({
     id: 'platform:service:deploy',
-    description: 'Deploys a service into an environment through the SpringService Golden Path.',
+    description: 'Deploys a service into an environment through the SpringService Golden Path, as the signed-in person.',
     schema: {
       input: {
         environment: z => z.string().describe('Environment to deploy into (name or entity ref)'),
@@ -103,33 +106,26 @@ export function createServiceAction(platform: PlatformClient) {
       },
     },
     async handler(ctx) {
-      const person = await requester(ctx);
-      const onBehalfOf = person.ref;
+      const token = await personToken(ctx);
       // The EntityPicker returns a ref like resource:default/payments-dev.
       const environment = ctx.input.environment.split('/').pop()!;
       const { name, image, replicas } = ctx.input;
       ctx.logger.info(`Deploying ${name} into environment ${environment}`);
       try {
-        await platform.createSpringService({ environment, name, image, replicas, onBehalfOf });
+        outcome(await api.deployService(token, environment, { name, image, replicas }), 'The service');
       } catch (error) {
-        friendly(error);
+        friendly(error, 'deploy the service');
       }
-      await platform.record(
-        'RequestAccepted',
-        `${person.name} deployed ${name} in env-${environment} from the portal`,
-        environment,
-        onBehalfOf,
-      );
       ctx.output('entityRef', `component:default/${name}.${environment}`);
       ctx.output('url', `http://${name}.env-${environment}.svc.cluster.local`);
     },
   });
 }
 
-export function createCapabilityRequestAction(platform: PlatformClient) {
+export function createCapabilityRequestAction(api: PlatformApiClient) {
   return createTemplateAction({
     id: 'platform:capability:request',
-    description: 'Requests a platform capability (for example a database) through its Golden Path.',
+    description: 'Requests a platform capability (for example a database) through its Golden Path, as the signed-in person.',
     schema: {
       input: {
         capability: z => z.string().describe('Capability kind, for example PostgresDatabase'),
@@ -142,34 +138,22 @@ export function createCapabilityRequestAction(platform: PlatformClient) {
       },
     },
     async handler(ctx) {
-      const person = await requester(ctx);
-      const xrds = await platform.listCapabilityXrds();
-      const capability = xrds.map(summarizeCapability).find(c => c.kind === ctx.input.capability);
-      if (!capability) {
-        throw new Error(`The platform does not offer ${ctx.input.capability}.`);
-      }
-      const environment = ctx.input.environment?.split('/').pop();
-      if (capability.scope === 'Namespaced' && !(environment && NAME.test(environment))) {
-        throw new Error(`${capability.title} lives in an environment: choose one.`);
+      const token = await personToken(ctx);
+      const environment = ctx.input.environment?.split('/').pop() || undefined;
+      if (environment && !NAME.test(environment)) {
+        throw new Error(`'${environment}' is not a valid environment name.`);
       }
       // Empty optional fields mean "use the default".
       const parameters = Object.fromEntries(
         Object.entries(ctx.input.parameters).filter(([, v]) => v !== undefined && v !== ''),
       );
-      const { name } = ctx.input;
-      ctx.logger.info(`Requesting ${capability.kind} ${name}${environment ? ` in env-${environment}` : ''}`);
+      const { name, capability } = ctx.input;
+      ctx.logger.info(`Requesting ${capability} ${name}${environment ? ` in env-${environment}` : ''}`);
       try {
-        await platform.createCapabilityRequest({ capability, name, environment, parameters, onBehalfOf: person.ref });
+        outcome(await api.requestCapability(token, capability, { name, environment, parameters }), capability);
       } catch (error) {
-        friendly(error);
+        friendly(error, `create the ${capability}`);
       }
-      await platform.record(
-        'RequestAccepted',
-        `${person.name} requested ${capability.kind} ${name}${environment ? ` in env-${environment}` : ''} from the portal`,
-        name,
-        person.ref,
-        capability.kind,
-      );
       ctx.output('entityRef', `resource:default/${environment ? `${name}.${environment}` : name}`);
     },
   });
@@ -214,14 +198,14 @@ export function createGoldenPathAction(api: PlatformApiClient) {
       },
     },
     async handler(ctx) {
-      const person = await requester(ctx);
+      const token = await personToken(ctx);
       // Empty optional fields mean "use the default".
       const parameters = Object.fromEntries(
         Object.entries(ctx.input.parameters).filter(([, v]) => v !== undefined && v !== null && v !== ''),
       );
       ctx.logger.info(`Asking the platform to create ${parameters.name} with the ${ctx.input.goldenPath} Golden Path`);
       try {
-        const created = await api.createRepository(ctx.input.goldenPath, parameters, person);
+        const created = await api.createRepository(token, ctx.input.goldenPath, parameters);
         ctx.output('repositoryUrl', created.repository);
         ctx.output('cloneUrl', created.cloneUrl);
         ctx.output('entityRef', created.catalogEntity);
@@ -251,10 +235,11 @@ export function createCapabilityProposalAction(api: PlatformApiClient) {
       },
     },
     async handler(ctx) {
-      const person = await requester(ctx);
+      const token = await personToken(ctx);
       const definition = compact(ctx.input.definition);
+      const name = ctx.user?.entity?.spec?.profile?.displayName ?? ctx.user?.ref ?? '';
       try {
-        const proposed = await api.proposeCapability(definition, person);
+        const proposed = await api.proposeCapability(token, definition, String(name));
         ctx.logger.info(`Opened pull request #${proposed.pullRequestNumber}: ${proposed.pullRequestUrl}`);
         ctx.output('pullRequestUrl', proposed.pullRequestUrl);
         ctx.output('entityRef', proposed.entityRef);
@@ -275,15 +260,13 @@ export const scaffolderModulePlatform = createBackendModule({
     env.registerInit({
       deps: { scaffolder: scaffolderActionsExtensionPoint, config: coreServices.rootConfig },
       async init({ scaffolder, config }) {
-        const platform = new PlatformClient();
         const api = new PlatformApiClient(
           config.getOptionalString('platform.api.url') ?? 'http://platform-api.platform-system.svc:8083',
-          config.getOptionalString('platform.api.token'),
         );
         scaffolder.addActions(
-          createEnvironmentAction(platform),
-          createServiceAction(platform),
-          createCapabilityRequestAction(platform),
+          createEnvironmentAction(api),
+          createServiceAction(api),
+          createCapabilityRequestAction(api),
           createGoldenPathAction(api),
           createCapabilityProposalAction(api),
         );

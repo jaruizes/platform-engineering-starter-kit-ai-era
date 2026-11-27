@@ -25,11 +25,15 @@ Recorder = Callable[..., None]
 PLATFORM_REPOSITORY = "platform-starter-kit"
 NAME = re.compile(r"^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$")
 
-__all__ = ["Forbidden", "NotFound", "Platform"]
+__all__ = ["Conflict", "Forbidden", "NotFound", "Platform"]
 
 
 class NotFound(LookupError):
     """There is no such thing (or the requester may not know it exists)."""
+
+
+class Conflict(Exception):
+    """The request is valid, but the thing is not in a state that allows it."""
 
 
 def _check_name(value: str, field_name: str) -> None:
@@ -49,6 +53,7 @@ class Platform:
     quality: Any = None                 # platform_api.quality
     wait_seconds: float = 60
     sleep: Callable[[float], None] = field(default=time.sleep)
+    four_eyes: bool = True              # nobody decides on a request made on their own behalf
 
     def _record(self, identity: Identity, action: str, message: str, subject: str, kind: str = "Environment",
                 warning: bool = False) -> None:
@@ -119,9 +124,9 @@ class Platform:
                     "approval_id": approval_id,
                     "reason": denied.reason,
                     "next_step": (
-                        "Tell the user this request needs human approval in the developer portal "
-                        f"(AI Platform page) or the platform console (approval id {approval_id}). "
-                        "Use get_approval_status to follow it."
+                        "Tell the user this request needs human approval: an approver of the team, "
+                        "other than the user, decides in the developer portal (AI Platform page) or with "
+                        f"`platformctl approve {approval_id}`. Use get_approval_status to follow it."
                     ),
                 }
             self._record(identity, "RequestDenied", f"{identity.display} asked for {what}: {denied.reason}",
@@ -274,14 +279,93 @@ class Platform:
 
     # --- Approvals ---------------------------------------------------------------------
 
-    def get_approval(self, identity: Identity, approval_id: str) -> dict[str, Any]:
+    def _approval(self, identity: Identity, approval_id: str) -> dict[str, Any]:
+        if not isinstance(approval_id, str) or not re.match(r"^[a-z0-9]([-a-z0-9]{0,60}[a-z0-9])?$", approval_id):
+            raise golden_paths.InvalidRequest("The approval id is lowercase letters, numbers and dashes.")
         approval = self.cluster.get_approval(approval_id)
         if approval is None:
             raise NotFound(f"There is no approval request '{approval_id}'.")
-        team = approval.get("team") or (approval["manifest"].get("spec") or {}).get("team")
-        authz.require_read(identity, team, f"approval request {approval_id}")
-        approval.pop("manifest", None)
+        authz.require_read(identity, authz.approval_team(approval), f"approval request {approval_id}")
         return approval
+
+    def _with_decision(self, identity: Identity, approval: dict[str, Any]) -> dict[str, Any]:
+        """What the caller may do with it: the portal shows Approve only when it is allowed."""
+        approval = dict(approval)
+        approval.pop("manifest", None)
+        approval["team"] = approval.get("team") or (approval.get("request") or {}).get("team")
+        reason = (authz.why_cannot_decide(identity, approval, self.four_eyes)
+                  if approval.get("status") == "pending" else "It has already been decided.")
+        approval["can_decide"] = reason is None
+        approval["cannot_decide_reason"] = reason
+        return approval
+
+    def get_approval(self, identity: Identity, approval_id: str) -> dict[str, Any]:
+        return self._with_decision(identity, self._approval(identity, approval_id))
+
+    def list_approvals(self, identity: Identity, status: str | None = None) -> list[dict[str, Any]]:
+        """Approval requests of your teams (platform-team: all), with whether you may decide each one."""
+        return [
+            self._with_decision(identity, a) for a in self.cluster.list_approvals()
+            if authz.can_read(identity, authz.approval_team(a)) and (status is None or a.get("status") == status)
+        ]
+
+    def decide_approval(self, identity: Identity, approval_id: str, decision: str, note: str = "") -> dict[str, Any]:
+        """Approves or rejects an agent's request: approver role for the team, and four eyes.
+
+        An approved request is created by the platform with approved-by set to the person; the
+        guardrails that apply to everyone (cost, TTL, team membership) are still checked."""
+        if decision not in ("approve", "reject"):
+            raise golden_paths.InvalidRequest("decision must be approve or reject.")
+        approval = self._approval(identity, approval_id)
+        request = approval.get("request") or {}
+        subject, kind = request.get("name") or approval_id, request.get("kind") or "Environment"
+        if approval.get("status") != "pending":
+            raise Conflict(f"Approval request {approval_id} was already {approval.get('status')} "
+                           f"by {approval.get('decided_by') or 'someone'}.")
+        try:
+            authz.require_decide(identity, approval, self.four_eyes)
+        except Forbidden as denied:
+            self._record(identity, "ApprovalDenied", f"{identity.display} tried to {decision} {approval_id}: {denied}",
+                         subject, kind, warning=True)
+            raise
+        result = self.cluster.decide_approval(approval_id, decision == "approve", identity.person,
+                                              str(note or "")[:500])
+        action = {"approved": "Approved", "rejected": "Rejected"}.get(result["status"], "ApprovalFailed")
+        requester = result.get("agent") or "an agent"
+        if result.get("on_behalf_of"):
+            requester += f" for {result['on_behalf_of']}"
+        message = f"{identity.person} {result['status']} the request of {requester}"
+        if result.get("decision_note"):
+            message += f": {result['decision_note']}"
+        self._record(identity, action, message, subject, kind, warning=action != "Approved")
+        return self._with_decision(identity, result)
+
+    # --- Overview (portal AI Platform page) ---------------------------------------------
+
+    def overview(self, identity: Identity) -> dict[str, Any]:
+        """What the platform is doing, for the requester's teams (platform-team: everything)."""
+        environments = [self.cluster.summarize_environment(e) for e in self.cluster.list_environments()]
+        environments = [e for e in environments if authz.can_read(identity, e["team"])]
+        visible = {e["name"] for e in environments}
+        namespaces = {e.get("namespace") or f"env-{e['name']}" for e in environments}
+        services = [self.cluster.summarize_spring_service(s) for s in self.cluster.list_spring_services()]
+        if not (identity.in_platform_team and identity.kind != "autonomous"):
+            services = [s for s in services if s["namespace"] in namespaces]
+        approvals = self.list_approvals(identity)
+        visible |= {(a.get("request") or {}).get("name") for a in approvals}
+        everything = identity.in_platform_team and identity.kind != "autonomous"
+        me = {identity.person, identity.agent} - {None}
+        activity = [a for a in self.cluster.list_activity()
+                    if everything or a["subject"] in visible or a.get("actor") in me or a.get("on_behalf_of") in me]
+        return {
+            "identity": identity.describe(),
+            "scope": "all teams" if everything else ", ".join(identity.teams) or "no team",
+            "environments": sorted(environments, key=lambda e: e["created_at"], reverse=True),
+            "services": services,
+            "approvals": approvals,
+            "activity": activity[:20],
+            "metrics": self.cluster.compute_metrics(environments, approvals, activity),
+        }
 
     # --- Code Golden Paths -------------------------------------------------------------
 

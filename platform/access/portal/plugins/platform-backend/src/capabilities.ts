@@ -238,6 +238,8 @@ export function requestTemplate(cap: Capability, appUrl: string): Entity {
     spec: {
       owner: cap.owner,
       type: 'platform-capability',
+      // Sends the signed-in person's token: the platform API decides with it.
+      formDecorators: [{ id: 'platform-identity' }],
       parameters: [
         {
           title: `Request a ${cap.title}`,
@@ -333,6 +335,7 @@ export function newCapabilityTemplate(schema: JsonSchema): Entity {
     spec: {
       owner: 'group:default/platform-team',
       type: 'platform-capability',
+      formDecorators: [{ id: 'platform-identity' }],
       parameters: [
         { title: 'Capability', description: metadata.description, required: ['metadata'], properties: { metadata } },
         page('Purpose', 'Why the platform needs it.', ['purpose'], ['purpose']),

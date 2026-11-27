@@ -79,7 +79,7 @@ While it is up, about **0.35 USD per hour** in `eu-west-1`: the EKS control plan
 - **Only the allowed addresses** reach the load balancer and the Kubernetes API.
 - **HTTPS** with a certificate signed by the kit's own CA: there is no domain to get a public certificate for.
 - **Agents sign in with Keycloak** (port 8180) on AWS as on a laptop. The password of the sample people, the portal MCP token and the platform API channel token are random, created once and kept in `deploy/aws/.state`.
-- **No login yet**: the portal still signs everyone in as the guest Ana, and the console has no login. The allowed addresses are what protects them. A real login (Keycloak, for people and for agents) is the next step.
+- **Sign-in with Keycloak**: people sign in to the portal and `platformctl`, and agents sign in for a person; the sample people have a random password (`DEMO_PASSWORD` in `.state/tokens.env`). The read-only console has no login: the allowed addresses protect it.
 - The AWS credentials are only used on your computer, by OpenTofu and the AWS CLI. Nothing in the cluster has them.
 
 ## How it works

@@ -17,6 +17,6 @@ results:
     result: pass
   - policy: protect-audit-trail
     isValidatingPolicy: true
-    resources: [forged-agent, forged-teams, forged-person, forged-deletion]
+    resources: [forged-agent, forged-teams, forged-person, forged-deletion, forged-approval]
     kind: Environment
     result: fail

@@ -39,9 +39,11 @@ and guardrails; request one with `request_capability` and follow it with
 3. Request what is needed with `request_environment` (small by default, a time
    to live that fits the task, at most 72 hours) and then `deploy_service`.
 4. If the answer is `pending_approval`, a guardrail sent it to a human. Tell
-   the user, give them the approval id, and say it can be approved in the
-   portal's AI Platform page. Offer a small environment if that is enough.
-   Never try to approve it yourself.
+   the user, give them the approval id, and say that an approver of the team,
+   other than them, decides in the portal's AI Platform page or with
+   `platformctl approve <id>` (nobody approves what their own agent asked
+   for). Offer a small environment if that is enough. Never try to approve
+   it yourself.
 5. If the answer is `denied`, explain the guardrail in one sentence and
    propose a request that fits it.
 6. When the work is done, offer to delete the environment with

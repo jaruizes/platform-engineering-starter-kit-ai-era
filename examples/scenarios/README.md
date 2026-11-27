@@ -11,7 +11,7 @@ make up            # once: creates the local platform (takes a few minutes)
 make demo-reset    # before every demo: clean state
 ```
 
-Open the portal at <http://localhost:7007>, click **Enter** (you are Ana, from the platform team) and keep it visible during the whole demo. The lighter console at <http://localhost:8080> shows the same approvals and metrics.
+Open the portal at <http://localhost:7007> and sign in with Keycloak as **sofia** (team payments, password `demo`); keep it visible during the whole demo. Everyone you can sign in as, with their teams and roles, is in [users and teams](example/demo/users-and-teams.md). The portal shows what the signed-in person's teams have, and only the platform API decides what they may do. The lighter, read-only console at <http://localhost:8080> shows the same approvals and metrics for every team.
 
 To use a real coding agent, connect it to the two MCP servers: `platform` (`http://localhost:8081/mcp`) to act, signing in with Keycloak, and `portal` (`http://localhost:7007/api/mcp-actions/v1/context`, with the header `Authorization: Bearer platform-starter-kit-local-demo`) to read context. This repository already includes a `.mcp.json` and two skills ([platform Golden Paths](../../platform/ai/agent-tooling/skills/platform-golden-paths/SKILL.md) and [Spring services](../../platform/ai/agent-tooling/skills/spring-service/SKILL.md)), so [Claude Code](https://claude.com/claude-code) opened in this folder offers both servers and knows how to use the platform. For any other agent:
 
@@ -31,11 +31,11 @@ No agent at hand, or no network? `make demo-agent` runs a scripted agent that ma
 
 In the portal:
 
-1. **Create → Ephemeral environment.** Name `payments-dev`, team *Payments*, a purpose, size *medium*, 48 hours. The developer only says team, purpose, size and how long. No namespaces, quotas, permissions or cost labels.
-2. Open the environment in the catalog: it is ready in seconds, with a CPU and memory budget, access for the team and an expiry date. The **Golden Path request** card shows it was requested by a **human** (Ana), and what it costs.
+1. **Create → Ephemeral environment.** Name `payments-dev`, team *Payments*, a purpose, size *medium*, 48 hours. The developer only says team, purpose, size and how long. No namespaces, quotas, permissions or cost labels. Try team *Checkout* first: the platform refuses it, because Sofía is not in checkout.
+2. Open the environment in the catalog: it is ready in seconds, with a CPU and memory budget, access for the team and an expiry date. The **Golden Path request** card shows it was requested by a **human** (sofia, payments), and what it costs.
 3. **Create → New service.** Environment `payments-dev`, name `refunds-api`. The Golden Path adds health probes, resource limits, a hardened security context and ownership labels. The **Kubernetes** tab of the service shows its pods.
 
-Prefer the terminal? `make demo-developer` does the same through the platform API: show [`examples/scenarios/developer/environment.yaml`](developer/environment.yaml) and [`examples/scenarios/developer/service.yaml`](developer/service.yaml).
+Prefer the terminal? `platform/access/cli/platformctl.py login` as sofia, then `platformctl.py request-environment payments payments-dev "Test refunds" --size medium --ttl 48`: the same platform API, the same identity. (`make demo-developer` applies [`environment.yaml`](developer/environment.yaml) and [`service.yaml`](developer/service.yaml) with your own `kubectl` access, as a cluster administrator would.)
 
 ## Act 2: the agent (Platform Engineering in the AI era)
 
@@ -56,7 +56,8 @@ Ask the agent, in plain language:
 4. **"Now I need a large environment for a load test, for 24 hours."**
    - *Guardrails:* the policy stops it. Agents only get small environments on their own.
    - The request goes to a human: it appears in the portal's **AI Platform** page under **Agent requests waiting for a human decision**. The agent tells the user and gives the approval id.
-   - Approve it in the portal. You do not type your name: the portal knows who you are. The environment is created with the agent as requester and Ana as approver.
+   - *Four eyes:* sign in to the portal as **marta**. She sees the request, but no Approve button: she does not have the approver role, and nobody decides on a request made on their own behalf. **luis** (approver of payments) does not even see it.
+   - Sign in as **carlos** (approver of checkout) and approve it. You do not type your name: the platform API takes it from his token, checks his role and team, and creates the environment with the agent as requester, Marta as the person it acted for and Carlos as approver. `platform/access/cli/platformctl.py approve <id>` does the same from the terminal.
 5. **"And one that stays for two weeks."**
    - Stopped by the cost guardrail that applies to everyone, humans included: environments live at most 72 hours. Approval cannot bypass it.
 
@@ -66,7 +67,7 @@ Ask the agent, in plain language:
    - *Guardrails:* Argo CD deploys with its own identity, but the platform still knows the agent asked for it, so the agent guardrails apply too.
    - *Observe:* the agent follows `get_service_status` (pipeline, Argo CD and pods, with the logs if it does not start) until it is ready, and gives you the `kubectl port-forward` and `curl` to try it.
 
-With the scripted agent, `make demo-agent` runs steps 1 to 5 in one go as `ci-agent` (team checkout); then approve the load test in the portal.
+With the scripted agent, `make demo-agent` runs steps 1 to 5 in one go as `ci-agent` (team checkout); then approve the load test in the portal as carlos or ana.
 
 **Kill switch (optional):** in the Keycloak console (<http://localhost:8180/admin>, user `admin`), disable the `claude-code` client or sign Marta out. Within five minutes the agent's next call gets a 401 and the platform stops it, with nothing to change in the platform.
 
@@ -94,7 +95,7 @@ And in the catalog, filter by kind **AiResource**: the rules agents follow (each
 *Message: the organization's architecture rules have three readers now: people, agents and CI. One source of truth, and the rules that can be checked are checked.*
 
 1. **Docs → Engineering standards.** Four architectures side by side (backend v2 and the deprecated v1, Angular and React), each with its architecture, rules and examples, plus the documents for all of them (technology policy, development rules, testing), as TechDocs. This is where people read them.
-2. **Create → Spring service.** Name `payments-service`, a description, owner *Payments*, first module `payments`. The repository appears in the Git server (<http://localhost:3000/platform/payments-service>) and in the catalog a few seconds later. Show its package structure (`payments/domain`, `business`, `infrastructure`), its `AGENTS.md` and `src/test/java/**/architecture/ArchitectureTest.java`.
+2. **Create → Spring service** (signed in as sofia). Name `payments-service`, a description, owner *Payments*, first module `payments`. The repository appears in the Git server (<http://localhost:3000/platform/payments-service>) and in the catalog a few seconds later. Show its package structure (`payments/domain`, `business`, `infrastructure`), its `AGENTS.md` and `src/test/java/**/architecture/ArchitectureTest.java`.
 3. Ask the agent: **"Create a new service for the checkout team that manages gift cards."** With the Spring service skill, it does not scaffold by hand: it calls `create_service`, the same template, and the catalog shows the service as requested by the agent. Then: **"Which rules must I follow to add a REST endpoint?"** It reads them through the portal MCP server (`platform.get-standards-for-entity` and `platform.get-engineering-standard`).
 4. Ask the agent: **"Add a refund endpoint to the orders API."** The orders API is an older service: `get-standards-for-entity` says it follows **backend v1 (layered, deprecated)**, so the agent works with controller, service and repository layers and cites `BL-` rules, instead of applying the hexagonal v2 rules it would use for a new service. Then: **"How should the storefront validate the checkout form?"** It searches only the **React v1** standards (`search-engineering-standards` with `architecture: frontend-react-v1`), not the Angular ones. In the catalog, filter by the tag `architecture` to see the four architectures, and open a service to see which one it depends on.
 5. Break a rule on purpose: in the cloned repository, make a class in `domain` use a JPA annotation and run `./mvnw verify`. ArchUnit fails and names the rule (AAC-003). The same happens for code written by an agent.
@@ -106,8 +107,8 @@ The standards are an example taken from [My-FinAI-Manager](https://github.com/ja
 *Message: the platform team describes what the platform needs; an agent builds it; checks prove it; a person decides. The definition is the contract.*
 
 1. **Catalog → PostgreSQL database.** A capability built this way. Show its **TechDocs** (what you get, guardrails, cost) and [its definition](../../platform/capabilities/infrastructure/postgres-database/capability.yaml): purpose, interface, guardrails `GR-1..3` and acceptance criteria `AC-1..6`. Then [`TRACEABILITY.md`](../../platform/capabilities/infrastructure/postgres-database/TRACEABILITY.md): each criterion and guardrail, the test that proves it, and its result.
-2. **Create → PostgreSQL database** in `payments-dev`. It is ready in a couple of minutes with a Secret to connect to it. Ask the agent: **"I need a large database in payments-dev to test the migration."** GR-3 sends it to a human, in the **AI Platform** page, like the large environment in Act 2.
-3. **Create → New platform capability.** Fill in a Redis cache: a parameter `size`, a guardrail for everyone (only in `env-*` namespaces) and one for agents (only small), a cost per size and an acceptance criterion. The form checks the definition against the schema. It opens a pull request in the platform repository (<http://localhost:3000/platform/platform-starter-kit/pulls>) and the proposal appears in the catalog with lifecycle *proposed*.
+2. **Create → PostgreSQL database** in `payments-dev` (as sofia). It is ready in a couple of minutes with a Secret to connect to it. Ask the agent: **"I need a large database in payments-dev to test the migration."** GR-3 sends it to a human, in the **AI Platform** page, like the large environment in Act 2.
+3. **Create → New platform capability**, signed in as **ana** or **pablo** (platform-team: only they propose capabilities; sofia gets a refusal). Fill in a Redis cache: a parameter `size`, a guardrail for everyone (only in `env-*` namespaces) and one for agents (only small), a cost per size and an acceptance criterion. The form checks the definition against the schema. It opens a pull request in the platform repository (<http://localhost:3000/platform/platform-starter-kit/pulls>) and the proposal appears in the catalog with lifecycle *proposed*.
 4. Build it: check out the pull request branch and ask Claude Code **"Build the capability in this pull request"**. The [build-platform-capability skill](../../platform/ai/agent-tooling/skills/build-platform-capability/SKILL.md) generates the composition, policies and tests, and runs `make capability NAME=redis-cache` until it passes. A person reviews `TRACEABILITY.md` and merges.
 
 The checks run with `make capability NAME=<name>` and in CI ([`.github/workflows/capabilities.yml`](../../.github/workflows/capabilities.yml)). How the definition, the generated files and the checks fit together is in [`platform/capabilities/README.md`](../../platform/capabilities/README.md).
@@ -123,14 +124,17 @@ The checks run with `make capability NAME=<name>` and in CI ([`.github/workflows
 | Engineering standards | [`platform/cognitive/knowledge/standards/`](../../platform/cognitive/knowledge/standards): four architectures with their versions ([`architectures.yaml`](../../platform/cognitive/knowledge/standards/architectures.yaml)), TechDocs built into the portal image, an `AiResource` per architecture, sample services on each one ([`platform/access/portal/catalog/services.yaml`](../../platform/access/portal/catalog/services.yaml)), and MCP actions that tell agents which rules apply to a service, serve the Markdown and search it by architecture |
 | Spring service | A [template](../../platform/capabilities/golden-paths/spring-service) that publishes to the local Git server ([Gitea](../../platform/capabilities/delivery/git-server/gitea.yaml)); the catalog discovers every repository of the `platform` organization. `create_service` in the platform MCP server runs the same template with a token that only reaches the scaffolder and the catalog |
 | Delivery | Each service repository has a pipeline ([Gitea Actions](../../platform/capabilities/golden-paths/spring-service/skeleton/.gitea/workflows/deliver.yaml), run by a [runner](../../platform/capabilities/delivery/runner) in the cluster) that builds the image with Jib, pushes it to the [service image registry](../../platform/capabilities/delivery/registry.yaml) (ECR on AWS) and commits it into `deploy/`. An [Argo CD ApplicationSet](../../platform/capabilities/delivery/argocd/services.yaml) deploys the `deploy/` folder of every repository; [`identify-requester`](../../platform/governance/policies/10-identify-requester.yaml) records who created the service, so the guardrails still apply |
-| Human in the loop | The console creates approved requests with its own identity and records the approver; the portal passes on who is signed in. [`protect-audit-trail`](../../platform/governance/policies/30-agent-guardrails.yaml) stops anyone else from doing so |
+| Identity | Keycloak ([`platform/access/identity`](../../platform/access/identity)): people sign in to the portal and `platformctl`, agents sign in for a person; the portal and the MCP server send that token to the [platform API](../../platform/capabilities/api), which decides by team and role |
+| Human in the loop | The platform API checks the approver role for the team and four eyes, then creates the approved request and records the approver. [`protect-audit-trail`](../../platform/governance/policies/30-agent-guardrails.yaml) stops anyone else from doing so; the console only shows it |
 | Platform capabilities | [`platform/capabilities/`](../../platform/capabilities): a definition per capability, what the agent generated from it (XRD, composition, policies, tests) and the checks; the portal and the platform MCP server discover them from the label `platform.starterkit.dev/capability` on the XRD |
 | Time to live | Kyverno deletes environments when their time to live is over |
 | Observe | Every action is a Kubernetes event in `platform-system`; the console reads events and resources |
 
 ## Troubleshooting
 
-- **The portal shows the sign-in page again:** click **Enter**; the demo keeps no session state.
+- **The portal shows the sign-in page again:** sign in again; Keycloak restarts without sessions (`make up` imports the realm on every start).
+- **"Sign in to the portal with the platform identity" in a template or the AI Platform page:** the Keycloak session expired; reload the page and sign in.
+- **"Team scope: ..." or "You cannot decide on it":** that is the platform deciding by team and role. Check who you are signed in as and [users and teams](example/demo/users-and-teams.md).
 - **The console is empty:** run `make status`. If Golden Path resources are missing, run `make up` again; it is idempotent.
 - **"Team already has 3 active environments":** that is the team budget guardrail. Run `make demo-reset`.
 - **A new capability is not in the portal:** the portal reads capabilities from the cluster every 15 seconds; check `make capabilities`. A proposal is read from the open pull requests of the platform repository.

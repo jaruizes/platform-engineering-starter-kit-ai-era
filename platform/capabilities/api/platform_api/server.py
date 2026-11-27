@@ -14,12 +14,15 @@
     GET    /v1/services/{name}/quality
     POST   /v1/capabilities/{capability}/requests       {"name", "environment", "parameters"}
     GET    /v1/capabilities/{capability}/requests/{name}[?environment=]
+    GET    /v1/approvals[?status=pending]                those of your teams, with canDecide
     GET    /v1/approvals/{id}
+    POST   /v1/approvals/{id}/decision                  {"decision": "approve"|"reject", "note"}
+    GET    /v1/overview                                 the AI Platform page, for your teams
 
 Every request carries a Keycloak access token (Authorization: Bearer). The
 platform API validates it, builds the identity (identity.py) and authorizes
-the operation (authorization.py). Until increment B, the portal may instead
-use the channel token PLATFORM_API_TOKEN and state the signed-in person.
+the operation (authorization.py). The portal sends the signed-in person's
+token, like the CLI; there is no channel token.
 """
 
 from __future__ import annotations
@@ -36,12 +39,13 @@ from starlette.routing import Route
 from . import golden_paths, kube, proposals
 from .git_server import GitServer, GitServerError, RepositoryExists
 from .identity import Authenticator, TokenVerifier, Unauthenticated
-from .service import Forbidden, NotFound, Platform
+from .service import Conflict, Forbidden, NotFound, Platform
 
 
 def default_platform() -> Platform:
     from . import cluster, delivery, quality
 
+    four_eyes = os.environ.get("APPROVALS_FOUR_EYES", "true").lower() not in ("false", "0", "no")
     return Platform(
         git=GitServer.from_environment(),
         state=golden_paths.State(kube.environment_exists, kube.spring_service_exists),
@@ -50,11 +54,12 @@ def default_platform() -> Platform:
         cluster=cluster,
         delivery=delivery,
         quality=quality,
+        four_eyes=four_eyes,
     )
 
 
 def default_authenticator() -> Authenticator:
-    return Authenticator(TokenVerifier.from_environment(), os.environ.get("PLATFORM_API_TOKEN") or None)
+    return Authenticator(TokenVerifier.from_environment())
 
 
 def create_app(platform: Platform, authenticator: Authenticator) -> Starlette:
@@ -84,6 +89,8 @@ def create_app(platform: Platform, authenticator: Authenticator) -> Starlette:
                 return JSONResponse({"error": str(forbidden)}, status_code=403)
             except NotFound as missing:
                 return JSONResponse({"error": str(missing)}, status_code=404)
+            except Conflict as conflict:
+                return JSONResponse({"error": str(conflict)}, status_code=409)
             except RepositoryExists as exists:
                 return JSONResponse({"error": str(exists)}, status_code=409)
             except GitServerError as failed:
@@ -152,6 +159,17 @@ def create_app(platform: Platform, authenticator: Authenticator) -> Starlette:
     async def get_approval(request: Request, who) -> Any:
         return await call(platform.get_approval, who, request.path_params["id"])
 
+    async def list_approvals(request: Request, who) -> Any:
+        return await call(platform.list_approvals, who, request.query_params.get("status") or None)
+
+    async def decide_approval(request: Request, who) -> Any:
+        data = await body(request)
+        return await call(platform.decide_approval, who, request.path_params["id"], str(data.get("decision") or ""),
+                          str(data.get("note") or ""))
+
+    async def overview(_: Request, who) -> Any:
+        return await call(platform.overview, who)
+
     async def healthz(_: Request) -> PlainTextResponse:
         return PlainTextResponse("ok")
 
@@ -170,7 +188,10 @@ def create_app(platform: Platform, authenticator: Authenticator) -> Starlette:
         Route("/v1/services/{name}/quality", handle(quality_status), methods=["GET"]),
         Route("/v1/capabilities/{capability}/requests", handle(request_capability, 201), methods=["POST"]),
         Route("/v1/capabilities/{capability}/requests/{name}", handle(get_capability_request), methods=["GET"]),
+        Route("/v1/approvals", handle(list_approvals), methods=["GET"]),
         Route("/v1/approvals/{id}", handle(get_approval), methods=["GET"]),
+        Route("/v1/approvals/{id}/decision", handle(decide_approval), methods=["POST"]),
+        Route("/v1/overview", handle(overview), methods=["GET"]),
         Route("/healthz", healthz),
     ])
 

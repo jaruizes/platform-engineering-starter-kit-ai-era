@@ -1,13 +1,12 @@
 /**
- * Client for the platform API (platform/capabilities/api). Code Golden Paths
- * (new repositories) and capability proposals are platform capabilities: the
- * portal is one of their channels, like the platform MCP server and the CLI.
- * It sends what the person filled in, on their behalf, and shows the result.
+ * Client for the platform API (platform/capabilities/api). Every capability
+ * of the platform lives there; the portal is one of its channels, like the
+ * platform MCP server and the CLI.
  *
- * Until the portal signs people in with Keycloak (increment B of
- * docs/identity-and-access.md), it calls with the channel token and states
- * the person and their teams; the platform API authorizes with them and
- * never takes this channel for an agent.
+ * The portal calls it with the signed-in person's Keycloak access token: the
+ * platform API knows who they are and which teams and roles they have, and
+ * decides. The portal makes no authorization decision of its own and has no
+ * token of its own for the platform API.
  */
 export type RepositoryCreated = {
   status: string;
@@ -26,53 +25,112 @@ export type CapabilityProposed = {
   entityRef: string;
 };
 
-export class PlatformApiError extends Error {}
+/** What the platform answers to a request: done, waiting for an approver, or stopped by a guardrail. */
+export type RequestResult = {
+  status: 'accepted' | 'pending_approval' | 'denied' | 'not_ready' | string;
+  reason?: string;
+  approval_id?: string;
+  next_step?: string;
+  [key: string]: unknown;
+};
 
-/** The signed-in person the portal acts for, and their teams in the catalog. */
-export type Person = { ref: string; name: string; teams: string[] };
+export class PlatformApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
 
 export class PlatformApiClient {
-  constructor(
-    private readonly baseUrl: string,
-    private readonly token: string | undefined,
-  ) {}
+  constructor(private readonly baseUrl: string) {}
 
-  private async post<T>(path: string, body: unknown, person: Person): Promise<T> {
+  async call<T>(method: string, path: string, token: string, body?: unknown): Promise<T> {
+    if (!token) {
+      throw new PlatformApiError(
+        'Sign in to the portal with the platform identity (Keycloak) to use the platform.',
+        401,
+      );
+    }
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl}${path}`, {
-        method: 'POST',
+        method,
         headers: {
-          'Content-Type': 'application/json',
-          ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
-          'X-Platform-Requester': person.ref,
-          'X-Platform-Teams': person.teams.join(','),
+          Authorization: `Bearer ${token}`,
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         },
-        body: JSON.stringify(body),
+        body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch (error) {
-      throw new PlatformApiError(`The platform API is not reachable: ${(error as Error).message}`);
+      throw new PlatformApiError(`The platform API is not reachable: ${(error as Error).message}`, 502);
     }
     const data = (await res.json().catch(() => ({}))) as any;
     if (!res.ok) {
-      throw new PlatformApiError(data?.error ?? `The platform API answered ${res.status}`);
+      throw new PlatformApiError(data?.error ?? `The platform API answered ${res.status}`, res.status);
     }
     return data as T;
   }
 
-  createRepository(goldenPath: string, parameters: Record<string, unknown>, person: Person) {
-    return this.post<RepositoryCreated>(
+  createRepository(token: string, goldenPath: string, parameters: Record<string, unknown>) {
+    return this.call<RepositoryCreated>(
+      'POST',
       `/v1/golden-paths/${encodeURIComponent(goldenPath)}/repositories`,
+      token,
       { parameters },
-      person,
     );
   }
 
-  proposeCapability(definition: unknown, person: Person) {
-    return this.post<CapabilityProposed>(
-      '/v1/capability-proposals',
-      { definition, requesterName: person.name },
-      person,
+  proposeCapability(token: string, definition: unknown, requesterName: string) {
+    return this.call<CapabilityProposed>('POST', '/v1/capability-proposals', token, {
+      definition,
+      requesterName,
+    });
+  }
+
+  requestEnvironment(
+    token: string,
+    request: { team: string; name: string; purpose: string; size: string; ttlHours: number },
+  ) {
+    return this.call<RequestResult>('POST', '/v1/environments', token, request);
+  }
+
+  deployService(
+    token: string,
+    environment: string,
+    request: { name: string; image?: string; replicas: number },
+  ) {
+    return this.call<RequestResult>(
+      'POST',
+      `/v1/environments/${encodeURIComponent(environment)}/services`,
+      token,
+      request,
+    );
+  }
+
+  requestCapability(
+    token: string,
+    capability: string,
+    request: { name: string; environment?: string; parameters: Record<string, unknown> },
+  ) {
+    return this.call<RequestResult>(
+      'POST',
+      `/v1/capabilities/${encodeURIComponent(capability)}/requests`,
+      token,
+      request,
+    );
+  }
+
+  /** The AI Platform page: what the platform is doing, for the person's teams. */
+  overview(token: string) {
+    return this.call<Record<string, unknown>>('GET', '/v1/overview', token);
+  }
+
+  /** Approves or rejects an agent's request; the platform checks the approver role and four eyes. */
+  decide(token: string, id: string, decision: 'approve' | 'reject', note?: string) {
+    return this.call<Record<string, unknown>>(
+      'POST',
+      `/v1/approvals/${encodeURIComponent(id)}/decision`,
+      token,
+      { decision, note },
     );
   }
 }

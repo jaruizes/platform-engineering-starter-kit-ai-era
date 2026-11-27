@@ -16,10 +16,9 @@
 #                               e.g. linux/arm64) instead of importing them
 #                               into the k3d cluster CLUSTER_NAME.
 #   PORTAL_MCP_TOKEN            token agents use for the portal MCP server.
-#   PLATFORM_API_TOKEN          token the portal uses for the platform API until
-#                               it signs people in with Keycloak (increment B).
-#   DEMO_PASSWORD               password of the sample people in Keycloak (ana,
-#                               marta, luis). Default "demo" on localhost.
+#   DEMO_PASSWORD               password of the sample people in Keycloak
+#                               (platform/access/identity/organization.yaml).
+#                               Default "demo" on localhost.
 #   PLATFORM_CA_FILE            CA the pods must trust to reach PUBLIC_HOST.
 #   GIT_URL                     where this script reaches the Git server
 #                               (default http://localhost:3000).
@@ -54,7 +53,6 @@ IMAGE_REGISTRY="${IMAGE_REGISTRY:-}"
 IMAGE_PLATFORM="${IMAGE_PLATFORM:-}"
 # Local demo only: on localhost these are not secrets.
 PORTAL_MCP_TOKEN="${PORTAL_MCP_TOKEN:-platform-starter-kit-local-demo}"
-PLATFORM_API_TOKEN="${PLATFORM_API_TOKEN:-platform-api-local-demo}"
 DEMO_PASSWORD="${DEMO_PASSWORD:-demo}"
 PLATFORM_CA_FILE="${PLATFORM_CA_FILE:-}"
 
@@ -170,18 +168,19 @@ diagnose() {
   exit 1
 }
 
-step "Creating the tokens of the portal MCP server and the platform API, and the identity secrets"
+step "Creating the token of the portal MCP server and the identity secrets"
 kubectl apply -f "$ROOT/platform/access/mcp/deploy/00-namespace.yaml"
 secret portal-mcp-token --from-literal=token="$PORTAL_MCP_TOKEN"
-secret platform-api-token --from-literal=token="$PLATFORM_API_TOKEN"
-kubectl -n platform-system delete secret platform-mcp-token --ignore-not-found >/dev/null
+# No shared tokens for the platform: every channel sends the token of whoever acts.
+kubectl -n platform-system delete secret platform-mcp-token platform-api-token --ignore-not-found >/dev/null
 random() { LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$1"; }
-# Keycloak: its administrator, the sample people and the ci-agent client.
+# Keycloak: its administrator, the sample people, the portal's client and the
+# autonomous agents' clients.
 if ! kubectl -n platform-system get secret keycloak-admin >/dev/null 2>&1; then
   secret keycloak-admin --from-literal=password="$(random 20)"
 fi
 secret identity-demo --from-literal=password="$DEMO_PASSWORD"
-for client in ci-agent capability-tests; do
+for client in portal-oidc ci-agent capability-tests; do
   if ! kubectl -n platform-system get secret "$client-client" >/dev/null 2>&1; then
     secret "$client-client" --from-literal=secret="$(random 32)"
   fi
@@ -284,11 +283,12 @@ fi
 step "Platform ready"
 cat <<MSG
   Developer portal (Backstage):       $(public_url 7007)
-  Console (dashboard and approvals):  $(public_url 8080)
+  Console (dashboard, read-only):     $(public_url 8080)
   MCP server for agents (OAuth):      $(public_url 8081)/mcp
   Platform API (CLI and channels):    $(public_url 8083) (platform/access/cli/platformctl.py login)
   Identity (Keycloak, realm platform): $(public_url 8180)/realms/platform/account
-    Sample people: ana (platform-team, approver), marta (checkout), luis (payments, approver)
+    Sample people (portal, platformctl, agents): examples/scenarios/example/demo/users-and-teams.md
+      ana (platform-team, approver), marta (checkout), carlos (checkout, approver), luis (payments, approver)...
     Their password: $( [[ "$DEMO_PASSWORD" == demo ]] && echo demo || echo "DEMO_PASSWORD" )
     Keycloak administrator: admin / kubectl -n platform-system get secret keycloak-admin -o jsonpath='{.data.password}' | base64 -d
   Portal MCP server (context):        $(public_url 7007)/api/mcp-actions/v1/context

@@ -25,6 +25,7 @@ from .platform_api_client import client_credentials_token
 
 URL = os.environ.get("MCP_URL", "http://localhost:8081/mcp")
 CONSOLE_URL = os.environ.get("CONSOLE_URL", "http://localhost:8080")
+PORTAL_URL = os.environ.get("PORTAL_URL", "http://localhost:7007")
 
 STEPS = [
     ("Who does the platform think I am?", "whoami", {}),
@@ -95,7 +96,9 @@ async def main() -> None:
                 print(f'\nAgent: "{said}"\n-> {tool}({", ".join(f"{k}={v!r}" for k, v in args.items())})')
                 _print_result(await session.call_tool(tool, args))
                 await asyncio.sleep(1)
-    print(f"\nOpen the console at {CONSOLE_URL} to see it all, and approve or reject the load test.")
+    print(f"\nSee it all in the console ({CONSOLE_URL}). To approve or reject the load test, sign in to the "
+          f"portal ({PORTAL_URL}, AI Platform page) as an approver of checkout: carlos, or ana (platform-team), "
+          "or use platformctl approve <id>.")
 
 
 if __name__ == "__main__":

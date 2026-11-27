@@ -70,7 +70,7 @@ The portal (Backstage) is no longer only for people. It is where humans and agen
 | **Rules** | Guardrails as code (Kyverno) | The same guardrails, plus a catalog of AI resources: the rules agents follow, the skills that teach them to use the platform, and the MCP servers they can use |
 | **Decisions** | Approve or reject what agents cannot do alone, signed in with their own identity | Never: agents cannot approve their own requests |
 
-Every request is stamped with an identity the requester cannot forge, taken from a Keycloak token: which agent, on behalf of which person, and their teams. The platform API authorizes it first (team scope on reads and writes) and Kyverno checks it again; the console records who approved what.
+Every request is stamped with an identity the requester cannot forge, taken from a Keycloak token: which agent, on behalf of which person, and their teams. The platform API authorizes it first (team scope on reads and writes, approver role and four eyes for approvals) and Kyverno checks it again. People sign in to the portal with the same Keycloak, and the portal sends their token to the platform API: no channel decides on its own.
 
 ### Engineering standards, for humans and agents
 
@@ -272,10 +272,10 @@ make down            # remove everything
 | What | Where |
 |---|---|
 | Developer portal (Backstage) | <http://localhost:7007> |
-| Platform console (dashboard and approvals) | <http://localhost:8080> |
+| Platform console (dashboard, read-only) | <http://localhost:8080> |
 | Platform MCP server, for agents (actions, OAuth sign-in) | `http://localhost:8081/mcp` |
 | Platform API, for the portal, the MCP server and [`platformctl`](platform/access/cli/README.md) | `http://localhost:8083` (Keycloak tokens: `platformctl.py login`) |
-| Identity (Keycloak): people, teams and agents | <http://localhost:8180> (sample people `ana`, `marta`, `luis`, password `demo`; [details](platform/access/identity/README.md)) |
+| Identity (Keycloak): people, teams and agents | <http://localhost:8180> (ten sample people in four teams, password `demo`: [users and teams](examples/scenarios/example/demo/users-and-teams.md); [details](platform/access/identity/README.md)) |
 | Portal MCP server, for agents (context, read-only) | `http://localhost:7007/api/mcp-actions/v1/context` |
 | Git server with the repositories the Golden Paths create | <http://localhost:3000> (to sign in as `platform-admin`: `kubectl -n platform-system get secret gitea-admin -o jsonpath='{.data.password}' \| base64 -d`) |
 | Metrics in Prometheus format | <http://localhost:8080/metrics> |
@@ -286,9 +286,9 @@ To connect a real agent, see [Claude Code, Codex and Gemini CLI setup](platform/
 
 To show the portal with the logo, title and texts of your company or a client, copy [`platform/access/portal/branding/`](platform/access/portal/branding), change it and run `BRANDING_DIR=<that folder> make up`. No code changes, and only the last layer of the portal image is rebuilt.
 
-**Agents with identity.** Agents sign in with Keycloak (OAuth) on behalf of a person, and the platform API authorizes every operation, read or write, with that person's teams; Kyverno checks it again for what reaches Kubernetes. See [identity and access](docs/identity-and-access.md).
+**Agents and people with identity.** People sign in to the portal and `platformctl` with Keycloak; agents sign in with Keycloak (OAuth) on behalf of a person. The platform API authorizes every operation, read or write, with that person's teams, and approvals with the approver role and four eyes; Kyverno checks it again for what reaches Kubernetes. See [identity and access](docs/identity-and-access.md).
 
-> **Local demo only.** The sample people have the password `demo`, the portal still signs everyone in as a guest (mapped to Ana) until increment B of [identity and access](docs/identity-and-access.md), and agents reach the portal MCP server with a fixed token.
+> **Local demo only.** The sample people have the password `demo`, Keycloak runs in development mode (no sessions survive a restart), and agents reach the portal MCP server with a fixed token.
 
 ### Run it on AWS
 

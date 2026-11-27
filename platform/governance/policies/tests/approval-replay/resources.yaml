@@ -1,0 +1,28 @@
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: approved-load-test
+  annotations:
+    platform.starterkit.dev/agent: claude-code
+    platform.starterkit.dev/on-behalf-of: marta
+    platform.starterkit.dev/requester-teams: checkout
+    platform.starterkit.dev/approved-by: carlos
+spec:
+  team: checkout
+  size: large
+  ttlHours: 24
+---
+# Approval does not widen the team scope of the original request.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: approved-for-another-team
+  annotations:
+    platform.starterkit.dev/agent: claude-code
+    platform.starterkit.dev/on-behalf-of: marta
+    platform.starterkit.dev/requester-teams: checkout
+    platform.starterkit.dev/approved-by: ana
+spec:
+  team: payments
+  size: large
+  ttlHours: 24

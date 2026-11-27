@@ -7,8 +7,8 @@
 | [`catalog/`](catalog) | Sample organization, services on each of the coexisting architectures, the platform components, the two MCP servers as APIs, and AI resources |
 | [Spring service Golden Path](../../capabilities/golden-paths/spring-service) | Backstage template, service skeleton, and Crossplane runtime resource/composition in one place |
 | [Angular app Golden Path](../../capabilities/golden-paths/angular-app) | Backstage template, Angular skeleton, and Crossplane `App` runtime resource/composition |
-| [`plugins/platform-backend`](plugins/platform-backend) | Brings environments, services and [platform capabilities](../../capabilities) from the cluster into the catalog (with a request form per capability, built from its XRD), builds the **New platform capability** form from the definition schema and opens the proposal as a pull request in the platform repository, sends the Golden Path forms and capability proposals to the [platform API](../../capabilities/api/README.md) on behalf of the signed-in person, serves agent approvals and metrics, and adds read-only context tools for agents (`get-team-usage`, `list-pending-approvals`, `list-engineering-standards`, `get-standards-for-entity`, `get-engineering-standard`, `search-engineering-standards`) |
-| [`plugins/platform`](plugins/platform) | The **AI Platform** page (metrics and approvals) and the **Golden Path request** card on environments and services |
+| [`plugins/platform-backend`](plugins/platform-backend) | Brings environments, services and [platform capabilities](../../capabilities) from the cluster into the catalog (with a request form per capability, built from its XRD), builds the **New platform capability** form from the definition schema and opens the proposal as a pull request in the platform repository, sends every template (environments, services, capabilities, code Golden Paths, capability proposals) and the approvals to the [platform API](../../capabilities/api/README.md) with the signed-in person's token, and adds read-only context tools for agents (`get-team-usage`, `list-pending-approvals`, `list-engineering-standards`, `get-standards-for-entity`, `get-engineering-standard`, `search-engineering-standards`) |
+| [`plugins/platform`](plugins/platform) | The platform identity (Keycloak sign-in, and the `platform-identity` form decorator that sends the person's token with every template), the **AI Platform** page (metrics and approvals of the person's teams, Approve only when the platform allows it) and the **Golden Path request** card on environments and services (requested by, on behalf of, approved by) |
 | [`app-config.yaml`](app-config.yaml) | Configuration in the local cluster, including the MCP actions server for agents |
 | [`branding/`](branding) | Title, organization name, logos, favicon and texts of the sign-in and home pages. `BRANDING_DIR=<folder> make up` brands the portal for another company without changing code |
 | [`deploy/`](deploy) | Identity, permissions and deployment in the cluster |
@@ -22,6 +22,12 @@ docker build --build-context standards=../../cognitive/knowledge/standards --bui
   --build-context branding=branding -t platform-starter-kit/portal:dev .
 ```
 
+## People sign in with Keycloak
+
+People sign in with the platform identity provider (Keycloak, realm `platform`, client `portal`; [`app-config.yaml`](app-config.yaml) `auth.providers.oidc`), and are resolved to their catalog user by the local part of their email (`marta@starterkit.local` → `user:default/marta`). The catalog's [`org.yaml`](catalog/org.yaml) and the realm come from the same [`organization.yaml`](../identity/organization.yaml); the demo people are in [users and teams](../../../examples/scenarios/example/demo/users-and-teams.md).
+
+The portal decides nothing. Every template declares `formDecorators: [{id: platform-identity}]`: when the person submits it, the frontend gets their Keycloak access token and passes it as a task secret, and the actions call the platform API with it. The AI Platform page sends the same token (header `X-Platform-Token`) to read the overview and to approve or reject. The portal's own Kubernetes identity only reads; it has no token of its own for the platform API.
+
 ## Humans act through templates, agents through the platform MCP server
 
 Agents get the portal as a read-only MCP server (`/api/mcp-actions/v1/context`): catalog, Kubernetes status, search, team usage, pending approvals and the engineering standards. The Software Templates are not exposed to agents on purpose, and the environment and service template actions refuse to run without a signed-in person. Agents act through the platform MCP server, with their own identity, so the agent guardrails always apply to them.
@@ -30,7 +36,7 @@ Agents can create a backend through `create_service` or an Angular frontend thro
 
 ## Platform capabilities
 
-Nothing in the portal is specific to a capability. Every XRD labelled `platform.starterkit.dev/capability` becomes a `Resource` of type `platform-capability` with its docs, and a template `request-<name>` whose form comes from the XRD parameters; what people and agents requested from it appears under it, with who asked. The `platform:capability:request` action creates the request on behalf of the signed-in person, so the same guardrails apply as for agents.
+Nothing in the portal is specific to a capability. Every XRD labelled `platform.starterkit.dev/capability` becomes a `Resource` of type `platform-capability` with its docs, and a template `request-<name>` whose form comes from the XRD parameters; what people and agents requested from it appears under it, with who asked. The `platform:capability:request` action sends it to the platform API with the signed-in person's token, so the same rules apply as for agents.
 
 **Create → New platform capability** has one page per section of the [definition schema](../../capabilities/schema/capability-definition.schema.json). `platform:capability:propose` sends it to the platform API, which validates the definition against the schema and opens a pull request with `platform/capabilities/infrastructure/<name>/capability.yaml` in the platform repository (`platform.capabilities.repository`). Open pull requests show up in the catalog with lifecycle `proposed`.
 

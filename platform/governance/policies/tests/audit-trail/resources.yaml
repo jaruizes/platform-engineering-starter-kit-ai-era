@@ -50,3 +50,14 @@ spec:
   team: checkout
   size: small
   ttlHours: 8
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: forged-approval
+  annotations:
+    platform.starterkit.dev/approved-by: ana
+spec:
+  team: checkout
+  size: large
+  ttlHours: 8

@@ -1,7 +1,10 @@
-"""Platform console: what the platform is doing, and human approvals.
+"""Platform console: what the platform is doing, read-only.
 
 Shows who requested what (human or agent, for which team), how much it
 costs, the AI-era metrics, and the requests waiting for a human decision.
+It decides nothing: approvers decide through the platform API (the portal's
+AI Platform page or platformctl), signed in, where the approval rules live.
+It is the backup screen for operators and has no write access to the cluster.
 """
 
 from __future__ import annotations
@@ -44,27 +47,6 @@ async def state(_: Request) -> JSONResponse:
     return JSONResponse(_state())
 
 
-async def decide(request: Request) -> JSONResponse:
-    approval_id = request.path_params["approval_id"]
-    body = await request.json()
-    approver = (body.get("approver") or "").strip()
-    if not approver:
-        return JSONResponse({"error": "Tell us who you are to approve or reject."}, status_code=400)
-    approve = body.get("decision") == "approve"
-    try:
-        result = platform.decide_approval(approval_id, approve, approver)
-    except KeyError:
-        return JSONResponse({"error": "Approval request not found."}, status_code=404)
-    action = {"approved": "Approved", "rejected": "Rejected"}.get(result["status"], "ApprovalFailed")
-    message = f"{approver} {result['status']} the request from {result['agent']}"
-    if result.get("decision_note"):
-        message += f": {result['decision_note']}"
-    platform.record(action, message, result["request"]["name"], warning=action != "Approved", actor=approver,
-                    kind=result["request"].get("kind", "Environment"))
-    result.pop("manifest", None)
-    return JSONResponse(result)
-
-
 async def metrics(_: Request) -> PlainTextResponse:
     """Prometheus format, so any dashboard can read the same numbers."""
     m = _state()["metrics"]
@@ -87,7 +69,6 @@ app = Starlette(
     routes=[
         Route("/", index),
         Route("/api/state", state),
-        Route("/api/approvals/{approval_id}", decide, methods=["POST"]),
         Route("/metrics", metrics),
         Route("/healthz", healthz),
     ]

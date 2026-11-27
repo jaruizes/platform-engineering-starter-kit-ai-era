@@ -433,8 +433,9 @@ def summarize_resource(obj: dict[str, Any]) -> dict[str, Any]:
 
 # --- Human approvals ---------------------------------------------------------
 # A request an agent cannot make on its own is stored as an approval request.
-# A human approves or rejects it in the console, which then creates the
-# resource with its own identity and records who approved it.
+# A person with the approver role decides through the platform API (portal or
+# platformctl); the platform API checks the role and four eyes, then creates
+# the resource as itself with approved-by, which only it may set.
 
 
 def create_approval_request(manifest: dict[str, Any], agent: str, reason: str, team: str | None = None,
@@ -492,13 +493,13 @@ def _summarize_approval(cm: client.V1ConfigMap) -> dict[str, Any]:
     }
 
 
-def decide_approval(approval_id: str, approve: bool, approver: str) -> dict[str, Any]:
+def decide_approval(approval_id: str, approve: bool, approver: str, note: str = "") -> dict[str, Any]:
+    """Records the decision of an approver the platform API already authorized."""
     approval = get_approval(approval_id)
     if approval is None:
         raise KeyError(approval_id)
     if approval["status"] != "pending":
         return approval
-    note = ""
     status = "rejected"
     if approve:
         manifest = approval["manifest"]

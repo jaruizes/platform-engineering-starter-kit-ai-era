@@ -18,9 +18,10 @@ const backend = createBackend();
 backend.add(import('@backstage/plugin-app-backend'));
 backend.add(import('@backstage/plugin-proxy-backend'));
 
-// auth: guest sign-in for the local demo
+// auth: people sign in with the platform identity provider (Keycloak, OIDC),
+// resolved to their catalog user. The same token goes to the platform API.
 backend.add(import('@backstage/plugin-auth-backend'));
-backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
+backend.add(import('@backstage/plugin-auth-backend-module-oidc-provider'));
 
 // catalog, including AI resources (skills, rules, MCP servers) and what the
 // Golden Paths created in the cluster

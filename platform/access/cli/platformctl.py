@@ -15,6 +15,9 @@ whichever you use. You sign in once with the platform's identity provider
     platformctl.py create spring-service name=loyalty-points description="Loyalty points" \\
         owner=checkout module=points environment=checkout-dev
     platformctl.py propose platform/capabilities/infrastructure/redis-cache/capability.yaml
+    platformctl.py approvals                 # agents' requests of your teams waiting for a person
+    platformctl.py approve load-test-1a2b --note "Load test of the week"   # approvers only
+    platformctl.py reject load-test-1a2b --note "Use a medium one"
 
 For an agent with no OAuth sign-in of its own (Codex), a token for that
 agent, on behalf of the person who signs in:
@@ -184,6 +187,13 @@ def main(argv: list[str] | None = None) -> None:
     propose = commands.add_parser("propose", help="Propose a new platform capability (CapabilityDefinition)")
     propose.add_argument("definition", type=Path)
     propose.add_argument("--name", help="Your name, as it appears in the pull request")
+    approvals = commands.add_parser("approvals", help="Agents' requests of your teams that wait for a person")
+    approvals.add_argument("--all", action="store_true", help="Also the ones already decided")
+    for name, text in (("approve", "Approve an agent's request (approver of its team, not for yourself)"),
+                       ("reject", "Reject an agent's request (approver of its team, not for yourself)")):
+        decide = commands.add_parser(name, help=text)
+        decide.add_argument("id")
+        decide.add_argument("--note", default="", help="Why, recorded with the decision")
     args = parser.parse_args(argv)
 
     if args.command == "login":
@@ -217,6 +227,23 @@ def main(argv: list[str] | None = None) -> None:
             raise SystemExit(f"Parameters are key=value: {', '.join(bad)}")
         parameters = dict(p.split("=", 1) for p in args.parameters)
         show(call("POST", f"/v1/golden-paths/{args.golden_path}/repositories", {"parameters": parameters}))
+    elif args.command == "approvals":
+        listed = call("GET", "/v1/approvals" + ("" if args.all else "?status=pending"))
+        if not listed:
+            print("Nothing waiting for a person." if not args.all else "No approval requests.")
+        for a in listed:
+            request = a.get("request") or {}
+            agent = a.get("agent") or "?"
+            if a.get("on_behalf_of"):
+                agent += f" for {a['on_behalf_of']}"
+            what = f"{request.get('kind', 'Environment')} {request.get('name')} ({request.get('size', '-')})"
+            decision = ("you can decide" if a.get("can_decide")
+                        else f"you cannot decide: {a.get('cannot_decide_reason')}") if a["status"] == "pending" \
+                else f"by {a.get('decided_by')}"
+            print(f"{a['id']:28} {a['status']:9} {a.get('team') or '-':14} {agent:28} {what}  [{decision}]")
+    elif args.command in ("approve", "reject"):
+        show(call("POST", f"/v1/approvals/{urllib.parse.quote(args.id)}/decision",
+                  {"decision": args.command, "note": args.note}))
     elif args.command == "propose":
         show(call("POST", "/v1/capability-proposals", {
             "definition": load_definition(args.definition),

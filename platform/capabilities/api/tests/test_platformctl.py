@@ -65,3 +65,20 @@ def test_requests_environments(monkeypatch, capsys):
     assert sent == [("POST", "/v1/environments", {"team": "checkout", "name": "pr-1", "purpose": "Test PR 1",
                                                   "size": "medium", "ttlHours": 24}),
                     ("DELETE", "/v1/environments/pr-1", None)]
+
+
+def test_approvals(monkeypatch, capsys):
+    sent = []
+    pending = [{"id": "load-test-1a2b", "status": "pending", "team": "checkout", "agent": "claude-code",
+                "on_behalf_of": "marta", "request": {"kind": "Environment", "name": "load-test", "size": "large"},
+                "can_decide": False, "cannot_decide_reason": "Four eyes: marta cannot decide"}]
+    monkeypatch.setattr(platformctl, "call",
+                        lambda method, path, body=None: sent.append((method, path, body)) or
+                        (pending if method == "GET" else {"status": "approved"}))
+    platformctl.main(["approvals"])
+    assert "claude-code for marta" in capsys.readouterr().out
+    platformctl.main(["approve", "load-test-1a2b", "--note", "ok"])
+    platformctl.main(["reject", "load-test-1a2b"])
+    assert sent == [("GET", "/v1/approvals?status=pending", None),
+                    ("POST", "/v1/approvals/load-test-1a2b/decision", {"decision": "approve", "note": "ok"}),
+                    ("POST", "/v1/approvals/load-test-1a2b/decision", {"decision": "reject", "note": ""})]

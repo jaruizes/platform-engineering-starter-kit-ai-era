@@ -18,7 +18,9 @@ nothing is lost.
 | `GET /v1/environments/{env}/services/{name}/status` | Delivery of a service: pipeline, Argo CD and pods |
 | `GET /v1/services/{name}/quality` | Commit-linked quality evidence |
 | `POST /v1/capabilities/{capability}/requests`, `GET .../requests/{name}` | Capabilities such as PostgresDatabase |
-| `GET /v1/approvals/{id}` | Status of an approval request |
+| `GET /v1/approvals`, `GET /v1/approvals/{id}` | Approval requests of your teams, each with whether you may decide it (`can_decide`, `cannot_decide_reason`) |
+| `POST /v1/approvals/{id}/decision` | Approve or reject an agent's request: approver role for its team, never for a request made on your behalf. An approved request is created by the platform API with `approved-by` |
+| `GET /v1/overview` | The portal's AI Platform page: environments, services, approvals, activity and metrics of your teams (platform-team: all) |
 
 ## Identity and authorization
 
@@ -36,6 +38,7 @@ operation, read or write:
 | Team scope | Create, deploy and delete only for your teams; an agent has exactly its person's teams. Reads return only your teams' resources; platform-team reads everything. An autonomous agent only its owner team |
 | Delete | Agents only delete what an agent requested for the same person (or the same autonomous agent) |
 | Proposals | Only people in platform-team propose capabilities; agents never |
+| Approvals | Only people with the `approver` role, for their teams (platform-team approvers: every team), never for a request an agent made on their own behalf (four eyes, `APPROVALS_FOUR_EYES`, on by default). Agents never approve |
 | Agent guardrails | Enforced by Kyverno (small environments, `env-*` only); an agent's request outside them becomes an approval request |
 
 Every decision, allowed or denied, is an event in the audit trail, with the
@@ -49,11 +52,8 @@ request is for in annotations that only it may set: `agent`, `on-behalf-of`,
 team again. Before a delete it records `deleted-by`, `deleted-on-behalf-of`
 and `deleter-teams`, so Kyverno can check deletes too.
 
-Until the portal signs people in with Keycloak (increment B of
-[identity and access](../../../docs/identity-and-access.md)), it may call with
-the channel token `PLATFORM_API_TOKEN` and state the signed-in person and
-their catalog teams (`X-Platform-Requester`, `X-Platform-Teams`). That path
-never identifies an agent.
+The portal signs people in with Keycloak and sends their token, like the CLI.
+There is no channel token: no channel can say who it acts for.
 
 ## Code Golden Paths
 
@@ -78,9 +78,10 @@ PYTHONPATH=platform/capabilities/api python3 -m platform_api.render spring-servi
 
 ## The console
 
-The same image runs the platform console (`platform-console`): dashboard,
-metrics and human approvals, with the `platform-console` identity. Approvals
-by role and with four eyes move into the API with increment B.
+The same image runs the platform console (`platform-console`): dashboard and
+metrics, read-only, with the `platform-console` identity (which can only read).
+People decide approvals through the API: the portal's AI Platform page or
+`platformctl approve`.
 
 ## Run and test
 

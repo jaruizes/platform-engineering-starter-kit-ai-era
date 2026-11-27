@@ -4,7 +4,7 @@ import { Chip } from '@material-ui/core';
 
 const PREFIX = 'platform.starterkit.dev';
 
-/** Who asked for this through a Golden Path, who approved it and what it costs. */
+/** Who asked for this through a Golden Path, for whom, who approved it and what it costs. */
 export const PlatformRequestCard = () => {
   const { entity } = useEntity();
   const a = entity.metadata.annotations ?? {};
@@ -18,6 +18,10 @@ export const PlatformRequestCard = () => {
         {a[`${PREFIX}/requested-by`] ?? '-'}
       </>
     ),
+    // Who the agent acted for, from the person's token (only the platform API can set it).
+    'On behalf of': a[`${PREFIX}/on-behalf-of`]
+      ? `${a[`${PREFIX}/on-behalf-of`]} (${a[`${PREFIX}/requester-teams`] || 'no team'})`
+      : '-',
     'Approved by': a[`${PREFIX}/approved-by`] ?? '-',
     Status: a[`${PREFIX}/status`] ?? '-',
   };

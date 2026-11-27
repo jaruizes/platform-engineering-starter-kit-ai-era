@@ -1,6 +1,6 @@
 # Identity and access for humans and agents
 
-> **Status: increments 0 and A are implemented; B is pending.** This document describes how authentication and authorization work for people and AI agents in the starter kit. The [current state](#1-current-state) section describes the starting point before increment 0. The rest is the design of the *Identity & access* component of the *Optimize* milestone; [what was built](#what-increment-a-built) and the [implementation plan](#10-implementation-plan) say which parts are in the repository.
+> **Status: increments 0, A and B are implemented.** This document describes how authentication and authorization work for people and AI agents in the starter kit. The [current state](#1-current-state) section describes the starting point before increment 0. The rest is the design of the *Identity & access* component of the *Optimize* milestone; what increments [A](#what-increment-a-built) and [B](#what-increment-b-built) built and the [implementation plan](#10-implementation-plan) say which parts are in the repository. The sample people and teams to test it with are in [users and teams](../examples/scenarios/example/demo/users-and-teams.md).
 
 The platform answers three questions for every request, whoever sends it and through whichever channel:
 
@@ -232,7 +232,7 @@ What increment 0 built, and what it left for later:
 |---|---|---|
 | Code Golden Paths | In the platform API. Each Golden Path has a channel-neutral `golden-path.yaml` (parameters, values, repository); the Backstage `template.yaml` is only the form, with one step `platform:golden-path:create` | — |
 | Capability proposals | In the platform API (`platform:capability:propose` calls it) | — |
-| Channels | Portal, MCP server and `platformctl` call the API with a shared token (`PLATFORM_API_TOKEN`) and state the requester | Keycloak tokens (done in increment A, except the portal: increment B) |
+| Channels | Portal, MCP server and `platformctl` call the API with a shared token (`PLATFORM_API_TOKEN`) and state the requester | Keycloak tokens: MCP server and `platformctl` in increment A, the portal in increment B, which removed the shared token |
 | Environments, deployment, approvals, reads | Still in the MCP server package and the console, which work without Backstage | Moved into the API with authorization (increment A) |
 | Delete rule | Kyverno `agent-deletes` and the same check in `delete_environment` | Same person and team scope (increment A) |
 
@@ -251,7 +251,20 @@ What increment 0 built, and what it left for later:
 Two choices made while building it:
 
 - **Deletes in Kyverno.** A Kubernetes delete carries no annotations, so just before deleting the platform API records `deleted-by`, `deleted-on-behalf-of` and `deleter-teams` on the resource. `team-membership` and `agent-deletes` check them, and `protect-audit-trail` lets only the platform API set them.
-- **The portal until increment B.** The portal still signs people in as a guest. It calls the platform API with the channel token and states the signed-in person and their catalog teams; that path never identifies an agent. Its own requests to Kubernetes (capability request forms, approvals in the AI Platform page) are not yet checked by `team-membership`.
+- **The portal until increment B.** The portal still signed people in as a guest and called the platform API with a channel token. Increment B replaced both (below).
+
+### What increment B built
+
+| Part | Where | What it does |
+|---|---|---|
+| Portal sign-in | [`app-config.yaml`](../platform/access/portal/app-config.yaml), [`identity.tsx`](../platform/access/portal/plugins/platform/src/identity.tsx), [sign-in page](../platform/access/portal/packages/app/src/modules/signIn/index.tsx) | Backstage's OIDC provider with the Keycloak client `portal` replaces the guest sign-in. The person is resolved to their catalog `User` by the local part of the email |
+| The person's token to the platform API | [`scaffolder.ts`](../platform/access/portal/plugins/platform-backend/src/scaffolder.ts), [`router.ts`](../platform/access/portal/plugins/platform-backend/src/router.ts) | Every template declares the form decorator `platform-identity`, which sends the person's access token as a task secret; every action (environment, service, capability request, code Golden Path, capability proposal) calls the platform API with it. The AI Platform page sends it too. The channel token `PLATFORM_API_TOKEN` is gone, and the portal's Kubernetes identity only reads |
+| Approvals | [`authorization.py`](../platform/capabilities/api/platform_api/authorization.py), [`service.py`](../platform/capabilities/api/platform_api/service.py) | `GET /v1/approvals` and `POST /v1/approvals/{id}/decision`: only people with the `approver` role, for their teams (platform-team approvers for every team), never for a request an agent made on their behalf (four eyes, `APPROVALS_FOUR_EYES`). Agents never decide. Each approval says whether the caller may decide it and why not; denied decisions are recorded |
+| Replay of an approved request | [`cluster.py`](../platform/capabilities/api/platform_api/cluster.py), [`10-identify-requester.yaml`](../platform/governance/policies/10-identify-requester.yaml), [`30-agent-guardrails.yaml`](../platform/governance/policies/30-agent-guardrails.yaml) | The platform API creates it as itself with `approved-by` (the person from the token). Kyverno keeps the agent as requester, lets only the platform API record an approval, and `team-membership` still checks the original requester's teams. Test: [`approval-replay`](../platform/governance/policies/tests/approval-replay) |
+| AI Platform page | [`AiPlatformPage.tsx`](../platform/access/portal/plugins/platform/src/components/AiPlatformPage.tsx), `GET /v1/overview` | Shows the person's teams (platform-team: all), *on behalf of* for agents' requests, and *Approve* only when the platform API allows it, with the reason otherwise. The catalog card shows requested by, on behalf of (and teams) and approved by |
+| Read-only console | [`console.py`](../platform/capabilities/api/platform_api/console.py), [`05-identities.yaml`](../platform/capabilities/api/deploy/05-identities.yaml) | No approval endpoint and no typed names; its identity can only read |
+| CLI | [`platformctl`](../platform/access/cli/README.md) | `approvals`, `approve <id>`, `reject <id>` |
+| Sample organization | [`organization.yaml`](../platform/access/identity/organization.yaml), [`sync-organization.py`](../platform/access/identity/sync-organization.py) | Ten people in four teams (platform-team, checkout, payments, retail), with approvers, a person in two teams and one with none, written into the realm and the catalog from one file. Described, with a test matrix, in [users and teams](../examples/scenarios/example/demo/users-and-teams.md) |
 
 ---
 
@@ -434,7 +447,7 @@ Backstage is one channel among others. It connects to Keycloak and to the platfo
 |---|---|---|
 | **Sign-in (OIDC)** | Replaces the guest provider. The person signs in with Keycloak (or the corporate IdP through it) and is resolved to their catalog `User` | Yes |
 | **Platform API** | Templates, approvals and the AI Platform page call the platform API with the signed-in person's token. The portal makes no authorization decision of its own | Yes |
-| **Organization sync** | The Keycloak catalog module from the Backstage community plugins loads users and groups into the catalog, so `org.yaml` is no longer maintained by hand | No: names are kept equal by hand |
+| **Organization sync** | The Keycloak catalog module from the Backstage community plugins loads users and groups into the catalog, so `org.yaml` is no longer maintained by hand | No: the realm and `org.yaml` are generated from one `organization.yaml` |
 
 Inside the portal:
 
@@ -491,7 +504,7 @@ Where the chain is built is a boundary decision. When several subagents share on
 
 ## 9. Use cases
 
-The scenarios use the sample organization of the demo: **Ana** (`platform-team`, approver), **Marta** (`checkout`) and **Luis** (`payments`, approver).
+The scenarios use the sample organization of the demo: **Ana** (`platform-team`, approver), **Marta** (`checkout`), **Carlos** (`checkout`, approver) and **Luis** (`payments`, approver). The full set, with more scenarios, is in [users and teams](../examples/scenarios/example/demo/users-and-teams.md).
 
 | # | Scenario | Channel | Identity in the token | Result | Recorded as |
 |---|---|---|---|---|---|
@@ -500,7 +513,7 @@ The scenarios use the sample organization of the demo: **Ana** (`platform-team`,
 | 3 | Marta's Claude Code asks for a small environment for checkout | MCP | `azp=claude-code`, `sub=marta` | Created | requested-by `claude-code`, type `agent`, on-behalf-of `marta` |
 | 4 | Marta's Claude Code asks for an environment for payments | MCP | Same | **Denied**: the agent inherits Marta's teams, no escalation | Denied, actor `claude-code` for `marta` |
 | 5 | Marta's Claude Code asks for a large environment | MCP | Same | Sent to approval. Marta **cannot** approve it (four eyes). Ana approves | requested-by `claude-code`, on-behalf-of `marta`, approved-by `ana` |
-| 6 | Luis tries to approve scenario 5 | Portal | Luis, `payments`, approver | **Cannot approve**: approver for payments, not checkout | Denied, actor `luis` |
+| 6 | Luis tries to approve scenario 5 | Portal | Luis, `payments`, approver | **Cannot approve**: he does not even see it (team scope); approver for payments, not checkout. Carlos (approver of checkout) can | Denied, actor `luis` |
 | 7 | An agent asks for a 2-week environment and Ana approves it | MCP, portal | — | **Denied** at creation: the 72 h limit applies to everyone, approval does not bypass it | Approval status `failed` |
 | 8 | A client sends `on-behalf-of` or `approved-by` in its own request | MCP or direct | Any | Ignored (identity comes from the token) and **denied** by `protect-audit-trail` if it reaches Kubernetes | — |
 | 9 | Marta's agent lists environments | MCP | `sub=marta` | Only checkout environments are returned | — |
@@ -571,7 +584,7 @@ In act 2 of the demo, the *Identify* step becomes visible, in about three minute
 1. In Claude Code, `/mcp` shows the platform server asking for authentication. The browser opens the Keycloak sign-in (with the portal branding) and the presenter signs in as Marta.
 2. "I need an environment to test the new checkout discount rules." The catalog shows *requested by claude-code on behalf of Marta (checkout)* (scenario 3).
 3. "Create another one for payments." Denied: Marta's agent cannot do what Marta cannot do (scenario 4).
-4. "Now a large one for a load test." Marta cannot approve it; the presenter signs in as Ana and approves (scenario 5).
+4. "Now a large one for a load test." Marta cannot approve it; the presenter signs in to the portal as Carlos (or Ana) and approves (scenario 5).
 5. Optional: disable the `claude-code` client or Marta's session in Keycloak and show the next call failing (scenario 15).
 
 The zero-UI story (scenario 12) can close the demo: the same capabilities with the portal switched off.
@@ -580,13 +593,13 @@ The zero-UI story (scenario 12) can close the demo: the same capabilities with t
 
 ## 10. Implementation plan
 
-Three increments, each usable on its own. **Increments 0 and A are implemented**; B is pending.
+Three increments, each usable on its own. **All three are implemented.**
 
 | Increment | Scope | Repository areas | Estimate |
 |---|---|---|---|
 | **0. Platform API, channel-independent** (done) | Extract the core from the MCP server package into a platform API; render code Golden Paths and create repositories without the Backstage scaffolder; move capability proposals and approvals into it; MCP server and console become adapters; Backstage templates call the API. Prerequisite for authorization in one place and for zero-UI | New `platform/capabilities/api/`, `platform/access/mcp/`, `platform/access/portal/plugins/`, Golden Path templates | 4–6 days |
 | **A. Agents with identity** (done) | Keycloak with the demo realm (local and AWS); OAuth resource server on the platform MCP server; token validation and the authorization model in the platform API (team scope on reads and writes, delete rule); `team-membership` Kyverno policy with tests; new annotations; `ci-agent` for `make demo-agent` | New `platform/access/identity/` (Keycloak deployment and realm export), `platform/capabilities/api/`, `platform/governance/policies/`, `deploy/install.sh`, `deploy/local`, `deploy/aws`, `.mcp.json` and client adapters | 6–8 days |
-| **B. People with identity** | Backstage OIDC sign-in, forwarding the person's token; approval rules (role and four eyes); read-only console; catalog card and AI Platform page with *on behalf of*; documentation and demo script | `platform/access/portal/`, `platform/capabilities/api/platform_api/console.py`, `examples/scenarios/`, `README.md` | About 4 days |
+| **B. People with identity** (done) | Backstage OIDC sign-in, forwarding the person's token; approval rules (role and four eyes); read-only console; catalog card and AI Platform page with *on behalf of*; documentation and demo script | `platform/access/portal/`, `platform/capabilities/api/platform_api/console.py`, `examples/scenarios/`, `README.md` | About 4 days |
 
 The estimates are for one person working with an agent, without a prototype.
 
@@ -612,5 +625,6 @@ Checks to keep green: `python3 deploy/check-repository.py`, `make test`, the Kyv
 - **Client registration.** Increment A pre-creates one client per agent type (`claude-code` with callback port 33418, `gemini-cli`, `codex`). To be validated on a live run with the client versions used in the demo; dynamic client registration stays an option.
 - **Codex and OAuth.** Codex sends a token from `PLATFORM_TOKEN` (`platformctl login --client codex`, 1-hour tokens) because it is not configured with a pre-registered OAuth client. When it supports one, it signs in like Claude Code.
 - **Issuer and hostnames.** The browser and the cluster must see the same Keycloak issuer URL (locally `localhost`, on AWS the load balancer with the demo CA), or tokens will not validate.
-- **Four eyes always or configurable.** Proposed: enabled in the demo, configurable in the kit.
+- ~~**Four eyes always or configurable.**~~ Solved in increment B: on by default, `APPROVALS_FOUR_EYES=false` in the platform API turns it off.
+- **Portal sessions and token lifetime.** The portal gets the person's access token from its Keycloak session at the moment of each action, so a 5-minute token is enough. Keycloak in development mode keeps no sessions across restarts; a production setup uses its database.
 - **Immediate revocation.** Short-lived tokens give revocation within minutes. Token introspection in the platform API would make it immediate at the cost of one call to Keycloak per request.

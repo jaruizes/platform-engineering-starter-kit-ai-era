@@ -74,9 +74,12 @@ POSTGRES = {"name": "postgres-database", "kind": "PostgresDatabase", "plural": "
 class FakeCluster:
     """The Kubernetes side, with the agent guardrails Kyverno would apply."""
 
-    from platform_api.cluster import (GOLDEN_PATHS, SIZES, Denied, capability_manifest, environment_manifest,
-                                      spring_service_manifest, summarize_environment, summarize_resource)
+    from platform_api.cluster import (GOLDEN_PATHS, SIZES, Denied, capability_manifest, compute_metrics,
+                                      environment_manifest, spring_service_manifest, summarize_environment,
+                                      summarize_resource, summarize_spring_service)
     GOLDEN_PATHS, SIZES, Denied = GOLDEN_PATHS, SIZES, Denied
+    compute_metrics = staticmethod(compute_metrics)
+    summarize_spring_service = staticmethod(summarize_spring_service)
     environment_manifest = staticmethod(environment_manifest)
     spring_service_manifest = staticmethod(spring_service_manifest)
     capability_manifest = staticmethod(capability_manifest)
@@ -90,6 +93,41 @@ class FakeCluster:
             "payments-dev": environment("payments-dev", "payments", "luis"),
         }
         self.created, self.deleted, self.approvals = [], [], {}
+        self.services = [
+            {"metadata": {"name": "orders-service", "namespace": "env-checkout-dev", "annotations": {}}, "spec": {}},
+            {"metadata": {"name": "billing", "namespace": "env-payments-dev", "annotations": {}}, "spec": {}},
+        ]
+        self.activity = [
+            {"time": "2026-11-27T10:00:00+00:00", "component": "platform-api", "action": "RequestAccepted",
+             "subject": "checkout-dev", "message": "marta got an environment", "actor": "marta",
+             "requester_type": "human", "on_behalf_of": "", "warning": False},
+            {"time": "2026-11-27T10:01:00+00:00", "component": "platform-api", "action": "RequestAccepted",
+             "subject": "payments-dev", "message": "luis got an environment", "actor": "luis",
+             "requester_type": "human", "on_behalf_of": "", "warning": False},
+        ]
+
+    def list_spring_services(self):
+        return self.services
+
+    def list_activity(self):
+        return self.activity
+
+    def list_approvals(self):
+        return [dict(a) for a in self.approvals.values()]
+
+    def decide_approval(self, approval_id, approve, approver, note=""):
+        approval = self.approvals[approval_id]
+        status = "rejected"
+        if approve:
+            manifest = approval["manifest"]
+            manifest["metadata"].setdefault("annotations", {})["platform.starterkit.dev/approved-by"] = approver
+            try:
+                self.create_resource(manifest)
+                status = "approved"
+            except self.Denied as denied:
+                status, note = "failed", denied.reason
+        approval.update(status=status, decided_by=approver, decision_note=note)
+        return dict(approval)
 
     def get_environment(self, name):
         return self.environments.get(name)
@@ -105,8 +143,10 @@ class FakeCluster:
 
     def create_approval_request(self, manifest, agent, reason, team=None, on_behalf_of=None):
         approval_id = f"{manifest['metadata']['name']}-0001"
-        self.approvals[approval_id] = {"id": approval_id, "status": "pending", "agent": agent, "team": team,
-                                       "on_behalf_of": on_behalf_of, "manifest": manifest}
+        self.approvals[approval_id] = {
+            "id": approval_id, "status": "pending", "agent": agent, "team": team, "on_behalf_of": on_behalf_of,
+            "reason": reason, "manifest": manifest, "created_at": "2026-11-27T10:00:00+00:00",
+            "request": manifest["spec"] | {"name": manifest["metadata"]["name"], "kind": manifest["kind"]}}
         return approval_id
 
     def get_approval(self, approval_id):
@@ -168,4 +208,7 @@ MARTA = Identity("person", "marta", None, ("checkout",), ("developer",), "platfo
 ANA = Identity("person", "ana", None, ("platform-team",), ("approver", "developer"), "platformctl")
 MARTAS_AGENT = Identity("agent", "marta", "claude-code", ("checkout",), ("developer",), "claude-code")
 LUIS_AGENT = Identity("agent", "luis", "claude-code", ("payments",), ("developer",), "claude-code")
+CARLOS = Identity("person", "carlos", None, ("checkout",), ("approver", "developer"), "portal")
+LUIS = Identity("person", "luis", None, ("payments",), ("approver", "developer"), "portal")
+MARTA_APPROVER = Identity("person", "marta", None, ("checkout",), ("approver", "developer"), "portal")
 CI_AGENT = Identity("autonomous", None, "ci-agent", ("checkout",), (), "ci-agent")

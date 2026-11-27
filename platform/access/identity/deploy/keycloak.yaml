@@ -50,6 +50,15 @@ spec:
                   name: keycloak-admin
                   key: password
             # Read by the realm import (${DEMO_PASSWORD}, ${CI_AGENT_SECRET}...).
+            # Where people reach the portal: the only address the portal's
+            # sign-in may return to.
+            - name: PORTAL_URL
+              value: http://localhost:7007
+            - name: PORTAL_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: portal-oidc-client
+                  key: secret
             - name: DEMO_PASSWORD
               valueFrom:
                 secretKeyRef:

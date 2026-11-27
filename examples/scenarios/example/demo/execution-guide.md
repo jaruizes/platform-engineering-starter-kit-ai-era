@@ -6,6 +6,8 @@
 
 - Plataforma Starter Kit desplegada en local o en AWS y accesible desde el portátil.
 - Claude Code configurado con los servidores `platform` (acciones) y `portal` (contexto) MCP, y skills del repositorio.
+- **Identidad:** la demo se ejecuta como **diego** (equipo `retail`, contraseña `demo` en local). La primera vez que el agente usa el servidor `platform`, `/mcp` en Claude Code abre el navegador con el login de Keycloak: iniciar sesión como diego. Desde ese momento el agente actúa en su nombre, con sus equipos y nada más. En el portal, iniciar sesión también como diego (o como **elena**, aprobadora de retail, en otra ventana). Todas las personas y equipos están en [usuarios y equipos](users-and-teams.md).
+- Comprobar la identidad antes de empezar: pedir al agente «¿quién soy en la plataforma?» (herramienta `whoami`) o ejecutar `platform/access/cli/platformctl.py login` y `platformctl.py whoami`. Debe responder diego, equipo `retail`.
 - Acceso a `kubectl` con contexto apuntando al cluster correcto, acceso a Gitea y permisos para ejecutar port-forward.
 - Dataset disponible en `../data/`.
 - Los nombres indicados abajo son **ejemplos reproducibles del runbook**; las specs de producto no están acopladas a ellos.
@@ -29,13 +31,13 @@
 **Una posible ruta técnica con el Starter Kit actual** (no prescrita por la spec):
 
 1. `request_environment`: nombre `retail-demo`, equipo `retail`, tamaño `small`, TTL 8 h; verificar Ready con `get_environment`.
-2. `create_service`: `retail-sales-insights`, propietario `platform-team`, módulo `sales`, entorno `retail-demo`. El Golden Path incluye su propio `PostgresDatabase`; **no pedir otra**.
+2. `create_service`: `retail-sales-insights`, propietario `retail`, módulo `sales`, entorno `retail-demo`. El Golden Path incluye su propio `PostgresDatabase`; **no pedir otra**. El propietario debe ser un equipo de la persona: con propietario `platform-team` la plataforma lo deniega.
 3. Añadir los SQL `../data/V1__create_sales_schema.sql` y `V2__seed_demo_sales.sql` como migraciones de la aplicación generada; confirmar su carga con consultas.
-4. `create_angular_app`: `retail-sales-web`, propietario `platform-team`, entorno `retail-demo`, backend `retail-sales-insights`.
+4. `create_angular_app`: `retail-sales-web`, propietario `retail`, entorno `retail-demo`, backend `retail-sales-insights`.
 5. Implementar código y tests en **los repositorios generados en Gitea** y esperar a que sus pipelines y Argo CD confirmen el despliegue.
 6. Pedir al agente que demuestre la interfaz en los dos tamaños de pantalla de la spec; los criterios visuales requieren inspección, no basta con que las APIs devuelvan 200.
 
-**Precauciones:** en el Starter Kit actual las políticas del entorno y los permisos del agente pueden requerir intervención humana. No cambiar políticas para eludir un rechazo; consultar el estado y los motivos.
+**Precauciones:** en el Starter Kit actual las políticas del entorno y los permisos del agente pueden requerir intervención humana. No cambiar políticas para eludir un rechazo; consultar el estado y los motivos. Si el agente pide algo mayor que `small` (por ejemplo un entorno `medium`), queda pendiente de aprobación: **elena** lo aprueba en el portal (página *AI Platform*) o con `platformctl.py approve <id>`. Diego no puede aprobarlo: no es aprobador y la petición se hizo en su nombre.
 
 ### Validación del backend
 
@@ -87,7 +89,7 @@ sin crear otro backend ni otra base de datos.
 
 1. Confirmar que la aplicación Spring y sus endpoints REST están operativos.
 2. Desde el MCP de plataforma, invocar `create_api_mcp_adapter` con
-   `name=retail-sales-mcp`, `team=platform-team`,
+   `name=retail-sales-mcp`, `team=retail`,
    `backend_service=retail-sales-insights`, `environment=retail-demo`.
 3. Clonar el repositorio generado en Gitea y sustituir el sample
    `operations.json` por la allowlist
@@ -215,13 +217,34 @@ por distintos asistentes, **sin publicar una API en Internet**.
 - Si el MCP rechaza `previousFrom`, usar una versión del adaptador que soporte parámetros `camelCase`.
 - Si Claude devuelve un error genérico, usar el adaptador que preserva errores seguros como `ToolError`.
 - No considerar la demo E2E completada hasta verificar la API, el diseño en navegador, el canal conversacional y sus escenarios de error.
-- El adaptador remoto por Streamable HTTP **no** demuestra todavía identidad OAuth por agente, autorización granular o Agent Runtime administrado.
+- El adaptador remoto `retail-sales-mcp` (el generado por el Golden Path) **no** tiene todavía identidad OAuth por agente, autorización granular o Agent Runtime administrado. El servidor MCP de **plataforma** sí: cada agente actúa con su cliente de Keycloak en nombre de la persona que inició sesión.
+- **«Team scope: diego is in retail, not ...»:** el agente intentó actuar para otro equipo (por ejemplo, propietario `platform-team`). Usar `retail`.
+- **«Sign in» o 401 del servidor `platform`:** el token caducó o la sesión de Keycloak terminó (Keycloak no guarda sesiones al reiniciarse). En Claude Code, `/mcp` y volver a autenticar como diego.
+- **El portal no muestra el botón *Approve*:** la persona no es aprobadora del equipo o la petición se hizo en su nombre (cuatro ojos). El motivo aparece bajo la petición.
 
-## 4. Limpieza
+## 4. Acto de identidad (opcional, unos 5 minutos)
+
+Muestra que la plataforma sabe **quién** actúa (persona o agente), **en nombre de quién** y **qué puede hacer**, sea cual sea el canal. Usar las personas de [usuarios y equipos](users-and-teams.md); conviene tener una ventana privada del navegador por persona.
+
+| Paso | Quién | Acción | Qué se observa |
+|---|---|---|---|
+| 1 | marta, con Claude Code (`/mcp`, login como marta) | «Necesito un entorno para probar las nuevas reglas de descuento de checkout» | Creado. En el catálogo: *requested by* `claude-code`, *on behalf of* marta (checkout) |
+| 2 | agente de marta | «Crea otro para el equipo payments» | Denegado: el agente de Marta no puede hacer lo que Marta no puede hacer |
+| 3 | agente de marta | «Ahora uno large para una prueba de carga, 24 horas» | Pendiente de aprobación; el agente da el id |
+| 4 | marta en el portal, *AI Platform* | Abre la petición | Sin botón *Approve*: «Four eyes» / no es aprobadora |
+| 5 | luis en el portal | Busca la petición | No la ve: aprueba solo para payments |
+| 6 | carlos en el portal (o `platformctl.py approve <id>` como carlos) | Aprueba | Entorno creado con *approved by* carlos; en la consola, el evento con quién aprobó y para quién |
+| 7 | administrador de Keycloak (<http://localhost:8180/admin>, usuario `admin`) | Desactiva el cliente `claude-code` o cierra la sesión de marta | En menos de 5 minutos, la siguiente llamada del agente recibe 401 |
+
+Mensaje: *el agente nunca tiene más permisos que la persona para la que trabaja, y una persona no se aprueba a sí misma lo que pide su agente.*
+
+Contraseña del administrador de Keycloak: `kubectl -n platform-system get secret keycloak-admin -o jsonpath='{.data.password}' | base64 -d`.
+
+## 5. Limpieza
 
 El entorno es efímero y su TTL debería caducar según las políticas. Si se destruye manualmente, confirmar antes que solo contiene recursos de la demo y que no afecta a otros desarrollos. En AWS, no dejar infraestructura encendida innecesariamente una vez terminada la demostración.
 
-## 5. Diagnóstico de cuota para la Spec 02
+## 6. Diagnóstico de cuota para la Spec 02
 
 La demo conjunta puede superar la cuota si se generó un MCP remoto antiguo
 (500m CPU) y Nginx aún usa el límite original (250m). La cuota small de

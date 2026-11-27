@@ -7,7 +7,7 @@ from platform_api.git_server import RepositoryExists
 from platform_api.golden_paths import InvalidRequest
 from platform_api.service import Forbidden, NotFound
 
-from .conftest import ANA, CI_AGENT, LUIS_AGENT, MARTA, MARTAS_AGENT
+from .conftest import ANA, CARLOS, CI_AGENT, LUIS, LUIS_AGENT, MARTA, MARTA_APPROVER, MARTAS_AGENT
 
 SPRING = {"name": "loyalty-points", "description": "Loyalty points", "owner": "checkout", "module": "points",
           "environment": "checkout-dev"}
@@ -226,3 +226,96 @@ def test_people_delete_their_teams_environments(platform):
     assert platform.delete_environment(MARTA, "checkout-dev")["status"] == "deleted"
     with pytest.raises(Forbidden):
         platform.delete_environment(ANA, "payments-dev")
+
+
+# --- Approvals: by role, for the team, with four eyes ----------------------------------------
+
+
+def _large_request(platform, who=MARTAS_AGENT):
+    return platform.request_environment(who, "checkout", "load-test", "load test", size="large")["approval_id"]
+
+
+def test_an_approver_of_the_team_approves_and_the_platform_creates_it(platform):
+    approval_id = _large_request(platform)
+    result = platform.decide_approval(CARLOS, approval_id, "approve", "for the load test")
+    assert result["status"] == "approved" and result["decided_by"] == "carlos"
+    manifest, as_agent = platform.cluster.created[-1]
+    assert manifest["metadata"]["annotations"]["platform.starterkit.dev/approved-by"] == "carlos"
+    assert manifest["metadata"]["annotations"]["platform.starterkit.dev/on-behalf-of"] == "marta"
+    assert as_agent is False, "the platform replays it as itself; only it may record approved-by"
+    assert platform.record.events[-1]["action"] == "Approved"
+    assert "carlos approved the request of claude-code for marta" in platform.record.events[-1]["message"]
+
+
+def test_platform_team_approvers_approve_for_every_team(platform):
+    approval_id = _large_request(platform)
+    assert platform.decide_approval(ANA, approval_id, "reject", "too big")["status"] == "rejected"
+
+
+@pytest.mark.parametrize("who, why", [
+    (MARTA, "approver role"),
+    (MARTA_APPROVER, "Four eyes"),
+    (LUIS, "Team scope"),
+    (MARTAS_AGENT, "Agents never approve"),
+])
+def test_who_cannot_decide(platform, who, why):
+    approval_id = _large_request(platform)
+    with pytest.raises(Forbidden, match=why):
+        platform.decide_approval(who, approval_id, "approve")
+    assert platform.cluster.approvals[approval_id]["status"] == "pending"
+
+
+def test_luis_does_not_even_see_checkout_approvals(platform):
+    approval_id = _large_request(platform)
+    assert platform.list_approvals(LUIS) == []
+    with pytest.raises(Forbidden, match="Team scope"):
+        platform.get_approval(LUIS, approval_id)
+    assert platform.record.events[-1]["action"] == "RequestNeedsApproval"
+
+
+def test_four_eyes_can_be_switched_off(platform):
+    platform.four_eyes = False
+    approval_id = _large_request(platform)
+    assert platform.decide_approval(MARTA_APPROVER, approval_id, "approve")["status"] == "approved"
+
+
+def test_the_approval_says_who_may_decide(platform):
+    approval_id = _large_request(platform)
+    [for_marta] = platform.list_approvals(MARTA_APPROVER)
+    assert (for_marta["can_decide"], "Four eyes" in for_marta["cannot_decide_reason"]) == (False, True)
+    assert platform.get_approval(CARLOS, approval_id)["can_decide"] is True
+    assert "manifest" not in for_marta
+
+
+def test_a_decision_is_final(platform):
+    from platform_api.service import Conflict
+
+    approval_id = _large_request(platform)
+    platform.decide_approval(ANA, approval_id, "reject")
+    with pytest.raises(Conflict, match="already rejected"):
+        platform.decide_approval(CARLOS, approval_id, "approve")
+
+
+def test_denied_decisions_are_recorded(platform):
+    approval_id = _large_request(platform)
+    with pytest.raises(Forbidden):
+        platform.decide_approval(LUIS, approval_id, "approve")
+    # Luis cannot read it: team scope first.
+    approval_id2 = platform.request_environment(LUIS_AGENT, "payments", "big", "x", size="large")["approval_id"]
+    with pytest.raises(Forbidden):
+        platform.decide_approval(MARTA_APPROVER, approval_id2, "approve")
+    with pytest.raises(Forbidden):
+        platform.decide_approval(LUIS, approval_id2, "approve")
+    assert platform.record.events[-1]["action"] == "ApprovalDenied"
+
+
+def test_overview_is_for_your_teams(platform):
+    _large_request(platform)
+    mine = platform.overview(MARTA)
+    assert {e["name"] for e in mine["environments"]} == {"checkout-dev", "agent-env"}
+    assert [s["name"] for s in mine["services"]] == ["orders-service"]
+    assert {a["subject"] for a in mine["activity"]} <= {"checkout-dev", "agent-env", "load-test"}
+    assert mine["metrics"]["pending_approvals"] == 1
+    everything = platform.overview(ANA)
+    assert everything["scope"] == "all teams" and len(everything["environments"]) == 3
+    assert platform.overview(LUIS)["approvals"] == []

@@ -1,0 +1,30 @@
+# An approver of the team approved a large environment that Marta's agent
+# asked for: the platform API replays the stored request as itself, with
+# approved-by. Only the platform API may record an approval, and the agents'
+# identity never can (agents do not approve their own requests).
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: approval-replay
+policies:
+  - ../../30-agent-guardrails.yaml
+  - ../../40-team-membership.yaml
+resources:
+  - resources.yaml
+userinfo: user-info.yaml
+results:
+  - policy: protect-audit-trail
+    isValidatingPolicy: true
+    resources: [approved-load-test]
+    kind: Environment
+    result: pass
+  - policy: team-membership
+    isValidatingPolicy: true
+    resources: [approved-load-test]
+    kind: Environment
+    result: pass
+  - policy: team-membership
+    isValidatingPolicy: true
+    resources: [approved-for-another-team]
+    kind: Environment
+    result: fail

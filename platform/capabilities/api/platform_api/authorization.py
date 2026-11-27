@@ -8,6 +8,7 @@ what reaches the Kubernetes API.
 | Agent guardrails | Applied by Kyverno (small environments, env-* only); anything bigger becomes an approval request |
 | Delete | Agents only delete what an agent requested for the same person (or the same autonomous agent) |
 | Proposals | Only people in platform-team propose capability definitions |
+| Approvals | Only people with the approver role, for their teams (platform-team approvers: every team), and never for a request made on their own behalf (four eyes) |
 """
 
 from __future__ import annotations
@@ -73,6 +74,36 @@ def require_propose(identity: Identity) -> None:
         raise Forbidden("Capability definitions are proposed by people on the platform team, not by agents.")
     if not identity.in_platform_team:
         raise Forbidden(f"Only people in platform-team propose platform capabilities; {_scope(identity)}.")
+
+
+APPROVER = "approver"
+
+
+def approval_team(approval: Mapping[str, Any]) -> str | None:
+    return approval.get("team") or ((approval.get("manifest") or {}).get("spec") or {}).get("team") or \
+        (approval.get("request") or {}).get("team")
+
+
+def why_cannot_decide(identity: Identity, approval: Mapping[str, Any], four_eyes: bool = True) -> str | None:
+    """None when the identity may approve or reject this request; otherwise why not."""
+    if identity.is_agent:
+        return "Agents never approve or reject: only people decide on what agents ask for."
+    if APPROVER not in identity.roles:
+        return f"{identity.person} does not have the approver role."
+    team = approval_team(approval)
+    if not identity.in_platform_team and team not in identity.teams:
+        return (f"{identity.person} approves for {', '.join(identity.teams) or 'no team'}, "
+                f"not for {team or 'requests without a team'}.")
+    if four_eyes and approval.get("on_behalf_of") and approval.get("on_behalf_of") == identity.person:
+        return (f"Four eyes: {identity.person} cannot decide on a request an agent made on their behalf. "
+                "Another approver of the team, or of platform-team, has to.")
+    return None
+
+
+def require_decide(identity: Identity, approval: Mapping[str, Any], four_eyes: bool = True) -> None:
+    reason = why_cannot_decide(identity, approval, four_eyes)
+    if reason:
+        raise Forbidden(reason)
 
 
 def team_of_environment(environment: Mapping[str, Any] | None) -> str | None:

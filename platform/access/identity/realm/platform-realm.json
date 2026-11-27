@@ -34,6 +34,10 @@
     {
       "name": "platform-team",
       "path": "/platform-team"
+    },
+    {
+      "name": "retail",
+      "path": "/retail"
     }
   ],
   "users": [
@@ -50,6 +54,27 @@
       "realmRoles": [
         "developer",
         "approver"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "pablo",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Pablo",
+      "lastName": "Herrera",
+      "email": "pablo@starterkit.local",
+      "groups": [
+        "/platform-team"
+      ],
+      "realmRoles": [
+        "developer"
       ],
       "credentials": [
         {
@@ -81,6 +106,28 @@
       ]
     },
     {
+      "username": "carlos",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Carlos",
+      "lastName": "Ruiz",
+      "email": "carlos@starterkit.local",
+      "groups": [
+        "/checkout"
+      ],
+      "realmRoles": [
+        "developer",
+        "approver"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
       "username": "luis",
       "enabled": true,
       "emailVerified": true,
@@ -93,6 +140,111 @@
       "realmRoles": [
         "developer",
         "approver"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "sofia",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Sofía",
+      "lastName": "Navarro",
+      "email": "sofia@starterkit.local",
+      "groups": [
+        "/payments"
+      ],
+      "realmRoles": [
+        "developer"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "elena",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Elena",
+      "lastName": "Torres",
+      "email": "elena@starterkit.local",
+      "groups": [
+        "/retail"
+      ],
+      "realmRoles": [
+        "developer",
+        "approver"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "diego",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Diego",
+      "lastName": "Sánchez",
+      "email": "diego@starterkit.local",
+      "groups": [
+        "/retail"
+      ],
+      "realmRoles": [
+        "developer"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "irene",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Irene",
+      "lastName": "Gómez",
+      "email": "irene@starterkit.local",
+      "groups": [
+        "/checkout",
+        "/payments"
+      ],
+      "realmRoles": [
+        "developer"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "nora",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Nora",
+      "lastName": "Vidal",
+      "email": "nora@starterkit.local",
+      "groups": [],
+      "realmRoles": [
+        "developer"
       ],
       "credentials": [
         {
@@ -301,6 +453,69 @@
           "config": {
             "claim.name": "client_kind",
             "claim.value": "agent",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "portal",
+      "name": "Developer portal",
+      "description": "Backstage: people sign in, and the portal calls the platform API with their token",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${PORTAL_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "${PORTAL_URL}/api/auth/oidc/handler/frame"
+      ],
+      "webOrigins": [
+        "${PORTAL_URL}"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "${PORTAL_URL}/*"
+      },
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "platform audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "platform",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "teams",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "client kind",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "client_kind",
+            "claim.value": "person",
             "jsonType.label": "String",
             "access.token.claim": "true",
             "id.token.claim": "false",

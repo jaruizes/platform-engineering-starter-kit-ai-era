@@ -3,22 +3,20 @@ access token, never from what the client says about itself.
 
 | Token | Identity |
 |---|---|
-| A person through a person's channel (client_kind=person, e.g. platformctl) | person |
+| A person through a person's channel (client_kind=person: the portal, platformctl) | person |
 | An agent client (client_kind=agent, e.g. claude-code) with a person signed in | agent on behalf of that person |
 | Client credentials (service-account-<client>) | autonomous agent of its owner team |
 
 The person's teams are the Keycloak groups; an agent acting for a person
 gets exactly those teams, and an autonomous agent only its owner team.
 
-Until the portal signs people in with Keycloak (increment B of
-docs/identity-and-access.md), it still calls with the channel token
-PLATFORM_API_TOKEN and states the person and their teams from the catalog.
-That path only ever identifies people, never agents.
+Every channel sends the token of whoever is acting: the portal the signed-in
+person's, the CLI the person's, the MCP server the agent's. There is no
+shared channel token: no channel can say who it acts for.
 """
 
 from __future__ import annotations
 
-import hmac
 import os
 import re
 from dataclasses import dataclass, field
@@ -146,26 +144,13 @@ class TokenVerifier:
 class Authenticator:
     """Builds the identity of a request from its headers."""
 
-    def __init__(self, verifier: Any | None, channel_token: str | None = None) -> None:
+    def __init__(self, verifier: Any | None) -> None:
         self.verifier = verifier
-        self.channel = f"Bearer {channel_token}".encode() if channel_token else None
 
     def identify(self, headers: Mapping[str, str]) -> Identity:
         authorization = headers.get("authorization", "")
         if not authorization.lower().startswith("bearer "):
             raise Unauthenticated("Sign in: send a Keycloak access token as Authorization: Bearer <token>.")
-        if self.channel is not None and hmac.compare_digest(authorization.encode(), self.channel):
-            return self._portal(headers)
         if self.verifier is None:
             raise Unauthenticated("This platform API has no identity provider configured (OIDC_ISSUER).")
         return identity_from_claims(self.verifier.claims(authorization[7:].strip()))
-
-    @staticmethod
-    def _portal(headers: Mapping[str, str]) -> Identity:
-        """Transitional (until increment B): the portal states the signed-in person."""
-        requester = headers.get("x-platform-requester", "")
-        if not requester.startswith("user:default/") or not NAME.match(requester.removeprefix("user:default/")):
-            raise Unauthenticated("The portal must state the signed-in person (X-Platform-Requester: user:default/<name>).")
-        teams = tuple(sorted({t.strip().split("/")[-1] for t in headers.get("x-platform-teams", "").split(",")
-                              if t.strip() and NAME.match(t.strip().split("/")[-1])}))
-        return Identity("person", requester.removeprefix("user:default/"), None, teams, (), "portal")

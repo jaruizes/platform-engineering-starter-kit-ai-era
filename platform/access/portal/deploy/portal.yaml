@@ -1,6 +1,7 @@
-# The developer portal (Backstage). Its identity is the third one in the
-# platform: it acts on behalf of signed-in people, and the policies record
-# which person each request is for.
+# The developer portal (Backstage). People sign in with Keycloak and the
+# portal calls the platform API with their token: the platform API decides and
+# acts. The portal's own Kubernetes identity only reads (catalog, Kubernetes
+# tab and the agents' context): it creates nothing.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -12,11 +13,10 @@ kind: ClusterRole
 metadata:
   name: platform:portal
 rules:
-  # Golden Paths and capabilities: read everything, create on behalf of
-  # people. No delete: environments expire on their own.
+  # Golden Paths and capabilities: read-only.
   - apiGroups: [platform.starterkit.dev]
     resources: ["*"]
-    verbs: [get, list, watch, create]
+    verbs: [get, list, watch]
   # To find the capabilities the platform offers and build their forms.
   - apiGroups: [apiextensions.crossplane.io]
     resources: [compositeresourcedefinitions]
@@ -46,31 +46,6 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: platform:portal
-subjects:
-  - kind: ServiceAccount
-    name: portal
-    namespace: platform-system
----
-# The portal writes to the same audit trail as the MCP server and the console.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: platform:audit-writer
-  namespace: platform-system
-rules:
-  - apiGroups: [""]
-    resources: [events]
-    verbs: [create]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: platform:portal-audit
-  namespace: platform-system
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: platform:audit-writer
 subjects:
   - kind: ServiceAccount
     name: portal
@@ -118,12 +93,12 @@ spec:
                 secretKeyRef:
                   name: portal-mcp-token
                   key: token
-            # The portal is one channel of the platform API.
-            - name: PLATFORM_API_TOKEN
+            # Its client in Keycloak, to sign people in.
+            - name: AUTH_OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: platform-api-token
-                  key: token
+                  name: portal-oidc-client
+                  key: secret
             - name: GITEA_USERNAME
               valueFrom:
                 secretKeyRef:

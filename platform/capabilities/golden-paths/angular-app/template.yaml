@@ -11,6 +11,9 @@ metadata:
 spec:
   owner: platform-team
   type: website
+  # Sends the signed-in person's token: the platform API decides with it.
+  formDecorators:
+    - id: platform-identity
   parameters:
     - title: Application
       required: [name, description, owner]

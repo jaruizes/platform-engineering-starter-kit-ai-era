@@ -98,9 +98,23 @@ mcpActions:
 auth:
   environment: development
   providers:
-    guest:
-      userEntityRef: user:default/ana
-      dangerouslyAllowOutsideDevelopment: true
+    # People sign in with the platform identity provider: Keycloak, realm
+    # "platform" (in a customer, Keycloak brokers the corporate one). The
+    # sign-in is resolved to the catalog user with the same name (ana@... ->
+    # user:default/ana); catalog/org.yaml and the realm come from the same
+    # platform/access/identity/organization.yaml. The portal sends the
+    # person's access token to the platform API, which decides.
+    oidc:
+      development:
+        # Inside the cluster. Keycloak still issues tokens for, and sends the
+        # browser to, its public address (KC_HOSTNAME).
+        metadataUrl: http://keycloak.platform-system.svc:8180/realms/platform/.well-known/openid-configuration
+        clientId: portal
+        clientSecret: ${AUTH_OIDC_CLIENT_SECRET}
+        prompt: auto
+        signIn:
+          resolvers:
+            - resolver: emailLocalPartMatchingUserEntityName
 
 integrations:
   # The local Git server. The portal pod reaches it at localhost:3000 through
@@ -179,11 +193,11 @@ kubernetes:
 
 platform:
   consoleUrl: http://platform-console.platform-system.svc:8080
-  # The platform API runs the code Golden Paths (new repositories) and opens
-  # capability proposals. The portal's templates are forms on top of it.
+  # Every capability is an operation of the platform API: the portal's
+  # templates and the AI Platform page call it with the signed-in person's
+  # token. The portal has no token of its own for it.
   api:
     url: http://platform-api.platform-system.svc:8083
-    token: ${PLATFORM_API_TOKEN}
   quality:
     gitUrl: http://gitea.platform-system.svc:3000
   # The engineering standards served to agents: architectures.yaml (the

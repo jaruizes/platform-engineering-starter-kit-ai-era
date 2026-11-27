@@ -45,13 +45,10 @@ spec:
               value: http://keycloak.platform-system.svc:8180/realms/platform/protocol/openid-connect/certs
             - name: OIDC_AUDIENCE
               value: platform
-            # Until the portal signs people in with Keycloak (increment B), it
-            # calls with this channel token and states the signed-in person.
-            - name: PLATFORM_API_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: platform-api-token
-                  key: token
+            # Nobody decides on a request an agent made on their own behalf.
+            # "false" lets a person approve their own agent's requests.
+            - name: APPROVALS_FOUR_EYES
+              value: "true"
             # Where the platform creates repositories (inside the cluster)...
             - name: GIT_API_URL
               value: http://gitea.platform-system.svc:3000

@@ -38,7 +38,7 @@ mcp = MCPServer(
         "infrastructure code. Start with list_golden_paths. You act for the person who signed in: whoami shows "
         "their teams, and requests are only allowed for those teams. Use get_quality_status for read-only, "
         "commit-linked quality evidence and findings. Requests are checked by policy; if one needs human "
-        "approval, tell the user and give them the approval id. When you build a new service, deliver it so "
+        "approval, tell the user and give them the approval id: an approver of the team other than the user decides. When you build a new service, deliver it so "
         "the user can try it: unless they say otherwise, reuse a ready environment of the team or request a "
         "small one for 8 hours. Use create_service for a Spring backend and create_angular_app for an Angular frontend, "
         "then follow deployment with get_service_status. For an existing read-only REST API use create_api_mcp_adapter to publish an API-to-MCP adapter."

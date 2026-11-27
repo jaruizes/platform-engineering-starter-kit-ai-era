@@ -17,7 +17,12 @@ platform/access/cli/platformctl.py create spring-service name=loyalty-points \
   description="Loyalty points" owner=checkout module=points environment=pr-123
 platform/access/cli/platformctl.py delete-environment pr-123
 platform/access/cli/platformctl.py propose my-capability.yaml   # platform-team only
+platform/access/cli/platformctl.py approvals                     # agents' requests of your teams
+platform/access/cli/platformctl.py approve <id> --note "Load test"   # approvers, never for yourself
+platform/access/cli/platformctl.py reject <id> --note "Use a medium one"
 ```
+
+The people you can sign in as are in [users and teams](../../../examples/scenarios/example/demo/users-and-teams.md).
 
 Tokens are kept in `~/.config/platformctl/` (readable only by you) and
 refreshed while the session lasts.

@@ -1,6 +1,6 @@
 # Guardrails for AI agents: the more autonomous the consumer, the stronger
 # the guardrails. Agents get small environments on their own; anything
-# bigger goes to a human for approval through the platform console.
+# bigger goes to an approver of the team, through the platform API.
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:
@@ -58,9 +58,9 @@ metadata:
   annotations:
     policies.kyverno.io/title: Protect the audit trail
     policies.kyverno.io/description: >-
-      Only the platform console can record an approval, only the platform
-      API (and, until it signs people in, the portal) can say who a request
-      is for, and requester annotations cannot be changed after creation.
+      Only the platform API can record an approval (after checking the
+      approver role and four eyes) and say who a request is for, and
+      requester annotations cannot be changed after creation.
 spec:
   validationActions: [Deny]
   evaluation:
@@ -79,13 +79,11 @@ spec:
          'platform.starterkit.dev/approved-by', 'platform.starterkit.dev/on-behalf-of',
          'platform.starterkit.dev/delivered-by', 'platform.starterkit.dev/agent',
          'platform.starterkit.dev/requester-teams', 'platform.starterkit.dev/agent-chain']
-    # The platform API, as itself or as the agents' identity, and the console
-    # replaying an approved request the platform API stored.
+    # The platform API, as itself or as the agents' identity.
     - name: platformIdentities
       expression: >-
         ['system:serviceaccount:platform-system:platform-api',
-         'system:serviceaccount:platform-system:platform-mcp',
-         'system:serviceaccount:platform-system:platform-console']
+         'system:serviceaccount:platform-system:platform-mcp']
     - name: deletionKeys
       expression: >-
         ['platform.starterkit.dev/deleted-by', 'platform.starterkit.dev/deleter-teams',
@@ -98,14 +96,13 @@ spec:
     - expression: >-
         !('platform.starterkit.dev/approved-by' in variables.annotations) ||
         request.operation == 'UPDATE' ||
-        request.userInfo.username == 'system:serviceaccount:platform-system:platform-console'
-      message: Approvals can only be recorded through the platform console.
+        request.userInfo.username == 'system:serviceaccount:platform-system:platform-api'
+      message: Approvals can only be recorded through the platform API, by an approver of the team.
       reason: Forbidden
     - expression: >-
         !('platform.starterkit.dev/on-behalf-of' in variables.annotations) ||
         request.operation == 'UPDATE' ||
-        request.userInfo.username in variables.platformIdentities ||
-        request.userInfo.username == 'system:serviceaccount:platform-system:portal'
+        request.userInfo.username in variables.platformIdentities
       message: Only the platform API can act on behalf of a person.
       reason: Forbidden
     - expression: >-

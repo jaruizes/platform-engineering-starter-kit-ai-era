@@ -1,0 +1,80 @@
+# The sample organization of the demo: teams, people and roles. One source
+# for both places that need it:
+#   - the Keycloak realm (realm/platform-realm.json): groups, users, roles;
+#   - the portal catalog (platform/access/portal/catalog/org.yaml): Group and
+#     User entities, so the portal resolves each sign-in to its catalog user.
+# After changing it, run:  python3 platform/access/identity/sync-organization.py
+# (deploy/check-repository.py fails if the two drift apart).
+#
+# Roles: every person is a developer of their teams (requests and reads what
+# belongs to them). An approver also decides on agents' requests of their
+# teams; an approver in platform-team, on every team's. Nobody decides on a
+# request an agent made on their own behalf (four eyes).
+#
+# In a customer, Keycloak brokers the corporate identity provider and maps
+# corporate groups to these teams; this file is only the demo's sample.
+teams:
+  - name: platform-team
+    title: Platform team
+    description: Builds and runs the platform. Proposes capabilities and reads everything.
+  - name: checkout
+    title: Checkout
+    description: The checkout of the online shop.
+  - name: payments
+    title: Payments
+    description: Payment methods and refunds.
+  - name: retail
+    title: Retail
+    description: Store sales and their insights (the Retail Sales Insights demo).
+
+people:
+  - name: ana
+    displayName: Ana García
+    teams: [platform-team]
+    roles: [developer, approver]
+    purpose: Platform approver. Approves requests of every team, proposes capabilities.
+  - name: pablo
+    displayName: Pablo Herrera
+    teams: [platform-team]
+    roles: [developer]
+    purpose: Platform engineer without the approver role. Reads everything, proposes capabilities, cannot approve.
+  - name: marta
+    displayName: Marta López
+    teams: [checkout]
+    roles: [developer]
+    purpose: Developer of checkout. The protagonist of the demo with her coding agent.
+  - name: carlos
+    displayName: Carlos Ruiz
+    teams: [checkout]
+    roles: [developer, approver]
+    purpose: Tech lead of checkout. Approves what Marta's agent cannot do alone.
+  - name: luis
+    displayName: Luis Martín
+    teams: [payments]
+    roles: [developer, approver]
+    purpose: Approver of payments. Cannot see or approve checkout requests.
+  - name: sofia
+    displayName: Sofía Navarro
+    teams: [payments]
+    roles: [developer]
+    purpose: Developer of payments.
+  - name: elena
+    displayName: Elena Torres
+    teams: [retail]
+    roles: [developer, approver]
+    purpose: Lead of retail. Approves the retail team's agent requests.
+  - name: diego
+    displayName: Diego Sánchez
+    teams: [retail]
+    roles: [developer]
+    purpose: Developer of retail. Runs the Retail Sales Insights demo.
+  - name: irene
+    displayName: Irene Gómez
+    teams: [checkout, payments]
+    roles: [developer]
+    purpose: Works in two teams. Her agent can act for both, and only for both.
+  - name: nora
+    displayName: Nora Vidal
+    teams: []
+    roles: [developer]
+    purpose: New hire, not in any team yet. Can sign in, but cannot request or see anything.

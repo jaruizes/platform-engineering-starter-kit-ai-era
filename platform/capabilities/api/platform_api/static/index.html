@@ -62,7 +62,8 @@
 <body>
 <header>
   <h1>Platform Console</h1>
-  <p>Same Golden Paths for developers and AI agents, inside the same guardrails.</p>
+  <p>Same Golden Paths for developers and AI agents, inside the same guardrails. Read-only: approvers decide in the
+    developer portal (AI Platform page) or with <code>platformctl approve</code>, signed in.</p>
 </header>
 <main>
   <div class="tiles" id="tiles"></div>
@@ -109,10 +110,6 @@ const table = (cols, rows) => rows.length
   ? `<table><thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`
   : `<div class="empty">Nothing yet.</div>`;
 
-function approverName() {
-  try { return localStorage.getItem("approver") || ""; } catch { return ""; }
-}
-
 function renderTiles(m) {
   const pass = m.agent_first_time_pass_rate === null ? "-" : `${m.agent_first_time_pass_rate}%`;
   const tiles = [
@@ -135,12 +132,9 @@ function renderApprovals(approvals) {
         ${!a.request.kind || a.request.kind === "Environment"
           ? `environment <b>${esc(a.request.name)}</b> for team <b>${esc(a.request.team)}</b>, ${esc(a.request.ttlHours)}h`
           : `${esc(a.request.kind)} <b>${esc(a.request.name)}</b> in <b>${esc(a.request.namespace)}</b>`}</div>
-      <div class="why">${a.request.purpose ? `Purpose: ${esc(a.request.purpose)}<br>` : ""}Guardrail: ${esc(a.reason)}</div>
-      <div class="actions">
-        <input placeholder="Your name" value="${esc(approverName())}" data-approver="${esc(a.id)}">
-        <button class="primary" onclick="decide('${esc(a.id)}', 'approve')">Approve</button>
-        <button onclick="decide('${esc(a.id)}', 'reject')">Reject</button>
-      </div>
+      <div class="why">${a.request.purpose ? `Purpose: ${esc(a.request.purpose)}<br>` : ""}${a.on_behalf_of ? `On behalf of ${esc(a.on_behalf_of)}. ` : ""}Guardrail: ${esc(a.reason)}</div>
+      <div class="muted">An approver of ${esc(a.team || a.request.team || "the team")} (not ${esc(a.on_behalf_of || "the requester")}) decides:
+        portal, AI Platform page, or <code>platformctl approve ${esc(a.id)}</code></div>
     </div>`).join("");
   if (!pending.length) html = `<div class="empty">No requests waiting. Agents stay inside the guardrails.</div>`;
   if (decided.length) {
@@ -149,18 +143,6 @@ function renderApprovals(approvals) {
     ).join(" · ") + `</div>`;
   }
   $("approvals").innerHTML = html;
-}
-
-async function decide(id, decision) {
-  const input = document.querySelector(`[data-approver="${CSS.escape(id)}"]`);
-  const approver = input.value.trim();
-  if (!approver) { input.focus(); return; }
-  try { localStorage.setItem("approver", approver); } catch {}
-  const res = await fetch(`/api/approvals/${encodeURIComponent(id)}`, {
-    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({decision, approver}),
-  });
-  if (!res.ok) alert((await res.json()).error || "Something went wrong.");
-  refresh();
 }
 
 function render(state) {
@@ -196,10 +178,7 @@ async function refresh() {
 }
 
 refresh();
-setInterval(() => {
-  // Do not re-render while someone is typing their name in an approval.
-  if (!document.activeElement || document.activeElement.tagName !== "INPUT") refresh();
-}, 3000);
+setInterval(refresh, 3000);
 </script>
 </body>
 </html>

@@ -7,11 +7,13 @@ import { catalogServiceRef } from '@backstage/plugin-catalog-node';
 import { registerActions } from './actions';
 import { ConsoleClient } from './console';
 import { PlatformClient } from './kubernetes';
+import { PlatformApiClient } from './platformApi';
 import { createRouter } from './router';
 import { registerStandardsActions, StandardsLibrary } from './standards';
 
 /**
- * The platform plugin: agent approvals and AI-era metrics in the portal, and
+ * The platform plugin: agent approvals and AI-era metrics in the portal
+ * (from the platform API, with the signed-in person's token), and
  * read-only platform context and engineering standards for AI agents
  * through the MCP actions.
  */
@@ -20,27 +22,21 @@ export const platformPlugin = createBackendPlugin({
   register(env) {
     env.registerInit({
       deps: {
-        auth: coreServices.auth,
         config: coreServices.rootConfig,
         httpAuth: coreServices.httpAuth,
         httpRouter: coreServices.httpRouter,
         actionsRegistry: actionsRegistryServiceRef,
         catalog: catalogServiceRef,
       },
-      async init({ auth, config, httpAuth, httpRouter, actionsRegistry, catalog }) {
+      async init({ config, httpAuth, httpRouter, actionsRegistry, catalog }) {
         const platformConsole = new ConsoleClient(
           config.getOptionalString('platform.consoleUrl') ??
             'http://platform-console.platform-system.svc:8080',
         );
         const platform = new PlatformClient();
-
-        const displayName = async (ref: string) => {
-          const entity = await catalog
-            .getEntityByRef(ref, { credentials: await auth.getOwnServiceCredentials() })
-            .catch(() => undefined);
-          const name = (entity?.spec?.profile as { displayName?: string } | undefined)?.displayName;
-          return name ? `${name} (${ref})` : ref;
-        };
+        const api = new PlatformApiClient(
+          config.getOptionalString('platform.api.url') ?? 'http://platform-api.platform-system.svc:8083',
+        );
 
         registerActions(actionsRegistry, platform, platformConsole);
         registerStandardsActions(
@@ -53,8 +49,7 @@ export const platformPlugin = createBackendPlugin({
         );
         httpRouter.use(await createRouter({
           httpAuth,
-          platformConsole,
-          displayName,
+          api,
           qualityGitUrl: config.getOptionalString('platform.quality.gitUrl') ?? 'http://gitea.platform-system.svc:3000',
         }));
       },

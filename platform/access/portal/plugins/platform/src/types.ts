@@ -2,7 +2,11 @@ export type Approval = {
   id: string;
   status: 'pending' | 'approved' | 'rejected' | 'failed';
   agent: string;
+  team?: string;
+  on_behalf_of?: string;
   reason: string;
+  can_decide: boolean;
+  cannot_decide_reason?: string | null;
   decided_by?: string;
   decision_note?: string;
   request: {
@@ -49,6 +53,7 @@ export type Environment = {
   requested_by?: string;
   requester_type?: string;
   approved_by?: string;
+  on_behalf_of?: string;
   expires_at: string;
 };
 
@@ -62,6 +67,8 @@ export type Service = {
 };
 
 export type Overview = {
+  identity: { person?: string; teams: string[]; roles: string[] };
+  scope: string;
   metrics: Metrics;
   environments: Environment[];
   services: Service[];

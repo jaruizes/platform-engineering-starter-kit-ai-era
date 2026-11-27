@@ -21,14 +21,16 @@ spec:
   variables:
     - name: agentIdentity
       expression: "'system:serviceaccount:platform-system:platform-mcp'"
-    - name: approverIdentity
-      expression: "'system:serviceaccount:platform-system:platform-console'"
-    - name: portalIdentity
-      expression: "'system:serviceaccount:platform-system:portal'"
     # The platform API acts for people as itself, and for agents as the
     # agents' identity above (impersonation), after checking their tokens.
+    # It also replays, as itself, an agent's request that a person approved.
     - name: apiIdentity
       expression: "'system:serviceaccount:platform-system:platform-api'"
+    - name: approvedAgentRequest
+      expression: >-
+        request.userInfo.username == variables.apiIdentity &&
+        object.metadata.?annotations[?'platform.starterkit.dev/approved-by'].orValue('') != '' &&
+        object.metadata.?annotations[?'platform.starterkit.dev/agent'].orValue('') != ''
     # GitOps (Argo CD) delivers what a service repository declares. The
     # requester is whoever created the service, recorded in the repository
     # by the Spring service template; the commits are the rest of the trail.
@@ -39,20 +41,20 @@ spec:
         object.metadata.?annotations[?'platform.starterkit.dev/service-created-by'].orValue('')
     - name: requesterType
       expression: >-
-        request.userInfo.username in [variables.agentIdentity, variables.approverIdentity] ? 'agent' :
+        request.userInfo.username == variables.agentIdentity || variables.approvedAgentRequest ? 'agent' :
         request.userInfo.username == variables.gitopsIdentity && variables.serviceCreatedBy.startsWith('agent:') ? 'agent' :
         'human'
     # Agents act through the platform API, which acts as the agents' identity
-    # and names the agent (from its Keycloak token). A human approving in the
-    # console keeps the agent as requester. The platform API and the portal act
-    # on behalf of the signed-in person, whose name they pass on.
+    # and names the agent (from its Keycloak token). An approved agent request
+    # keeps the agent as requester. For people, the platform API passes on the
+    # signed-in person (from their Keycloak token, whatever the channel).
     - name: requestedBy
       expression: >-
         request.userInfo.username == variables.gitopsIdentity && variables.serviceCreatedBy != ''
           ? variables.serviceCreatedBy.replace('agent:', '')
           : variables.requesterType == 'agent'
             ? object.metadata.?annotations[?'platform.starterkit.dev/agent'].orValue(request.userInfo.username)
-            : request.userInfo.username in [variables.portalIdentity, variables.apiIdentity]
+            : request.userInfo.username == variables.apiIdentity
               ? object.metadata.?annotations[?'platform.starterkit.dev/on-behalf-of'].orValue(request.userInfo.username)
               : request.userInfo.username
   mutations:

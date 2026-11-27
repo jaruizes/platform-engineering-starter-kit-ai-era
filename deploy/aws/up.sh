@@ -59,12 +59,10 @@ fi
 if [[ ! -f "$STATE/tokens.env" ]]; then
   cat > "$STATE/tokens.env" <<TOKENS
 PORTAL_MCP_TOKEN=$(openssl rand -hex 24)
-PLATFORM_API_TOKEN=$(openssl rand -hex 24)
 DEMO_PASSWORD=$(openssl rand -hex 8)
 TOKENS
 fi
-# Demos created before the platform API and Keycloak had none.
-grep -q '^PLATFORM_API_TOKEN=' "$STATE/tokens.env" || echo "PLATFORM_API_TOKEN=$(openssl rand -hex 24)" >> "$STATE/tokens.env"
+# Demos created before Keycloak had none.
 grep -q '^DEMO_PASSWORD=' "$STATE/tokens.env" || echo "DEMO_PASSWORD=$(openssl rand -hex 8)" >> "$STATE/tokens.env"
 set -a
 source "$STATE/tokens.env"
@@ -112,7 +110,9 @@ cat <<MSG
   Trust the CA of the demo once, so the browser shows no warning (macOS):
     sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain $STATE/ca.pem
 
-  Sign in as ana, marta or luis (Keycloak, $base:8180) with the password $DEMO_PASSWORD
+  Sign in to the portal ($base:7007) and platformctl as any person of
+  examples/scenarios/example/demo/users-and-teams.md (ana, marta, carlos, luis...)
+  with the password $DEMO_PASSWORD
 
   Connect Claude Code to the MCP servers on AWS (local scope: it takes
   precedence over .mcp.json in this folder; make aws-down removes them).

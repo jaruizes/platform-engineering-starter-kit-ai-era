@@ -13,7 +13,7 @@ Esta ampliación debe **reutilizar el servicio y los datos existentes** y manten
 - **Nombre:** Retail Sales Insights — Zero-UI.
 - **Sistema de información existente:** \`retail-sales-insights\` (Spec 01).
 - **Canal de consumo:** conversación con un asistente de IA, como Claude Code.
-- **Equipo responsable:** \`platform-team\`.
+- **Equipo responsable:** \`retail\`.
 - **Alcance:** consultas de lectura sobre ventas sintéticas.
 - **Prerequisito funcional:** la aplicación de la Spec 01 ya responde correctamente a sus consultas de negocio.
 

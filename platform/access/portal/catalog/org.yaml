@@ -1,58 +1,198 @@
-# Sample organization for the demo. In a real setup this comes from your
-# identity provider (Entra ID, Okta, GitHub teams...).
+# Sample organization of the demo, generated from
+# platform/access/identity/organization.yaml (the Keycloak realm has the same
+# teams and people): run platform/access/identity/sync-organization.py after
+# changing it. In a real setup this comes from your identity provider.
 apiVersion: backstage.io/v1alpha1
 kind: Group
 metadata:
   name: platform-team
   title: Platform team
+  description: Builds and runs the platform. Proposes capabilities and reads everything.
 spec:
   type: team
   children: []
-  members: [ana]
+  members:
+  - ana
+  - pablo
 ---
 apiVersion: backstage.io/v1alpha1
 kind: Group
 metadata:
   name: checkout
   title: Checkout
+  description: The checkout of the online shop.
 spec:
   type: team
   children: []
-  members: [marta]
+  members:
+  - marta
+  - carlos
+  - irene
 ---
 apiVersion: backstage.io/v1alpha1
 kind: Group
 metadata:
   name: payments
   title: Payments
+  description: Payment methods and refunds.
 spec:
   type: team
   children: []
-  members: [luis]
+  members:
+  - luis
+  - sofia
+  - irene
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: retail
+  title: Retail
+  description: Store sales and their insights (the Retail Sales Insights demo).
+spec:
+  type: team
+  children: []
+  members:
+  - elena
+  - diego
 ---
 apiVersion: backstage.io/v1alpha1
 kind: User
 metadata:
   name: ana
+  description: Platform approver. Approves requests of every team, proposes capabilities.
+  annotations:
+    platform.starterkit.dev/roles: developer,approver
 spec:
   profile:
-    displayName: Ana
-  memberOf: [platform-team]
+    displayName: Ana García
+    email: ana@starterkit.local
+  memberOf:
+  - platform-team
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: pablo
+  description: Platform engineer without the approver role. Reads everything, proposes capabilities, cannot
+    approve.
+  annotations:
+    platform.starterkit.dev/roles: developer
+spec:
+  profile:
+    displayName: Pablo Herrera
+    email: pablo@starterkit.local
+  memberOf:
+  - platform-team
 ---
 apiVersion: backstage.io/v1alpha1
 kind: User
 metadata:
   name: marta
+  description: Developer of checkout. The protagonist of the demo with her coding agent.
+  annotations:
+    platform.starterkit.dev/roles: developer
 spec:
   profile:
-    displayName: Marta
-  memberOf: [checkout]
+    displayName: Marta López
+    email: marta@starterkit.local
+  memberOf:
+  - checkout
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: carlos
+  description: Tech lead of checkout. Approves what Marta's agent cannot do alone.
+  annotations:
+    platform.starterkit.dev/roles: developer,approver
+spec:
+  profile:
+    displayName: Carlos Ruiz
+    email: carlos@starterkit.local
+  memberOf:
+  - checkout
 ---
 apiVersion: backstage.io/v1alpha1
 kind: User
 metadata:
   name: luis
+  description: Approver of payments. Cannot see or approve checkout requests.
+  annotations:
+    platform.starterkit.dev/roles: developer,approver
 spec:
   profile:
-    displayName: Luis
-  memberOf: [payments]
+    displayName: Luis Martín
+    email: luis@starterkit.local
+  memberOf:
+  - payments
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: sofia
+  description: Developer of payments.
+  annotations:
+    platform.starterkit.dev/roles: developer
+spec:
+  profile:
+    displayName: Sofía Navarro
+    email: sofia@starterkit.local
+  memberOf:
+  - payments
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: elena
+  description: Lead of retail. Approves the retail team's agent requests.
+  annotations:
+    platform.starterkit.dev/roles: developer,approver
+spec:
+  profile:
+    displayName: Elena Torres
+    email: elena@starterkit.local
+  memberOf:
+  - retail
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: diego
+  description: Developer of retail. Runs the Retail Sales Insights demo.
+  annotations:
+    platform.starterkit.dev/roles: developer
+spec:
+  profile:
+    displayName: Diego Sánchez
+    email: diego@starterkit.local
+  memberOf:
+  - retail
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: irene
+  description: Works in two teams. Her agent can act for both, and only for both.
+  annotations:
+    platform.starterkit.dev/roles: developer
+spec:
+  profile:
+    displayName: Irene Gómez
+    email: irene@starterkit.local
+  memberOf:
+  - checkout
+  - payments
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: nora
+  description: New hire, not in any team yet. Can sign in, but cannot request or see anything.
+  annotations:
+    platform.starterkit.dev/roles: developer
+spec:
+  profile:
+    displayName: Nora Vidal
+    email: nora@starterkit.local
+  memberOf: []

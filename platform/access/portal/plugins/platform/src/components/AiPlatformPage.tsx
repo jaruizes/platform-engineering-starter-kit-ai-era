@@ -21,6 +21,7 @@ import {
 } from '@material-ui/core';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
 import useInterval from 'react-use/esm/useInterval';
+import { platformIdentityApiRef } from '../identity';
 import type { Approval, Overview } from '../types';
 
 const ago = (iso: string) => {
@@ -104,7 +105,14 @@ const PendingApproval = ({
   return (
     <Box mb={2} p={2} border={1} borderColor="divider" borderRadius={8}>
       <Typography variant="subtitle1">
-        <Chip size="small" label="agent" color="secondary" /> <b>{approval.agent}</b> asks for a{' '}
+        <Chip size="small" label="agent" color="secondary" /> <b>{approval.agent}</b>
+        {approval.on_behalf_of && (
+          <>
+            {' '}
+            for <b>{approval.on_behalf_of}</b>
+          </>
+        )}{' '}
+        asks for a{' '}
         {environment ? (
           <>
             <b>{r.size}</b> environment <b>{r.name}</b> for team <b>{r.team}</b>, {r.ttlHours}h
@@ -123,37 +131,53 @@ const PendingApproval = ({
       <Typography variant="body2" color="textSecondary" gutterBottom>
         Guardrail: {approval.reason}
       </Typography>
-      <Button
-        variant="contained"
-        color="primary"
-        disabled={busy}
-        onClick={() => decide('approve')}
-      >
-        Approve
-      </Button>{' '}
-      <Button variant="outlined" disabled={busy} onClick={() => decide('reject')}>
-        Reject
-      </Button>
+      {approval.can_decide ? (
+        <>
+          <Button
+            variant="contained"
+            color="primary"
+            disabled={busy}
+            onClick={() => decide('approve')}
+          >
+            Approve
+          </Button>{' '}
+          <Button variant="outlined" disabled={busy} onClick={() => decide('reject')}>
+            Reject
+          </Button>
+        </>
+      ) : (
+        <Typography variant="body2" color="textSecondary">
+          <i>You cannot decide on it: {approval.cannot_decide_reason}</i>
+        </Typography>
+      )}
     </Box>
   );
 };
 
 export const AiPlatformPage = () => {
   const { fetch } = useApi(fetchApiRef);
+  const identity = useApi(platformIdentityApiRef);
   const [error, setError] = useState<string>();
 
+  // The platform API decides what this person sees and may approve: the
+  // portal sends their Keycloak access token along.
+  const platformToken = async () => ({ 'X-Platform-Token': await identity.getAccessToken() });
+
   const overview = useAsyncRetry(async (): Promise<Overview> => {
-    const res = await fetch('plugin://platform/overview');
-    if (!res.ok) throw new Error(`The platform answered ${res.status} ${res.statusText}`);
+    const res = await fetch('plugin://platform/overview', { headers: await platformToken() });
+    if (!res.ok) {
+      const body = await res.json().catch(() => undefined);
+      throw new Error(body?.error?.message ?? `The platform answered ${res.status} ${res.statusText}`);
+    }
     return res.json();
-  }, [fetch]);
+  }, [fetch, identity]);
   useInterval(overview.retry, 5000);
 
   const decide = async (id: string, decision: 'approve' | 'reject') => {
     setError(undefined);
     const res = await fetch(`plugin://platform/approvals/${encodeURIComponent(id)}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await platformToken()) },
       body: JSON.stringify({ decision }),
     });
     if (!res.ok) setError((await res.json()).error?.message ?? res.statusText);
@@ -165,7 +189,8 @@ export const AiPlatformPage = () => {
     return <Progress />;
   }
 
-  const { metrics: m, environments, services, approvals, activity } = overview.value;
+  const { metrics: m, environments, services, approvals, activity, identity: me, scope } =
+    overview.value;
   const costs = Object.entries(m.cost_by_team).sort((a, b) => b[1] - a[1]);
   const maxCost = Math.max(...costs.map(([, cost]) => cost), 0.01);
   const pending = approvals.filter(a => a.status === 'pending');
@@ -174,6 +199,10 @@ export const AiPlatformPage = () => {
 
   return (
     <Content>
+      <Typography variant="body2" color="textSecondary" gutterBottom>
+        Signed in as <b>{me.person}</b> ({me.teams.join(', ') || 'no team'}
+        {me.roles.includes('approver') ? ', approver' : ''}). Showing: {scope}.
+      </Typography>
       <Grid container spacing={2}>
         <Tile value={m.active_environments} label="Active environments" />
         <Tile value={`${m.agent_share}%`} label="Environments requested by agents" />
@@ -251,6 +280,11 @@ export const AiPlatformPage = () => {
                   <TableCell>{e.size}</TableCell>
                   <TableCell>
                     <Requester type={e.requester_type} name={e.requested_by} />
+                    {e.requester_type === 'agent' && e.on_behalf_of && (
+                      <Typography variant="body2" color="textSecondary">
+                        on behalf of {e.on_behalf_of}
+                      </Typography>
+                    )}
                   </TableCell>
                   <TableCell>{e.approved_by ?? '-'}</TableCell>
                   <TableCell>{e.estimated_daily_cost_eur.toFixed(2)}</TableCell>

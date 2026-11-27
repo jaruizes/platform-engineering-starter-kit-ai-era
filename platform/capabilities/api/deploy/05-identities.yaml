@@ -5,7 +5,8 @@
 #   applies the agent guardrails. Nothing runs as it: only the platform API
 #   may act as it (impersonation), after authenticating the agent and its
 #   person with Keycloak and authorizing the request.
-# - platform-console: how a person approves what agents cannot do alone.
+# - platform-console: the read-only console. It decides nothing (approvals go
+#   through the platform API, which replays approved requests as itself).
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -48,11 +49,59 @@ subjects:
   - kind: ServiceAccount
     name: platform-mcp
     namespace: platform-system
+---
+# The console reads Golden Paths, capabilities, approvals and the audit trail.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform:golden-paths:reader
+rules:
+  - apiGroups: [platform.starterkit.dev]
+    resources: ["*"]
+    verbs: [get, list, watch]
+  - apiGroups: [apiextensions.crossplane.io]
+    resources: [compositeresourcedefinitions]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platform:golden-paths:readers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: platform:golden-paths:reader
+subjects:
   - kind: ServiceAccount
     name: platform-console
     namespace: platform-system
 ---
-# Approval requests and the audit trail live in platform-system.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform:records:reader
+  namespace: platform-system
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, events]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform:records:reader
+  namespace: platform-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform:records:reader
+subjects:
+  - kind: ServiceAccount
+    name: platform-console
+    namespace: platform-system
+---
+# Approval requests and the audit trail live in platform-system. Only the
+# platform API writes them.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -78,9 +127,6 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: platform-api
-    namespace: platform-system
-  - kind: ServiceAccount
-    name: platform-console
     namespace: platform-system
 ---
 # Only the platform API acts as the agents' identity.

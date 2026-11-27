@@ -1,8 +1,7 @@
 /**
- * Client for the platform console, which holds the human approvals for
- * agent requests and the AI-era metrics. The portal shows them and lets
- * signed-in people decide, but the decision is still made by the console's
- * approver identity, so the guardrails stay in one place.
+ * Client for the read-only platform console, for the agents' context actions
+ * (team usage, pending approvals). People see and decide approvals through the
+ * platform API with their own token (router.ts); the console decides nothing.
  */
 export type ConsoleState = {
   environments: Array<Record<string, any>>;
@@ -38,15 +37,5 @@ export class ConsoleClient {
       throw new Error(`Platform console answered ${res.status}`);
     }
     return (await res.json()) as ConsoleState;
-  }
-
-  async decide(id: string, decision: 'approve' | 'reject', approver: string) {
-    const res = await fetch(`${this.baseUrl}/api/approvals/${encodeURIComponent(id)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision, approver }),
-    });
-    const body = await res.json();
-    return { status: res.status, body };
   }
 }

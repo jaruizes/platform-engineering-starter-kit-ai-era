@@ -8,6 +8,10 @@ SPRING = {"name": "loyalty-points", "description": "Loyalty points", "owner": "c
 TOKENS = {
     "marta": {"azp": "platformctl", "preferred_username": "marta", "groups": ["checkout"], "client_kind": "person"},
     "ana": {"azp": "platformctl", "preferred_username": "ana", "groups": ["/platform-team"], "client_kind": "person"},
+    "ana-portal": {"azp": "portal", "preferred_username": "ana", "groups": ["platform-team"],
+                   "realm_access": {"roles": ["approver", "developer"]}, "client_kind": "person"},
+    "marta-portal": {"azp": "portal", "preferred_username": "marta", "groups": ["checkout"],
+                     "realm_access": {"roles": ["developer"]}, "client_kind": "person"},
     "martas-agent": {"azp": "claude-code", "preferred_username": "marta", "groups": ["checkout"],
                      "client_kind": "agent"},
 }
@@ -21,7 +25,7 @@ class FakeVerifier:
 
 
 def client(platform):
-    return TestClient(create_app(platform, Authenticator(FakeVerifier(), "portal-s3cret")))
+    return TestClient(create_app(platform, Authenticator(FakeVerifier())))
 
 
 def bearer(token):
@@ -83,15 +87,39 @@ def test_capability_proposals(platform, postgres_definition):
     assert ok.status_code == 201 and ok.json()["pullRequestNumber"] == 1
 
 
-def test_the_portal_states_the_person_until_it_signs_in_with_keycloak(platform):
+def test_the_portal_sends_the_signed_in_persons_token(platform):
     api = client(platform)
-    portal = {**bearer("portal-s3cret"), "X-Platform-Requester": "user:default/marta",
-              "X-Platform-Teams": "group:default/checkout"}
-    created = api.post("/v1/golden-paths/spring-service/repositories", headers=portal, json={"parameters": SPRING})
+    created = api.post("/v1/golden-paths/spring-service/repositories", headers=bearer("marta-portal"),
+                       json={"parameters": SPRING})
     assert created.status_code == 201 and created.json()["requestedBy"] == "user:default/marta"
-    # The channel token never identifies an agent.
-    agent = {**portal, "X-Platform-Requester": "agent:claude-code"}
-    assert api.get("/v1/me", headers=agent).status_code == 401
+    # There is no channel token, and stating a person in headers does nothing.
+    stated = {**bearer("portal-s3cret"), "X-Platform-Requester": "user:default/ana"}
+    assert api.get("/v1/me", headers=stated).status_code == 401
+
+
+def test_approvals_over_http(platform):
+    api = client(platform)
+    pending = api.post("/v1/environments", headers=bearer("martas-agent"),
+                       json={"team": "checkout", "name": "load-test", "purpose": "x", "size": "large"}).json()
+    assert pending["status"] == "pending_approval"
+    approval_id = pending["approval_id"]
+    listed = api.get("/v1/approvals?status=pending", headers=bearer("marta-portal")).json()
+    assert [a["id"] for a in listed] == [approval_id] and listed[0]["can_decide"] is False
+    own = api.post(f"/v1/approvals/{approval_id}/decision", headers=bearer("marta-portal"),
+                   json={"decision": "approve"})
+    assert own.status_code == 403 and "approver role" in own.json()["error"]
+    assert api.post(f"/v1/approvals/{approval_id}/decision", headers=bearer("martas-agent"),
+                    json={"decision": "approve"}).status_code == 403
+    assert api.post(f"/v1/approvals/{approval_id}/decision", headers=bearer("ana-portal"),
+                    json={"decision": "maybe"}).status_code == 422
+    approved = api.post(f"/v1/approvals/{approval_id}/decision", headers=bearer("ana-portal"),
+                        json={"decision": "approve", "note": "load test of the week"})
+    assert approved.status_code == 200 and approved.json()["status"] == "approved"
+    assert api.post(f"/v1/approvals/{approval_id}/decision", headers=bearer("ana-portal"),
+                    json={"decision": "reject"}).status_code == 409
+    overview = api.get("/v1/overview", headers=bearer("marta-portal")).json()
+    assert {e["name"] for e in overview["environments"]} == {"checkout-dev", "agent-env"}
+    assert overview["scope"] == "checkout"
 
 
 def test_identity_from_keycloak_claims():
