@@ -99,6 +99,12 @@ spec:
                 secretKeyRef:
                   name: portal-oidc-client
                   key: secret
+            # Signs the portal's session cookie during the OIDC sign-in.
+            - name: AUTH_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: portal-session
+                  key: secret
             - name: GITEA_USERNAME
               valueFrom:
                 secretKeyRef:

@@ -180,6 +180,10 @@ if ! kubectl -n platform-system get secret keycloak-admin >/dev/null 2>&1; then
   secret keycloak-admin --from-literal=password="$(random 20)"
 fi
 secret identity-demo --from-literal=password="$DEMO_PASSWORD"
+# The portal's session secret, for the OIDC sign-in.
+if ! kubectl -n platform-system get secret portal-session >/dev/null 2>&1; then
+  secret portal-session --from-literal=secret="$(random 32)"
+fi
 for client in portal-oidc ci-agent capability-tests; do
   if ! kubectl -n platform-system get secret "$client-client" >/dev/null 2>&1; then
     secret "$client-client" --from-literal=secret="$(random 32)"

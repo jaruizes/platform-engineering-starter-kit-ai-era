@@ -79,6 +79,10 @@ check(any(f':{callback}/' in uri for uri in clients.get('claude-code', {}).get('
 # API with their token: the realm has the portal's client, the realm and the
 # catalog have the same people and teams, and every template that runs a
 # platform action sends the person's token (form decorator platform-identity).
+portal_config = Path('platform/access/portal/app-config.yaml').read_text()
+check('${AUTH_SESSION_SECRET}' in portal_config and 'name: portal-session' in Path('platform/access/portal/deploy/portal.yaml').read_text()
+      and 'portal-session' in Path('deploy/install.sh').read_text(),
+      'The portal OIDC sign-in needs auth.session.secret from the portal-session secret')
 portal_client = clients.get('portal', {})
 check(not portal_client.get('publicClient', True) and
       '${PORTAL_URL}/api/auth/oidc/handler/frame' in portal_client.get('redirectUris', []),

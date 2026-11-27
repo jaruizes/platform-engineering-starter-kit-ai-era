@@ -97,6 +97,11 @@ mcpActions:
 
 auth:
   environment: development
+  # The OIDC sign-in keeps its state (nonce, PKCE) in a server-side session
+  # between the redirect to Keycloak and the callback; without a session
+  # secret it fails with "authentication requires session support".
+  session:
+    secret: ${AUTH_SESSION_SECRET}
   providers:
     # People sign in with the platform identity provider: Keycloak, realm
     # "platform" (in a customer, Keycloak brokers the corporate one). The
