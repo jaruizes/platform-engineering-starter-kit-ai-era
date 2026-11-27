@@ -55,11 +55,6 @@ spec:
             records. It gets its own domain, business and infrastructure packages.
           type: string
           pattern: '^[a-z][a-z0-9]*$'
-        requestedBy:
-          title: Requested by
-          description: Set by the platform MCP server when an AI agent uses this template.
-          type: string
-          ui:widget: hidden
     - title: Delivery
       properties:
         environment:
@@ -73,40 +68,27 @@ spec:
             catalogFilter:
               kind: Resource
               spec.type: environment
+  # The platform renders the skeleton and creates the repository: this form is
+  # one channel of the spring-service Golden Path (golden-path.yaml), like the platform
+  # MCP server and the CLI. The request is made on behalf of the signed-in person.
   steps:
-    - id: fetch
-      name: Generate the service from the standard skeleton
-      action: fetch:template
+    - id: create
+      name: Create the service repository with the Spring service Golden Path
+      action: platform:golden-path:create
       input:
-        url: ./skeleton
-        values:
+        goldenPath: spring-service
+        parameters:
           name: ${{ parameters.name }}
           description: ${{ parameters.description }}
           owner: ${{ parameters.owner }}
-          module: ${{ parameters.module }}
           basePackage: ${{ parameters.basePackage }}
-          rootPackage: ${{ parameters.basePackage }}.${{ parameters.name | replace('-', '') }}
-          packagePath: ${{ (parameters.basePackage + '.' + (parameters.name | replace('-', ''))) | replace('.', '/') }}
-          dbName: ${{ parameters.name | replace('-', '_') }}
-          requestedBy: ${{ parameters.requestedBy or user.ref }}
-          environment: ${{ (parameters.environment or '').split('/') | last }}
-        # GitHub-style expressions of the pipeline, not template values.
-        copyWithoutTemplating:
-          - .gitea/workflows/*
-
-    - id: publish
-      name: Create the repository
-      action: publish:gitea
-      input:
-        repoUrl: localhost:3000?owner=platform&repo=${{ parameters.name }}
-        description: ${{ parameters.description }}
-        defaultBranch: main
-        repoVisibility: public
+          module: ${{ parameters.module }}
+          environment: ${{ parameters.environment }}
 
   output:
     links:
       - title: Repository
-        url: ${{ steps.publish.output.remoteUrl }}
+        url: ${{ steps.create.output.repositoryUrl }}
       - title: Open the service in the catalog (it appears within a few seconds)
         icon: catalog
         entityRef: component:default/${{ parameters.name }}
@@ -114,7 +96,7 @@ spec:
       - title: Next steps
         content: |
           ```bash
-          git clone ${{ steps.publish.output.remoteUrl }}
+          git clone ${{ steps.create.output.repositoryUrl }}
           cd ${{ parameters.name }} && ./mvnw verify
           ```
           `./mvnw verify` runs the architecture rules. AI agents read `AGENTS.md`.

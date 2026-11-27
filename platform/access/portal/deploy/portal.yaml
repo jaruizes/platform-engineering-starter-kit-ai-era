@@ -118,10 +118,11 @@ spec:
                 secretKeyRef:
                   name: portal-mcp-token
                   key: token
-            - name: PLATFORM_MCP_TOKEN
+            # The portal is one channel of the platform API.
+            - name: PLATFORM_API_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: platform-mcp-portal-token
+                  name: platform-api-token
                   key: token
             - name: GITEA_USERNAME
               valueFrom:

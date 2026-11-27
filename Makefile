@@ -39,6 +39,9 @@ status: ## Show environments, services and pending approvals
 capability: ## Check a platform capability, e.g. make capability NAME=postgres-database
 	@platform/capabilities/tools/check.sh $(NAME)
 
+policies: ## Run the policy tests of the guardrails for humans and agents (needs the kyverno CLI)
+	@kyverno test platform/governance/policies/tests --remove-color
+
 capabilities: ## List the platform capabilities installed in the cluster
 	@kubectl get xrd -l platform.starterkit.dev/capability \
 	  -L platform.starterkit.dev/capability
@@ -57,10 +60,11 @@ demo-quality: ## Demonstrate an ArchUnit violation failing and its correction pa
 demo-spring-e2e: ## Run discount-service black-box acceptance checks in an ephemeral environment
 	@examples/scenarios/quality-gated-spring/run-e2e.sh $(or $(SERVICE),discount-service) $(ENVIRONMENT)
 
-test: ## Run the unit tests of the MCP server, console and capability tools
+test: ## Run the unit tests of the platform API, MCP server, console and capability tools
+	$(PYTHON) -m pytest -q platform/capabilities/api/tests
 	$(PYTHON) -m pytest -q platform/access/mcp/tests
 	$(PYTHON) -m pytest -q platform/capabilities/tools/tests
 	$(PYTHON) -m pytest -q platform/capabilities/quality/runtime/tests
 	PYTHONPATH=platform/capabilities/golden-paths/api-mcp-adapter/skeleton $(PYTHON) -m pytest -q platform/capabilities/golden-paths/api-mcp-adapter/skeleton/tests examples/scenarios/example/tests
 
-.PHONY: help up down aws-up aws-down demo-developer demo-agent demo-reset status capability capabilities sonar-up sonar-down demo-quality demo-spring-e2e test
+.PHONY: help up down aws-up aws-down demo-developer demo-agent demo-reset status capability policies capabilities sonar-up sonar-down demo-quality demo-spring-e2e test

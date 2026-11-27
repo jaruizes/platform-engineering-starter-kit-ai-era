@@ -39,11 +39,6 @@ spec:
             configuration forwards /api/ requests to it.
           type: string
           pattern: '^$|^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$'
-        requestedBy:
-          title: Requested by
-          description: Set by the platform MCP server when an AI agent uses this template.
-          type: string
-          ui:widget: hidden
     - title: Delivery
       properties:
         environment:
@@ -57,33 +52,26 @@ spec:
             catalogFilter:
               kind: Resource
               spec.type: environment
+  # The platform renders the skeleton and creates the repository: this form is
+  # one channel of the angular-app Golden Path (golden-path.yaml), like the platform
+  # MCP server and the CLI. The request is made on behalf of the signed-in person.
   steps:
-    - id: fetch
-      name: Generate the Angular application
-      action: fetch:template
+    - id: create
+      name: Create the application repository with the Angular Golden Path
+      action: platform:golden-path:create
       input:
-        url: ./skeleton
-        values:
+        goldenPath: angular-app
+        parameters:
           name: ${{ parameters.name }}
           description: ${{ parameters.description }}
           owner: ${{ parameters.owner }}
-          backendService: ${{ parameters.backendService or '' }}
-          requestedBy: ${{ parameters.requestedBy or user.ref }}
-          environment: ${{ (parameters.environment or '').split('/') | last }}
-        copyWithoutTemplating:
-          - .gitea/workflows/*
-    - id: publish
-      name: Create the repository
-      action: publish:gitea
-      input:
-        repoUrl: localhost:3000?owner=platform&repo=${{ parameters.name }}
-        description: ${{ parameters.description }}
-        defaultBranch: main
-        repoVisibility: public
+          backendService: ${{ parameters.backendService }}
+          environment: ${{ parameters.environment }}
+
   output:
     links:
       - title: Repository
-        url: ${{ steps.publish.output.remoteUrl }}
+        url: ${{ steps.create.output.repositoryUrl }}
       - title: Open the application in the catalog
         icon: catalog
         entityRef: component:default/${{ parameters.name }}
@@ -91,7 +79,7 @@ spec:
       - title: Next steps
         content: |
           ```bash
-          git clone ${{ steps.publish.output.remoteUrl }}
+          git clone ${{ steps.create.output.repositoryUrl }}
           cd ${{ parameters.name }} && npm install && npm run lint && npm test && npm run build
           ```
           A push to main builds the container and, with an environment, Argo CD

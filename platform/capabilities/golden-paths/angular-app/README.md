@@ -3,7 +3,8 @@
 This Golden Path creates a standalone Angular frontend repository, ready to build
 as a container and deploy in an ephemeral Kubernetes environment.
 
-- `template.yaml` is the Backstage scaffolder template.
+- `golden-path.yaml` is the channel-neutral definition run by the [platform API](../../api/README.md) for the portal, the MCP `create_angular_app` tool and `platformctl`.
+- `template.yaml` is only the Backstage form.
 - `skeleton/` is the generated application, container build and GitOps manifest.
 - `runtime/definition.yaml` and `runtime/composition.yaml` define the namespaced
   Crossplane `App` resource. It reconciles a Deployment and ClusterIP Service.

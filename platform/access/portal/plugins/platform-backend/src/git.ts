@@ -2,8 +2,9 @@ import YAML from 'yaml';
 
 /**
  * The platform repository in the local Git server (Gitea). Capability
- * definitions live there: the portal opens a pull request for each new one,
- * and shows the open ones in the catalog as proposed.
+ * definitions live there: the platform API opens a pull request for each new
+ * one (from any channel), and the portal shows the open ones in the catalog
+ * as proposed. The portal only reads them.
  */
 export type GitServerConfig = {
   baseUrl: string;
@@ -53,8 +54,11 @@ export class GitServer {
         number: pull.number,
         url: pull.html_url,
         title: pull.title,
-        // The portal opens them with its own account, on behalf of the person in the body.
-        author: pull.body?.match(/proposed by (.+?) from the developer portal/)?.[1] ?? pull.user?.login ?? 'unknown',
+        // The platform opens them with its own account, on behalf of the person in the body.
+        author:
+          pull.body?.match(/proposed by (.+?) (?:through the platform|from the developer portal)/)?.[1] ??
+          pull.user?.login ??
+          'unknown',
         sha: pull.head?.sha,
       };
       const files = await this.json<Array<{ filename: string; status: string }>>(`/pulls/${pull.number}/files`);
@@ -66,36 +70,5 @@ export class GitServer {
       }
     }
     return found;
-  }
-
-  /** Opens a pull request that adds or changes platform/capabilities/infrastructure/<name>/capability.yaml. */
-  async propose(options: {
-    name: string;
-    content: string;
-    title: string;
-    body: string;
-    author: { name: string; email: string };
-  }): Promise<PullRequest> {
-    const path = `platform/capabilities/infrastructure/${options.name}/capability.yaml`;
-    const branch = `capability/${options.name}-${Date.now().toString(36)}`;
-    const existing = await this.api(`/contents/${path}?ref=main`);
-    const sha = existing.ok ? ((await existing.json()) as { sha: string }).sha : undefined;
-    await this.json(`/contents/${path}`, {
-      method: sha ? 'PUT' : 'POST',
-      body: JSON.stringify({
-        content: Buffer.from(options.content).toString('base64'),
-        message: options.title,
-        branch: 'main',
-        new_branch: branch,
-        author: options.author,
-        committer: options.author,
-        ...(sha ? { sha } : {}),
-      }),
-    });
-    const pull = await this.json<any>('/pulls', {
-      method: 'POST',
-      body: JSON.stringify({ head: branch, base: 'main', title: options.title, body: options.body }),
-    });
-    return { number: pull.number, url: pull.html_url, title: pull.title, author: options.author.name, sha: pull.head?.sha };
   }
 }

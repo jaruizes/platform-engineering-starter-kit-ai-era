@@ -55,16 +55,6 @@ backend:
           - plugin: kubernetes
           - plugin: search
           - plugin: platform
-      # The platform MCP server runs the Spring service template for agents
-      # (create_service). It can only reach the scaffolder and the catalog,
-      # which the scaffolder needs to read the template and register the service.
-      - type: static
-        options:
-          token: ${PLATFORM_MCP_TOKEN}
-          subject: platform-mcp
-        accessRestrictions:
-          - plugin: scaffolder
-          - plugin: catalog
   # Plugins whose actions become MCP tools. The scaffolder is left out on
   # purpose: agents act through the platform MCP server, with their own
   # identity, so the agent guardrails always apply.
@@ -189,6 +179,11 @@ kubernetes:
 
 platform:
   consoleUrl: http://platform-console.platform-system.svc:8080
+  # The platform API runs the code Golden Paths (new repositories) and opens
+  # capability proposals. The portal's templates are forms on top of it.
+  api:
+    url: http://platform-api.platform-system.svc:8083
+    token: ${PLATFORM_API_TOKEN}
   quality:
     gitUrl: http://gitea.platform-system.svc:3000
   # The engineering standards served to agents: architectures.yaml (the

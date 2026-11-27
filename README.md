@@ -194,8 +194,9 @@ The repository is organized by logical platform architecture. See [architecture 
 
 ```text
 platform/
-  access/                     # Backstage portal, MCP services
+  access/                     # Channels: Backstage portal, MCP servers, platformctl CLI
   capabilities/
+    api/                      # Platform API: code Golden Paths, capability proposals
     golden-paths/             # Spring and Angular templates
     infrastructure/           # Ephemeral environments, PostgreSQL
     delivery/                 # Gitea / Argo CD
@@ -273,13 +274,14 @@ make down            # remove everything
 | Developer portal (Backstage) | <http://localhost:7007> |
 | Platform console (dashboard and approvals) | <http://localhost:8080> |
 | Platform MCP server, for agents (actions) | `http://localhost:8081/mcp` |
+| Platform API, for the portal, the MCP server and [`platformctl`](platform/access/cli/README.md) | `http://localhost:8083` (token `platform-api-local-demo`) |
 | Portal MCP server, for agents (context, read-only) | `http://localhost:7007/api/mcp-actions/v1/context` |
-| Git server with the repositories the portal creates | <http://localhost:3000> (to sign in as `platform-admin`: `kubectl -n platform-system get secret gitea-admin -o jsonpath='{.data.password}' \| base64 -d`) |
+| Git server with the repositories the Golden Paths create | <http://localhost:3000> (to sign in as `platform-admin`: `kubectl -n platform-system get secret gitea-admin -o jsonpath='{.data.password}' \| base64 -d`) |
 | Metrics in Prometheus format | <http://localhost:8080/metrics> |
 
 To connect a real agent, see [Claude Code, Codex and Gemini CLI setup](platform/ai/agent-tooling/README.md). Claude Code it reads [`.mcp.json`](.mcp.json) (the `platform` and `portal` servers) and the skills in [`platform/ai/agent-tooling/skills/`](platform/ai/agent-tooling/skills). Then follow [the demo script](examples/scenarios/README.md).
 
-`PORTAL=false make up` skips the portal and the Git server if you only need the MCP server and the console.
+`PORTAL=false make up` skips the portal (zero UI). Every capability keeps working through the MCP server and `platformctl`: the Golden Paths and capability proposals belong to the platform API, not to the portal.
 
 To show the portal with the logo, title and texts of your company or a client, copy [`platform/access/portal/branding/`](platform/access/portal/branding), change it and run `BRANDING_DIR=<that folder> make up`. No code changes, and only the last layer of the portal image is rebuilt.
 

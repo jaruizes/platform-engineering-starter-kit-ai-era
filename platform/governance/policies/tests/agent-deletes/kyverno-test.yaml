@@ -1,0 +1,22 @@
+# Agents only delete what agents requested (policy agent-deletes).
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: agent-deletes
+policies:
+  - ../../30-agent-guardrails.yaml
+resources:
+  - resources.yaml
+variables: values.yaml
+userinfo: user-info.yaml
+results:
+  - policy: agent-deletes
+    isValidatingPolicy: true
+    resources: [agent-load-test]
+    kind: Environment
+    result: pass
+  - policy: agent-deletes
+    isValidatingPolicy: true
+    resources: [payments-dev, unstamped]
+    kind: Environment
+    result: fail

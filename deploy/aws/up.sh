@@ -59,9 +59,11 @@ if [[ ! -f "$STATE/tokens.env" ]]; then
   cat > "$STATE/tokens.env" <<TOKENS
 PORTAL_MCP_TOKEN=$(openssl rand -hex 24)
 PLATFORM_MCP_TOKEN=$(openssl rand -hex 24)
-PLATFORM_MCP_PORTAL_TOKEN=$(openssl rand -hex 24)
+PLATFORM_API_TOKEN=$(openssl rand -hex 24)
 TOKENS
 fi
+# Demos created before the platform API had no token for it.
+grep -q '^PLATFORM_API_TOKEN=' "$STATE/tokens.env" || echo "PLATFORM_API_TOKEN=$(openssl rand -hex 24)" >> "$STATE/tokens.env"
 set -a
 source "$STATE/tokens.env"
 set +a
@@ -116,6 +118,10 @@ cat <<MSG
       --header "Authorization: Bearer $PORTAL_MCP_TOKEN"
   and start it so it trusts the CA:
     NODE_EXTRA_CA_CERTS=$STATE/ca.pem claude
+
+  Use the platform from the terminal (no portal needed):
+    PLATFORM_API_URL=$base:8083 PLATFORM_API_TOKEN=$PLATFORM_API_TOKEN SSL_CERT_FILE=$STATE/ca.pem \\
+      platform/access/cli/platformctl.py golden-paths
 
   To clone the repositories of the Git server:
     git config --global http.$base:3000/.sslCAInfo $STATE/ca.pem

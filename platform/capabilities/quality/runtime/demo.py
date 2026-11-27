@@ -2,13 +2,15 @@
 """Run a real ArchUnit failure, remove the violation, and run the passing gate."""
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
-RENDER = ROOT / "platform/capabilities/delivery/tests/render_skeleton.py"
+# The platform renders code Golden Paths; this demo uses the same engine locally.
+PLATFORM_API = ROOT / "platform/capabilities/api"
 
 
 def run(command: list[str], cwd: Path, expect_pass: bool, expect_text: str | None = None) -> None:
@@ -22,7 +24,9 @@ def run(command: list[str], cwd: Path, expect_pass: bool, expect_text: str | Non
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="quality-demo-") as temp:
         service = Path(temp) / "quality-demo"
-        subprocess.run([sys.executable, str(RENDER), str(service), "name=quality-demo", "module=demo"], check=True)
+        subprocess.run([sys.executable, "-m", "platform_api.render", "spring-service", str(service),
+                        "name=quality-demo", "module=demo"], check=True,
+                       env={**os.environ, "PYTHONPATH": str(PLATFORM_API)})
         violation = service / "src/main/java/com/starterkit/qualitydemo/demo/domain/InvalidDomain.java"
         violation.parent.mkdir(parents=True, exist_ok=True)
         violation.write_text("""package com.starterkit.qualitydemo.demo.domain;

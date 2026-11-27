@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Installs the platform on the cluster of the current kubectl context:
-# Crossplane v2, Kyverno, Golden Paths, policies, capabilities, platform MCP
-# server, console, Git server, delivery pipeline (Gitea Actions runner and
-# Argo CD) and developer portal.
+# Crossplane v2, Kyverno, Golden Paths, policies, capabilities, platform API,
+# platform MCP server, console, Git server, delivery pipeline (Gitea Actions
+# runner and Argo CD) and developer portal.
 #
 # The same for every way of running the kit. deploy/local/up.sh runs it on
 # a k3d cluster and deploy/aws/up.sh on Amazon EKS, with these settings:
@@ -18,15 +18,16 @@
 #   PORTAL_MCP_TOKEN            token agents use for the portal MCP server.
 #   PLATFORM_MCP_TOKEN          token agents use for the platform MCP server
 #                               (none by default: open on localhost).
-#   PLATFORM_MCP_PORTAL_TOKEN   token the platform MCP server uses for the portal.
+#   PLATFORM_API_TOKEN          token the channels (portal, platform MCP server,
+#                               CLI) use for the platform API.
 #   PLATFORM_CA_FILE            CA the pods must trust to reach PUBLIC_HOST.
 #   GIT_URL                     where this script reaches the Git server
 #                               (default http://localhost:3000).
 #   SERVICE_IMAGE_REPOSITORY    where pipelines push service images, with
 #                               JIB_FLAGS (default: a registry in the cluster).
-#   PORTAL=false                skips the portal.
+#   PORTAL=false                skips the portal. Every capability keeps working
+#                               through the platform API, the MCP server and the CLI.
 #   DELIVERY=false              skips the pipelines and Argo CD.
-#                               With both, the Git server is skipped too.
 #   BRANDING_DIR                logos, title and texts of the portal.
 set -euo pipefail
 
@@ -38,6 +39,7 @@ CROSSPLANE_CHART="${CROSSPLANE_CHART:-crossplane-stable/crossplane}"
 KYVERNO_CHART="${KYVERNO_CHART:-kyverno/kyverno}"
 FUNCTION_REGISTRY="${FUNCTION_REGISTRY:-xpkg.crossplane.io}"
 MCP_IMAGE="${MCP_IMAGE:-platform-starter-kit/platform-mcp:dev}"
+API_IMAGE="${API_IMAGE:-platform-starter-kit/platform-api:dev}"
 PORTAL_IMAGE="${PORTAL_IMAGE:-platform-starter-kit/portal:dev}"
 RUNNER_IMAGE="${RUNNER_IMAGE:-platform-starter-kit/ci-runner:dev}"
 PORTAL="${PORTAL:-true}"
@@ -52,7 +54,7 @@ IMAGE_REGISTRY="${IMAGE_REGISTRY:-}"
 IMAGE_PLATFORM="${IMAGE_PLATFORM:-}"
 # Local demo only: on localhost these are not secrets.
 PORTAL_MCP_TOKEN="${PORTAL_MCP_TOKEN:-platform-starter-kit-local-demo}"
-PLATFORM_MCP_PORTAL_TOKEN="${PLATFORM_MCP_PORTAL_TOKEN:-platform-mcp-local-demo}"
+PLATFORM_API_TOKEN="${PLATFORM_API_TOKEN:-platform-api-local-demo}"
 PLATFORM_MCP_TOKEN="${PLATFORM_MCP_TOKEN:-}"
 PLATFORM_CA_FILE="${PLATFORM_CA_FILE:-}"
 
@@ -168,10 +170,10 @@ diagnose() {
   exit 1
 }
 
-step "Creating the tokens of the MCP servers"
+step "Creating the tokens of the MCP servers and the platform API"
 kubectl apply -f "$ROOT/platform/access/mcp/deploy/00-namespace.yaml"
 secret portal-mcp-token --from-literal=token="$PORTAL_MCP_TOKEN"
-secret platform-mcp-portal-token --from-literal=token="$PLATFORM_MCP_PORTAL_TOKEN"
+secret platform-api-token --from-literal=token="$PLATFORM_API_TOKEN"
 secret platform-mcp-token --from-literal=token="$PLATFORM_MCP_TOKEN"
 # The Git server's accounts and the registration token of the pipeline runner.
 random() { LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$1"; }
@@ -190,59 +192,64 @@ if [[ -n "$PLATFORM_CA_FILE" ]]; then
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 fi
 
+step "Building and deploying the platform API (code Golden Paths and capability proposals)"
+IMAGE="$(load_image "$API_IMAGE" "$ROOT/platform/capabilities/api" "--build-context golden-paths=$ROOT/platform/capabilities/golden-paths --build-context schema=$ROOT/platform/capabilities/schema ${API_BUILD_ARGS:-}")"
+deploy "$ROOT/platform/capabilities/api/deploy" platform-starter-kit/platform-api:dev "$IMAGE"
+kubectl -n platform-system rollout status deployment/platform-api --timeout=180s || diagnose platform-api
+
 step "Building and deploying the platform MCP server and console"
 IMAGE="$(load_image "$MCP_IMAGE" "$ROOT/platform/access/mcp" "${MCP_BUILD_ARGS:-}")"
 deploy "$ROOT/platform/access/mcp/deploy" platform-starter-kit/platform-mcp:dev "$IMAGE"
 kubectl -n platform-system rollout status deployment/platform-mcp --timeout=180s || diagnose platform-mcp
 kubectl -n platform-system rollout status deployment/platform-console --timeout=180s || diagnose platform-console
 
-if [[ "$PORTAL" == "true" || "$DELIVERY" == "true" ]]; then
-  step "Deploying the Git server (Gitea): service repositories, their pipelines and the platform repository"
-  publish < "$ROOT/platform/capabilities/delivery/git-server/gitea.yaml" | kubectl apply -f -
-  kubectl -n platform-system rollout status deployment/gitea --timeout=180s || diagnose gitea
-  # Off localhost, this script reaches the Git server through a port-forward.
-  forward=""
-  if [[ -z "${GIT_URL:-}" && "$PUBLIC_HOST" != localhost ]]; then
-    kubectl -n platform-system port-forward svc/gitea 13000:3000 >/dev/null 2>&1 &
-    forward=$!
-    export GIT_URL=http://localhost:13000
-    sleep 2
-  fi
-  # Where the portal proposes new capabilities as pull requests.
-  "$ROOT/platform/capabilities/delivery/git-server/seed-platform-repo.sh"
-  # The account people and agents push service changes with.
-  "$ROOT/platform/capabilities/delivery/git-server/create-developer.sh"
-
-  if [[ "$DELIVERY" == "true" ]]; then
-    step "Installing the delivery pipeline: Gitea Actions runner and service image registry"
-    if [[ -z "$SERVICE_IMAGE_REPOSITORY" ]]; then
-      kubectl apply -f "$ROOT/platform/capabilities/delivery/registry.yaml"
-      kubectl -n platform-system rollout status deployment/service-images --timeout=120s || diagnose service-images
-      SERVICE_IMAGE_REPOSITORY=10.43.0.200:5000/services
-      JIB_FLAGS="${JIB_FLAGS:--Djib.allowInsecureRegistries=true}"
-    fi
-    # What the pipelines of every service repository read (vars.* in .gitea/workflows).
-    "$ROOT/platform/capabilities/delivery/set-pipeline-variables.sh" \
-      PLATFORM_GIT_HOST=gitea.platform-system.svc:3000 \
-      SERVICE_IMAGE_REPOSITORY="$SERVICE_IMAGE_REPOSITORY" \
-      JIB_FLAGS="$JIB_FLAGS"
-    IMAGE="$(load_image "$RUNNER_IMAGE" "$ROOT/platform/capabilities/delivery/runner" "${RUNNER_BUILD_ARGS:-}")"
-    deploy "$ROOT/platform/capabilities/delivery/deploy" platform-starter-kit/ci-runner:dev "$IMAGE"
-    kubectl -n platform-system rollout status deployment/platform-ci-runner --timeout=180s || diagnose platform-ci-runner
-
-    step "Installing Argo CD (chart $ARGOCD_CHART_VERSION): GitOps for the service repositories"
-    helm upgrade --install argocd "$ARGOCD_CHART" --version "$ARGOCD_CHART_VERSION" \
-      --namespace argocd --create-namespace --wait --timeout 10m \
-      -f "$ROOT/platform/capabilities/delivery/argocd/values.yaml" ${ARGOCD_HELM_ARGS:-} || {
-      echo "Argo CD did not start. This is what the cluster says:"
-      kubectl -n argocd get pods -o wide || true
-      kubectl -n argocd get events --sort-by=.lastTimestamp | tail -30 || true
-      exit 1
-    }
-    kubectl apply -f "$ROOT/platform/capabilities/delivery/argocd/services.yaml"
-  fi
-  if [[ -n "$forward" ]]; then kill "$forward" 2>/dev/null || true; unset GIT_URL; fi
+# The platform's Git provider: code Golden Paths create repositories there,
+# with or without the portal.
+step "Deploying the Git server (Gitea): service repositories, their pipelines and the platform repository"
+publish < "$ROOT/platform/capabilities/delivery/git-server/gitea.yaml" | kubectl apply -f -
+kubectl -n platform-system rollout status deployment/gitea --timeout=180s || diagnose gitea
+# Off localhost, this script reaches the Git server through a port-forward.
+forward=""
+if [[ -z "${GIT_URL:-}" && "$PUBLIC_HOST" != localhost ]]; then
+  kubectl -n platform-system port-forward svc/gitea 13000:3000 >/dev/null 2>&1 &
+  forward=$!
+  export GIT_URL=http://localhost:13000
+  sleep 2
 fi
+# Where the platform proposes new capabilities as pull requests.
+"$ROOT/platform/capabilities/delivery/git-server/seed-platform-repo.sh"
+# The account people and agents push service changes with.
+"$ROOT/platform/capabilities/delivery/git-server/create-developer.sh"
+
+if [[ "$DELIVERY" == "true" ]]; then
+  step "Installing the delivery pipeline: Gitea Actions runner and service image registry"
+  if [[ -z "$SERVICE_IMAGE_REPOSITORY" ]]; then
+    kubectl apply -f "$ROOT/platform/capabilities/delivery/registry.yaml"
+    kubectl -n platform-system rollout status deployment/service-images --timeout=120s || diagnose service-images
+    SERVICE_IMAGE_REPOSITORY=10.43.0.200:5000/services
+    JIB_FLAGS="${JIB_FLAGS:--Djib.allowInsecureRegistries=true}"
+  fi
+  # What the pipelines of every service repository read (vars.* in .gitea/workflows).
+  "$ROOT/platform/capabilities/delivery/set-pipeline-variables.sh" \
+    PLATFORM_GIT_HOST=gitea.platform-system.svc:3000 \
+    SERVICE_IMAGE_REPOSITORY="$SERVICE_IMAGE_REPOSITORY" \
+    JIB_FLAGS="$JIB_FLAGS"
+  IMAGE="$(load_image "$RUNNER_IMAGE" "$ROOT/platform/capabilities/delivery/runner" "${RUNNER_BUILD_ARGS:-}")"
+  deploy "$ROOT/platform/capabilities/delivery/deploy" platform-starter-kit/ci-runner:dev "$IMAGE"
+  kubectl -n platform-system rollout status deployment/platform-ci-runner --timeout=180s || diagnose platform-ci-runner
+
+  step "Installing Argo CD (chart $ARGOCD_CHART_VERSION): GitOps for the service repositories"
+  helm upgrade --install argocd "$ARGOCD_CHART" --version "$ARGOCD_CHART_VERSION" \
+    --namespace argocd --create-namespace --wait --timeout 10m \
+    -f "$ROOT/platform/capabilities/delivery/argocd/values.yaml" ${ARGOCD_HELM_ARGS:-} || {
+    echo "Argo CD did not start. This is what the cluster says:"
+    kubectl -n argocd get pods -o wide || true
+    kubectl -n argocd get events --sort-by=.lastTimestamp | tail -30 || true
+    exit 1
+  }
+  kubectl apply -f "$ROOT/platform/capabilities/delivery/argocd/services.yaml"
+fi
+if [[ -n "$forward" ]]; then kill "$forward" 2>/dev/null || true; unset GIT_URL; fi
 
 if [[ "$PORTAL" == "true" ]]; then
   step "Building and deploying the developer portal (Backstage, the first build takes several minutes)"
@@ -259,6 +266,7 @@ cat <<MSG
   Developer portal (Backstage):       $(public_url 7007)
   Console (dashboard and approvals):  $(public_url 8080)
   MCP server for agents:              $(public_url 8081)/mcp
+  Platform API (CLI and channels):    $(public_url 8083) (platform/access/cli/platformctl.py)
   Portal MCP server (context):        $(public_url 7007)/api/mcp-actions/v1/context
   Git server (repositories):          $(public_url 3000) (read-only without signing in)
   Argo CD (GitOps, read-only):        $(public_url 8082)

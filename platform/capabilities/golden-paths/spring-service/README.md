@@ -2,11 +2,12 @@
 
 This is the end-to-end path for creating and running a Spring service:
 
-- `template.yaml` is the Backstage software template used by people and by the platform MCP `create_service` flow.
+- `golden-path.yaml` is the channel-neutral definition (parameters, values, repository). The [platform API](../../api/README.md) runs it for the portal, the platform MCP `create_service` tool and `platformctl`.
+- `template.yaml` is only the Backstage form; its single step sends the parameters to the platform API.
 - `skeleton/` is the repository created from that template, including the Spring structure, tests, CI pipeline, and GitOps declarations.
 - `runtime/definition.yaml` and `runtime/composition.yaml` define the Crossplane `SpringService` resource. Argo CD applies the `SpringService` declaration from `deploy/spring-service.yaml`; Crossplane reconciles it into Kubernetes workload resources.
 
-The portal image includes this directory as a build context so the template and its relative `skeleton/` remain available to Backstage at runtime.
+The portal image includes this directory as a build context for the form; the platform API image includes `skeleton/` to render it.
 
 ## Existing service repositories
 

@@ -17,11 +17,17 @@ jobs:
         run: python3 deploy/check-repository.py
       - name: Install unit test dependencies
         run: |
-          pip install -e 'platform/access/mcp[test]' -r platform/capabilities/requirements.txt
+          pip install -e 'platform/capabilities/api[test]' -e 'platform/access/mcp[test]' -r platform/capabilities/requirements.txt
       - name: Run unit tests
         run: make test
       - name: Validate capability contracts
         run: python3 platform/capabilities/tools/capctl.py validate
+      - name: Policy tests of the guardrails
+        run: |
+          source deploy/local/versions.env
+          curl -sSL "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_CLI_VERSION}/kyverno-cli_${KYVERNO_CLI_VERSION}_linux_x86_64.tar.gz" \
+            | sudo tar xz -C /usr/local/bin kyverno
+          make policies
   portal:
     name: Backstage tests and Docker build
     runs-on: ubuntu-latest
@@ -51,4 +57,7 @@ jobs:
       - name: Build MCP server and delivery runner
         run: |
           docker build -t platform-starter-kit/platform-mcp:refactor ./platform/access/mcp
+          docker buildx build --load -t platform-starter-kit/platform-api:refactor \
+            --build-context golden-paths=./platform/capabilities/golden-paths \
+            --build-context schema=./platform/capabilities/schema ./platform/capabilities/api
           docker build -t platform-starter-kit/ci-runner:refactor ./platform/capabilities/delivery/runner

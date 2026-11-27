@@ -9,7 +9,7 @@ import {
   requestTemplate,
   summarizeCapability,
 } from './capabilities';
-import { compact, definitionErrors, pullRequestBody } from './scaffolder';
+import { compact } from './scaffolder';
 
 const repo = resolve(__dirname, '../../../../../..');
 const xrd = YAML.parse(readFileSync(`${repo}/platform/capabilities/infrastructure/postgres-database/definition.yaml`, 'utf8'));
@@ -101,27 +101,15 @@ describe('capabilities', () => {
     expect(JSON.stringify(template)).not.toContain('$ref');
   });
 
-  it('accepts the example definition and explains what is wrong with a bad one', () => {
-    expect(definitionErrors(schema, definition)).toEqual([]);
-    const bad = structuredClone(definition);
-    delete bad.spec.acceptance;
-    bad.spec.guardrails.agents[0].enforcement = 'maybe';
-    const errors = definitionErrors(schema, bad);
-    expect(errors).toContain("/spec must have required property 'acceptance'");
-    expect(errors.some(e => e.startsWith('/spec/guardrails/agents/0/enforcement'))).toBe(true);
-  });
-
   it('drops what the form leaves empty', () => {
     expect(
       compact({ a: 'x', b: '', c: { d: undefined }, e: [], f: ['y', ''], g: '${{ parameters.lifecycle }}' }),
     ).toEqual({ a: 'x', f: ['y'] });
   });
 
-  it('summarizes the definition in the pull request and in the catalog', () => {
-    const body = pullRequestBody(definition, 'Ana');
-    expect(body).toContain('**PostgreSQL database** (`PostgresDatabase`), proposed by Ana');
-    expect(body).toContain('GR-3 (approval)');
-    expect(body).toContain('AC-1, AC-2, AC-3, AC-4, AC-5, AC-6');
+  // The platform API validates the definition and writes the pull request
+  // (platform/capabilities/api/tests); the portal shows open proposals.
+  it('shows a proposed capability in the catalog', () => {
     const entity = proposalEntity(definition, {
       number: 3,
       url: 'http://localhost:3000/platform/platform-starter-kit/pulls/3',

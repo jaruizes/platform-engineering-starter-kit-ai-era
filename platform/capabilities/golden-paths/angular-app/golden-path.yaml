@@ -1,0 +1,44 @@
+# The Angular application Golden Path as a platform capability. The platform
+# API runs it for every channel; template.yaml is only the portal's form.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: CodeGoldenPath
+metadata:
+  name: angular-app
+  title: Angular application
+  description: >-
+    Repository of a standalone Angular frontend with its pipeline, static image
+    and a Crossplane App resource, optionally routing /api/ to a SpringService
+    in the same environment.
+spec:
+  parameters:
+    name:
+      description: Repository and application name, for example inventory-web.
+      required: true
+      pattern: '^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$'
+    description:
+      description: What the frontend lets its users do.
+      required: true
+    owner:
+      description: Owning team (team name or group:default/<team>).
+      required: true
+      type: team
+    backendService:
+      description: Optional SpringService in the same environment; /api/ is forwarded to it.
+      type: spring-service
+      environmentParameter: environment
+    environment:
+      description: Ephemeral environment where every push to main is deployed. Empty to only create the repository.
+      type: environment
+  values:
+    name: ${{ parameters.name }}
+    description: ${{ parameters.description }}
+    owner: ${{ parameters.owner }}
+    backendService: ${{ parameters.backendService }}
+    requestedBy: ${{ requester }}
+    environment: ${{ parameters.environment }}
+  skeleton: ./skeleton
+  copyWithoutTemplating:
+    - .gitea/workflows/*
+  repository:
+    name: ${{ parameters.name }}
+    description: ${{ parameters.description }}

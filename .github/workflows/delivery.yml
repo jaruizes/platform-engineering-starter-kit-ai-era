@@ -12,6 +12,7 @@ on:
       - platform/governance/policies/**
       - platform/integrations/crossplane/**
       - platform/access/mcp/**
+      - platform/capabilities/api/**
       - platform/capabilities/golden-paths/spring-service/**
       - platform/capabilities/golden-paths/angular-app/**
       - deploy/local/**
@@ -40,7 +41,6 @@ jobs:
           python-version: "3.12"
       - name: Install the tools
         run: |
-          pip install jinja2
           curl -sSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
       - name: Create the platform (without the portal)
         run: PORTAL=false make up

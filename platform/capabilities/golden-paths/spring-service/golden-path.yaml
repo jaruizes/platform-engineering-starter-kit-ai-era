@@ -1,0 +1,55 @@
+# The Spring service Golden Path as a platform capability: what it needs and
+# how the skeleton is rendered. The platform API runs it for every channel
+# (portal form, platform MCP server, CLI); template.yaml is only the portal's form.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: CodeGoldenPath
+metadata:
+  name: spring-service
+  title: Spring service
+  description: >-
+    Repository of a Spring Boot service that follows the engineering standards
+    (backend-spring-v2), with its pipeline and, with an environment, GitOps
+    delivery together with its PostgreSQL database.
+spec:
+  parameters:
+    name:
+      description: Repository and service name, for example inventory-service.
+      required: true
+      pattern: '^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$'
+    description:
+      description: What the service does, in the domain language.
+      required: true
+    owner:
+      description: Owning team (team name or group:default/<team>).
+      required: true
+      type: team
+    basePackage:
+      description: Base Java package; the service package adds the name without dashes.
+      default: com.starterkit
+      pattern: '^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$'
+    module:
+      description: First functional module, a business capability such as records.
+      required: true
+      pattern: '^[a-z][a-z0-9]*$'
+    environment:
+      description: Ephemeral environment where every push to main is deployed. Empty to only create the repository.
+      type: environment
+  # What the skeleton sees as values.<key>. `requester` is who asked for it.
+  values:
+    name: ${{ parameters.name }}
+    description: ${{ parameters.description }}
+    owner: ${{ parameters.owner }}
+    module: ${{ parameters.module }}
+    basePackage: ${{ parameters.basePackage }}
+    rootPackage: ${{ parameters.basePackage }}.${{ parameters.name | replace('-', '') }}
+    packagePath: ${{ (parameters.basePackage + '.' + (parameters.name | replace('-', ''))) | replace('.', '/') }}
+    dbName: ${{ parameters.name | replace('-', '_') }}
+    requestedBy: ${{ requester }}
+    environment: ${{ parameters.environment }}
+  skeleton: ./skeleton
+  # GitHub-style expressions of the pipeline, not template values.
+  copyWithoutTemplating:
+    - .gitea/workflows/*
+  repository:
+    name: ${{ parameters.name }}
+    description: ${{ parameters.description }}

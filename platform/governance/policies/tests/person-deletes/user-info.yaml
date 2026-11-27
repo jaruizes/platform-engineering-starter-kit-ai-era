@@ -1,0 +1,7 @@
+# A person (or the platform team) deleting with their own identity.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: UserInfo
+metadata:
+  name: person
+userInfo:
+  username: luis

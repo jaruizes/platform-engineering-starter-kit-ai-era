@@ -23,6 +23,7 @@ locals {
     mcp     = { port = 8081, node_port = 30081, health = "/healthz" }
     git     = { port = 3000, node_port = 30300, health = "/api/healthz" }
     argocd  = { port = 8082, node_port = 30082, health = "/healthz" }
+    api     = { port = 8083, node_port = 30083, health = "/healthz" }
   }
 }
 
@@ -131,7 +132,7 @@ resource "aws_iam_role_policy_attachment" "ebs_csi" {
 resource "aws_ecr_repository" "images" {
   # The platform's own images, and the images the pipelines build for the
   # services (one repository, a tag per service and commit).
-  for_each = toset(["platform-mcp", "portal", "ci-runner", "services"])
+  for_each = toset(["platform-mcp", "platform-api", "portal", "ci-runner", "services"])
 
   name                 = "${var.name}/${each.key}"
   image_tag_mutability = "MUTABLE"

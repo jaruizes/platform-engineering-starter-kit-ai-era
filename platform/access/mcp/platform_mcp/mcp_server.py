@@ -20,7 +20,7 @@ from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from . import delivery, platform, portal, quality
+from . import delivery, platform, platform_api_client, quality
 from .platform import Denied
 
 NAME_PATTERN = re.compile(r"^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$")
@@ -50,6 +50,11 @@ def agent_name(ctx: Context | None) -> str:
     except Exception:  # noqa: BLE001 - older or stateless clients
         pass
     return "unknown-agent"
+
+
+def _requester(agent: str) -> str:
+    """How the platform API records an agent: agent:<name>, with a safe name."""
+    return "agent:" + (re.sub(r"[^A-Za-z0-9_.-]+", "-", agent).strip("-._")[:63] or "unknown-agent")
 
 
 def _check_name(value: str, field: str) -> None:
@@ -233,31 +238,23 @@ def create_service(
     _check_name(team, "team")
     if environment:
         _check_name(environment, "environment")
-        if platform.get_environment(environment) is None:
-            return {
-                "status": "failed",
-                "reason": f"Environment '{environment}' does not exist. Request it with request_environment first.",
-            }
     agent = agent_name(ctx)
-    values = {
+    parameters = {
         "name": name,
         "description": description,
-        "owner": f"group:default/{team}",
+        "owner": team,
         "basePackage": base_package,
         "module": module,
-        "requestedBy": f"agent:{agent}",
     }
     if environment:
-        values["environment"] = environment
+        parameters["environment"] = environment
+    # The platform renders the skeleton and creates the repository, as for
+    # every channel; it also checks that the environment exists.
     try:
-        portal.run_template("spring-service", values)
-    except portal.TemplateFailed as failed:
-        platform.record("RequestFailed", f"{agent} could not create service {name}: {failed}",
-                        name, warning=True, actor=agent, kind="Component")
+        created = platform_api_client.create_repository("spring-service", parameters, _requester(agent))
+    except platform_api_client.RequestFailed as failed:
         return {"status": "failed", "reason": str(failed)}
-    repository = portal.repository_url(name)
-    platform.record("RequestAccepted", f"{agent} created service {name} for team {team} from the Spring service template",
-                    name, actor=agent, kind="Component")
+    repository = created["repository"]
     deliver = (
         f" Then commit and push to main: the platform builds and deploys it to env-{environment} "
         f"(the skeleton is already on its way). Follow it with get_service_status(name='{name}', "
@@ -268,8 +265,8 @@ def create_service(
         "status": "created",
         "repository": repository,
         # With the Git server account for agents, so a push needs no prompt.
-        "clone": f"git clone {portal.push_url(name)}",
-        "catalog_entity": f"component:default/{name}",
+        "clone": f"git clone {platform_api_client.push_url(name)}",
+        "catalog_entity": created["catalogEntity"],
         "environment": environment,
         "next_step": (
             "Clone the repository, read its AGENTS.md and the engineering standards that apply to it (portal MCP "
@@ -330,27 +327,18 @@ def create_angular_app(
         raise ValueError("backend_service must be a SpringService name (lowercase letters, numbers and dashes).")
     if environment:
         _check_name(environment, "environment")
-        if platform.get_environment(environment) is None:
-            return {"status": "failed", "reason": f"Environment '{environment}' does not exist. Request it with request_environment first."}
+    if backend_service and not environment:
+        raise ValueError("backend_service needs the environment where it runs.")
     agent = agent_name(ctx)
-    values: dict[str, Any] = {
-        "name": name,
-        "description": description,
-        "owner": f"group:default/{team}",
-        "requestedBy": f"agent:{agent}",
-    }
+    parameters: dict[str, Any] = {"name": name, "description": description, "owner": team}
     if environment:
-        values["environment"] = environment
+        parameters["environment"] = environment
     if backend_service:
-        values["backendService"] = backend_service
+        parameters["backendService"] = backend_service
     try:
-        portal.run_template("angular-app", values)
-    except portal.TemplateFailed as failed:
-        platform.record("RequestFailed", f"{agent} could not create frontend {name}: {failed}",
-                        name, warning=True, actor=agent, kind="Component")
+        created = platform_api_client.create_repository("angular-app", parameters, _requester(agent))
+    except platform_api_client.RequestFailed as failed:
         return {"status": "failed", "reason": str(failed)}
-    platform.record("RequestAccepted", f"{agent} created Angular frontend {name} for team {team}",
-                    name, actor=agent, kind="Component")
     deliver = (
         f" Commit and push to main to run frontend tests and deploy App into env-{environment}. "
         f"Use get_service_status(name='{name}', environment='{environment}', resource_kind='App') to follow it."
@@ -358,9 +346,9 @@ def create_angular_app(
     )
     return {
         "status": "created",
-        "repository": portal.repository_url(name),
-        "clone": f"git clone {portal.push_url(name)}",
-        "catalog_entity": f"component:default/{name}",
+        "repository": created["repository"],
+        "clone": f"git clone {platform_api_client.push_url(name)}",
+        "catalog_entity": created["catalogEntity"],
         "environment": environment,
         "backend_service": backend_service,
         "next_step": (
@@ -394,37 +382,23 @@ def create_api_mcp_adapter(
             raise ValueError(f"{field} must be a DNS-safe lowercase name (max 40 characters).")
     _check_name(team, "team")
     _check_name(environment, "environment")
-    if platform.get_environment(environment) is None:
-        return {"status": "failed", "reason": f"Environment '{environment}' does not exist."}
-    # Avoid falsely claiming backend exists if the Golden Path wasn't deployed.
-    if not any(s.get("metadata", {}).get("name") == backend_service
-               and s.get("metadata", {}).get("namespace") == f"env-{environment}"
-               for s in platform.list_spring_services()):
-        return {"status": "failed", "reason": (
-            f"SpringService '{backend_service}' not found in env-{environment}. "
-            "Complete the REST application spec first."
-        )}
     agent = agent_name(ctx)
+    # The platform checks that the backend is deployed in that environment.
     try:
-        portal.run_template("api-mcp-adapter", {
+        created = platform_api_client.create_repository("api-mcp-adapter", {
             "name": name,
             "description": description,
-            "owner": f"group:default/{team}",
+            "owner": team,
             "backendService": backend_service,
             "environment": environment,
-            "requestedBy": f"agent:{agent}",
-        })
-    except portal.TemplateFailed as failed:
-        platform.record("RequestFailed", f"{agent} could not create API MCP adapter {name}: {failed}",
-                        name, warning=True, actor=agent, kind="Component")
+        }, _requester(agent))
+    except platform_api_client.RequestFailed as failed:
         return {"status": "failed", "reason": str(failed)}
-    platform.record("RequestAccepted", f"{agent} created read-only API MCP adapter {name}",
-                    name, actor=agent, kind="Component")
     return {
         "status": "created",
-        "repository": portal.repository_url(name),
-        "clone": f"git clone {portal.push_url(name)}",
-        "catalog_entity": f"component:default/{name}",
+        "repository": created["repository"],
+        "clone": f"git clone {platform_api_client.push_url(name)}",
+        "catalog_entity": created["catalogEntity"],
         "backend_service": backend_service,
         "environment": environment,
         "next_step": (
@@ -529,9 +503,22 @@ def get_approval_status(approval_id: str) -> dict[str, Any]:
 def delete_environment(name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Deletes an environment that is no longer needed, to free the team's budget."""
     agent = agent_name(ctx)
-    if platform.get_environment(name) is None:
+    env = platform.get_environment(name)
+    if env is None:
         return {"status": "not_found", "name": name}
-    platform.delete_environment(name)
+    # Agents only delete what agents requested; Kyverno enforces it too.
+    annotations = env.get("metadata", {}).get("annotations") or {}
+    if annotations.get(f"{platform.PREFIX}/requester-type") != "agent":
+        reason = "Agents can only delete environments that an agent requested. Ask a person to delete this one."
+        platform.record("RequestDenied", f"{agent} tried to delete environment {name}: {reason}",
+                        name, warning=True, actor=agent)
+        return {"status": "denied", "name": name, "reason": reason}
+    try:
+        platform.delete_environment(name)
+    except Denied as denied:
+        platform.record("RequestDenied", f"{agent} tried to delete environment {name}: {denied.reason}",
+                        name, warning=True, actor=agent)
+        return {"status": "denied", "name": name, "reason": denied.reason}
     platform.record("EnvironmentDeleted", f"{agent} deleted environment {name}", name, actor=agent)
     return {"status": "deleted", "name": name}
 

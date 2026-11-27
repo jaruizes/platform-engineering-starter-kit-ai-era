@@ -63,9 +63,11 @@ def test_remote_mcp_template_deploys_private_kubernetes_service():
 
 
 def test_remote_mcp_template_keeps_scaffolder_workflow_expressions_untouched():
+    # The platform renders the skeleton (golden-path.yaml); the portal form only asks.
+    golden_path = (ROOT / "platform/capabilities/golden-paths/api-mcp-adapter/golden-path.yaml").read_text()
+    assert "copyWithoutTemplating:" in golden_path
+    assert ".gitea/workflows/*" in golden_path
     template = (ROOT / "platform/capabilities/golden-paths/api-mcp-adapter/template.yaml").read_text()
-    assert "copyWithoutTemplating:" in template
-    assert ".gitea/workflows/*" in template
     assert "required: [environment]" in template
     project = (ROOT / "platform/capabilities/delivery/argocd/services.yaml").read_text()
     assert "kind: Deployment" in project

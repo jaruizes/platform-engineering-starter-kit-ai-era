@@ -228,7 +228,12 @@ def list_environments() -> list[dict[str, Any]]:
 
 
 def delete_environment(name: str) -> None:
-    _custom().delete_cluster_custom_object(GROUP, VERSION, "environments", name)
+    try:
+        _custom().delete_cluster_custom_object(GROUP, VERSION, "environments", name)
+    except ApiException as err:
+        if is_policy_denial(err):
+            raise Denied(denial_reason(err)) from err
+        raise
 
 
 def create_spring_service(namespace: str, name: str, image: str | None, replicas: int, agent: str | None) -> dict[str, Any]:
@@ -540,7 +545,7 @@ def record(
 
 def list_activity(limit: int = 50) -> list[dict[str, Any]]:
     events = _core().list_namespaced_event(NAMESPACE).items
-    events = [e for e in events if e.source and e.source.component in ("platform-mcp", "platform-console", "platform-portal")]
+    events = [e for e in events if e.source and e.source.component in ("platform-mcp", "platform-console", "platform-portal", "platform-api")]
     events.sort(key=lambda e: e.last_timestamp or e.metadata.creation_timestamp, reverse=True)
     return [
         {
@@ -550,6 +555,7 @@ def list_activity(limit: int = 50) -> list[dict[str, Any]]:
             "subject": e.involved_object.name,
             "message": e.message,
             "actor": (e.metadata.annotations or {}).get(f"{PREFIX}/actor", ""),
+            "requester_type": (e.metadata.annotations or {}).get(f"{PREFIX}/requester-type", ""),
             "warning": e.type == "Warning",
         }
         for e in events[:limit]
@@ -563,7 +569,12 @@ def compute_metrics(
     environments: list[dict[str, Any]], approvals: list[dict[str, Any]], activity: list[dict[str, Any]]
 ) -> dict[str, Any]:
     """AI-era metrics from the deck: governance, cost and value of agent work."""
-    agent_requests = [a for a in activity if a["component"] == "platform-mcp" and a["action"].startswith("Request")]
+    # Agent requests: through the MCP server, or through the platform API on behalf of an agent.
+    agent_requests = [
+        a for a in activity
+        if a["action"].startswith("Request")
+        and (a["component"] == "platform-mcp" or a.get("requester_type") == "agent")
+    ]
     first_time = [a for a in agent_requests if a["action"] == "RequestAccepted"]
     denied = [a for a in agent_requests if a["action"] in ("RequestDenied", "RequestNeedsApproval")]
     by_agent = [e for e in environments if e["requester_type"] == "agent"]

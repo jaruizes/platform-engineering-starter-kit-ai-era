@@ -98,8 +98,8 @@ Kyverno only sees what is **created or updated** in the Kubernetes API. Many pla
 | Operation (platform MCP tool) | What it touches | Checked by Kyverno today? |
 |---|---|---|
 | `request_environment`, `deploy_service`, `request_capability` | Crossplane resources (create) | Yes |
-| `delete_environment` | Crossplane resource (delete) | **No**: the policies match `CREATE` and `UPDATE` only. Any agent can delete any team's environment |
-| `create_service`, `create_angular_app`, `create_api_mcp_adapter` | Backstage scaffolder, Gitea repository, catalog | **No**, except the `SpringService`/`App` that GitOps delivers later |
+| `delete_environment` | Crossplane resource (delete) | **Yes, since increment 0**: the `agent-deletes` policy only lets agents delete what an agent requested. Team scope comes with increment A |
+| `create_service`, `create_angular_app`, `create_api_mcp_adapter` | Platform API, Gitea repository | **No**, except the `SpringService`/`App` that GitOps delivers later |
 | Approve or reject a request | Approval ConfigMap, then a create as `platform-console` | Only the final create |
 | `list_environments`, `get_environment`, `get_capability_request`, `get_service_status`, `get_approval_status` | Reads from Kubernetes, Argo CD, pipelines | **No** (reads never go through admission) |
 | `get_quality_status` | Reads from Gitea | **No** |
@@ -117,6 +117,15 @@ Infrastructure Golden Paths are channel-independent: their API is Crossplane, an
 | Context for agents (owners, standards, team usage) | **No**: it is the portal MCP server |
 
 This contradicts the principle that the portal is an interface, not the platform: a zero-UI setup, or a different portal (Red Hat Developer Hub, a custom one), would lose those capabilities. It is also why authorization cannot live in one place today. The platform API in section 3 fixes both.
+
+> **Status: increment 0 is implemented** (section 10). Code Golden Paths and capability proposals are now operations of the [platform API](../platform/capabilities/api/README.md). The table below is what works without Backstage after increment 0.
+
+| Capability | Works without Backstage after increment 0? |
+|---|---|
+| Environments, deployment, databases, approvals, delivery and quality status | Yes (unchanged) |
+| New Spring service, Angular app, API-to-MCP adapter | **Yes**: the MCP tools and [`platformctl`](../platform/access/cli/README.md) call the platform API, which renders the skeleton and creates the repository in Gitea. Gitea is always installed, also with `PORTAL=false` |
+| Propose a new platform capability | **Yes**: `POST /v1/capability-proposals`, from the portal or `platformctl propose`. Agents cannot propose (people decide what the platform needs) |
+| Context for agents (owners, standards, team usage) | Still the portal MCP server. The standards are files in the repository that any agent can read |
 
 ---
 
@@ -215,7 +224,17 @@ Consequences for each channel:
 - **CLI:** a thin client of the same API, for automation and people who prefer the terminal.
 - **Zero-UI:** an MCP client and the CLI are enough to use every capability. The portal is optional.
 
-Where it lives in the repository (proposal): `platform/capabilities/api/`, as part of the Core Engineering layer, with the MCP server and the console reduced to adapters in `platform/access/`.
+Where it lives in the repository: [`platform/capabilities/api/`](../platform/capabilities/api/README.md), as part of the Core Engineering layer, with the MCP server, the CLI and the portal as adapters in `platform/access/`.
+
+What increment 0 built, and what it left for later:
+
+| Part | Increment 0 | Later |
+|---|---|---|
+| Code Golden Paths | In the platform API. Each Golden Path has a channel-neutral `golden-path.yaml` (parameters, values, repository); the Backstage `template.yaml` is only the form, with one step `platform:golden-path:create` | — |
+| Capability proposals | In the platform API (`platform:capability:propose` calls it) | — |
+| Channels | Portal, MCP server and `platformctl` call the API with a shared token (`PLATFORM_API_TOKEN`) and state the requester | Keycloak tokens (increment A) |
+| Environments, deployment, approvals, reads | Still in the MCP server package and the console, which work without Backstage | Move into the API with authorization (increment A) |
+| Delete rule | Kyverno `agent-deletes` and the same check in `delete_environment` | Team scope (increment A) |
 
 ---
 
@@ -469,7 +488,7 @@ The scenarios use the sample organization of the demo: **Ana** (`platform-team`,
 | 8 | A client sends `on-behalf-of` or `approved-by` in its own request | MCP or direct | Any | Ignored (identity comes from the token) and **denied** by `protect-audit-trail` if it reaches Kubernetes | — |
 | 9 | Marta's agent lists environments | MCP | `sub=marta` | Only checkout environments are returned | — |
 | 10 | Marta's agent reads the quality status of a payments service | MCP | `sub=marta` | **Denied** by team scope, although it is not a Kubernetes resource | Denied, actor `claude-code` for `marta` |
-| 11 | Marta's agent deletes a payments environment | MCP | `sub=marta` | **Denied** by the platform API, and by Kyverno if it gets that far (today it would succeed) | Denied |
+| 11 | Marta's agent deletes a payments environment | MCP | `sub=marta` | **Denied** by the platform API, and by Kyverno if it gets that far. Since increment 0, agents can only delete environments that an agent requested; team scope arrives with increment A | Denied |
 | 12 | Zero-UI: Backstage is not deployed and Marta's agent creates a Spring service | MCP | `sub=marta` | Created: the platform API renders the skeleton and creates the repository. It appears in the catalog when a portal is added | requested-by `claude-code`, on-behalf-of `marta` |
 | 13 | Nightly `ci-agent` (owner team checkout) cleans and recreates an environment | MCP | Client credentials, `azp=ci-agent`, owner `checkout` | Created, only for checkout | requested-by `ci-agent`, type `agent`, no person |
 | 14 | Coordinator with three subagents implements a spec for Marta | MCP | Exchanged tokens, `sub=marta`, `act` chain | Each subagent limited to Marta's teams and the agent guardrails | agent-chain `tests > agent-platform`, on-behalf-of `marta` |
@@ -544,11 +563,11 @@ The zero-UI story (scenario 12) can close the demo: the same capabilities with t
 
 ## 10. Implementation plan
 
-Three increments, each usable on its own. No code is changed by this document.
+Three increments, each usable on its own. **Increment 0 is implemented**; A and B are pending.
 
 | Increment | Scope | Repository areas | Estimate |
 |---|---|---|---|
-| **0. Platform API, channel-independent** | Extract the core from the MCP server package into a platform API; render code Golden Paths and create repositories without the Backstage scaffolder; move capability proposals and approvals into it; MCP server and console become adapters; Backstage templates call the API. Prerequisite for authorization in one place and for zero-UI | New `platform/capabilities/api/`, `platform/access/mcp/`, `platform/access/portal/plugins/`, Golden Path templates | 4–6 days |
+| **0. Platform API, channel-independent** (done) | Extract the core from the MCP server package into a platform API; render code Golden Paths and create repositories without the Backstage scaffolder; move capability proposals and approvals into it; MCP server and console become adapters; Backstage templates call the API. Prerequisite for authorization in one place and for zero-UI | New `platform/capabilities/api/`, `platform/access/mcp/`, `platform/access/portal/plugins/`, Golden Path templates | 4–6 days |
 | **A. Agents with identity** | Keycloak with the demo realm (local and AWS); OAuth resource server on the platform MCP server; token validation and the authorization model in the platform API (team scope on reads and writes, delete rule); `team-membership` Kyverno policy with tests; new annotations; `ci-agent` for `make demo-agent` | New `platform/access/identity/` (Keycloak deployment and realm export), `platform/capabilities/api/`, `platform/governance/policies/`, `deploy/install.sh`, `deploy/local`, `deploy/aws`, `.mcp.json` and client adapters | 6–8 days |
 | **B. People with identity** | Backstage OIDC sign-in, forwarding the person's token; approval rules (role and four eyes); read-only console; catalog card and AI Platform page with *on behalf of*; documentation and demo script | `platform/access/portal/`, `platform/access/mcp/platform_mcp/console.py`, `examples/scenarios/`, `README.md` | About 4 days |
 
@@ -563,15 +582,15 @@ Out of scope for this component's MVP:
 - Organization sync from Keycloak into the catalog.
 - OAuth and team scope on the portal MCP server.
 
-Checks to keep green: `python3 deploy/check-repository.py`, `make test`, the Kyverno policy tests, and the demo acts on `make up` and `make aws-up`, including with `PORTAL=false` once increment 0 is done.
+Checks to keep green: `python3 deploy/check-repository.py`, `make test`, the Kyverno policy tests, and the demo acts on `make up` and `make aws-up`, including with `PORTAL=false`. The Kyverno policy tests run with `make policies`.
 
 ---
 
 ## 11. Open questions
 
 - **Policy decision point.** Plain code with tests for the MVP, or Cedar or OPA from the start. Proposed: code first, behind one interface, so the engine can change without touching the operations.
-- **Git provider without the portal.** `PORTAL=false` also skips Gitea today. Zero-UI needs the Git server (and delivery) to be installed independently of the portal.
-- **Template format.** The skeletons use the Backstage template syntax (Nunjucks). The platform API needs a renderer compatible with it, or the skeletons move to a neutral format that Backstage forms can still use.
+- ~~**Git provider without the portal.**~~ Solved in increment 0: Gitea is always installed.
+- ~~**Template format.**~~ Solved in increment 0: the platform API renders the same `${{ }}` skeletons with a sandboxed Jinja2 environment, and the output is identical to the scaffolder's.
 - **`act` claim in Keycloak.** Standard token exchange is available in recent Keycloak versions (26.2 and later). Whether it emits the `act` claim for delegation has to be validated with the version used. If it does not, the agent platform can pass the chain and the platform API records it, with less assurance.
 - **Client registration.** Pre-created clients per agent type (proposed) or dynamic client registration. To be validated with the Claude Code version used in the demo.
 - **Issuer and hostnames.** The browser and the cluster must see the same Keycloak issuer URL (locally `localhost`, on AWS the load balancer with the demo CA), or tokens will not validate.

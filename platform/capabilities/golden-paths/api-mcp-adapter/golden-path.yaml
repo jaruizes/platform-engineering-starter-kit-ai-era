@@ -1,0 +1,45 @@
+# The API-to-MCP adapter Golden Path (Zero-UI) as a platform capability. The
+# platform API runs it for every channel; template.yaml is only the portal's form.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: CodeGoldenPath
+metadata:
+  name: api-mcp-adapter
+  title: API to MCP adapter (Zero-UI)
+  description: >-
+    Repository of a read-only Streamable HTTP MCP server for an existing REST
+    API, deployed into the same ephemeral environment as the backend.
+spec:
+  parameters:
+    name:
+      description: Repository name of the adapter.
+      required: true
+      pattern: '^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$'
+    description:
+      description: Purpose of these business tools.
+      required: true
+    owner:
+      description: Owning team (team name or group:default/<team>).
+      required: true
+      type: team
+    backendService:
+      description: The already deployed SpringService exposing GET endpoints.
+      required: true
+      type: spring-service
+      environmentParameter: environment
+    environment:
+      description: Ephemeral environment of the backend, where the adapter is deployed.
+      required: true
+      type: environment
+  values:
+    name: ${{ parameters.name }}
+    description: ${{ parameters.description }}
+    owner: ${{ parameters.owner }}
+    backendService: ${{ parameters.backendService }}
+    environment: ${{ parameters.environment }}
+    requestedBy: ${{ requester }}
+  skeleton: ./skeleton
+  copyWithoutTemplating:
+    - .gitea/workflows/*
+  repository:
+    name: ${{ parameters.name }}
+    description: ${{ parameters.description }}

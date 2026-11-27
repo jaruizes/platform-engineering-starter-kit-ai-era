@@ -96,3 +96,39 @@ spec:
         variables.keys.all(k, variables.annotations[?k].orValue('') == variables.oldAnnotations[?k].orValue(''))
       message: Requester and approval annotations cannot be changed.
       reason: Forbidden
+---
+# Agents only delete what agents requested. The platform MCP server checks
+# it first (delete_environment); this is the guarantee at the platform API
+# (Kubernetes), for every Golden Path and capability. People delete through
+# the portal or kubectl; expired environments are removed by Kyverno itself.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: agent-deletes
+  annotations:
+    policies.kyverno.io/title: Agents only delete what agents requested
+    policies.kyverno.io/description: >-
+      An AI agent cannot delete environments, services or capabilities that a
+      person requested.
+spec:
+  validationActions: [Deny]
+  evaluation:
+    background:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [platform.starterkit.dev]
+        apiVersions: ["*"]
+        operations: [DELETE]
+        resources: ["*"]
+  matchConditions:
+    - name: deleted-by-an-agent
+      expression: request.userInfo.username == 'system:serviceaccount:platform-system:platform-mcp'
+  validations:
+    - expression: >-
+        oldObject.metadata.?annotations[?'platform.starterkit.dev/requester-type'].orValue('') == 'agent'
+      messageExpression: >-
+        'Agents can only delete what an agent requested: ' + oldObject.kind + ' ' + oldObject.metadata.name +
+        ' was requested by ' +
+        oldObject.metadata.?annotations[?'platform.starterkit.dev/requested-by'].orValue('a person') + '.'
+      reason: Forbidden

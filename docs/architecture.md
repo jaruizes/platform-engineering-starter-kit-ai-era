@@ -4,8 +4,8 @@ The source tree follows the [Platform Engineering 2.0 logical architecture](../R
 
 | Layer | Source | Responsibility |
 |---|---|---|
-| Access & Experience | `platform/access/portal`, `platform/access/mcp` | Backstage experience and platform/portal MCP contracts |
-| Core Engineering | `platform/capabilities` | Golden Paths, infrastructure self-service, quality and delivery |
+| Access & Experience | `platform/access/portal`, `platform/access/mcp`, `platform/access/cli` | Channels: Backstage experience, platform/portal MCP contracts and the `platformctl` CLI. They hold no capability logic |
+| Core Engineering | `platform/capabilities` | Platform API (`platform/capabilities/api`), Golden Paths, infrastructure self-service, quality and delivery |
 | AI & Agent | `platform/ai/agent-tooling` | Agent clients, shared instructions and skills; externally managed agent execution |
 | Cognitive & Knowledge | `platform/cognitive/knowledge/standards` | Versioned engineering standards, architecture context and TechDocs |
 | Platform Governance | `platform/governance/policies` | Kyverno identity stamping, quotas, agent guardrails and audit constraints |
@@ -43,7 +43,7 @@ The refactor should preserve command behavior. Runs requiring Docker, Kubernetes
 
 ## Zero-UI business application consumption
 
-The `api-mcp-adapter` Golden Path lives in `platform/capabilities/golden-paths/api-mcp-adapter/` and is exposed by the Backstage Software Template and the platform MCP `create_api_mcp_adapter` action. It generates a Python Streamable HTTP MCP server deployed as a **private Deployment + ClusterIP Service** in the existing backend's ephemeral namespace via Gitea Actions and Argo CD. A per-user port-forward provides access to Claude Code. The server calls only approved GET endpoints through a declarative `operations.json` allowlist; Spring still owns PostgreSQL access and business logic. A local stdio fallback remains available for debugging.
+The `api-mcp-adapter` Golden Path lives in `platform/capabilities/golden-paths/api-mcp-adapter/` and is run by the platform API and exposed by the Backstage Software Template, the platform MCP `create_api_mcp_adapter` action and `platformctl`. It generates a Python Streamable HTTP MCP server deployed as a **private Deployment + ClusterIP Service** in the existing backend's ephemeral namespace via Gitea Actions and Argo CD. A per-user port-forward provides access to Claude Code. The server calls only approved GET endpoints through a declarative `operations.json` allowlist; Spring still owns PostgreSQL access and business logic. A local stdio fallback remains available for debugging.
 
 See the [two Retail Sales Insights specs](../examples/scenarios/example/specs/retail-sales-insights-01-app.md) and [fixture](../examples/scenarios/example/data/README.md). Production extensions (service auth, identity delegation, audit, rate limits, managed runtime) remain future architecture capabilities.
 

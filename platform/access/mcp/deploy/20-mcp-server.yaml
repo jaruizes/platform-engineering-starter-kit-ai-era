@@ -52,11 +52,14 @@ spec:
             # Shown by the scripted agent (make demo-agent).
             - name: CONSOLE_URL
               value: http://localhost:8080
-            # Lets create_service run the portal's Spring service template.
-            - name: PORTAL_TOKEN
+            # Code Golden Paths (create_service, create_angular_app,
+            # create_api_mcp_adapter) run in the platform API, with or without a portal.
+            - name: PLATFORM_API_URL
+              value: http://platform-api.platform-system.svc:8083
+            - name: PLATFORM_API_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: platform-mcp-portal-token
+                  name: platform-api-token
                   key: token
             # The Git server account agents push service changes with.
             - name: GIT_PUSH_USERNAME

@@ -34,10 +34,6 @@ spec:
           type: string
           pattern: '^[a-z]([-a-z0-9]{0,38}[a-z0-9])?$'
           description: The already deployed SpringService exposing GET endpoints.
-        requestedBy:
-          title: Requested by
-          type: string
-          ui:widget: hidden
     - title: Remote deployment (private Kubernetes service)
       required: [environment]
       properties:
@@ -52,33 +48,26 @@ spec:
             catalogFilter:
               kind: Resource
               spec.type: environment
+  # The platform renders the skeleton and creates the repository: this form is
+  # one channel of the api-mcp-adapter Golden Path (golden-path.yaml), like the platform
+  # MCP server and the CLI. The request is made on behalf of the signed-in person.
   steps:
-    - id: fetch
-      name: Generate the allowlisted REST-to-MCP adapter
-      action: fetch:template
+    - id: create
+      name: Create the MCP adapter repository with the API-to-MCP Golden Path
+      action: platform:golden-path:create
       input:
-        url: ./skeleton
-        values:
+        goldenPath: api-mcp-adapter
+        parameters:
           name: ${{ parameters.name }}
           description: ${{ parameters.description }}
           owner: ${{ parameters.owner }}
           backendService: ${{ parameters.backendService }}
-          environment: ${{ (parameters.environment or '').split('/') | last }}
-          requestedBy: ${{ parameters.requestedBy or user.ref }}
-        copyWithoutTemplating:
-          - .gitea/workflows/*
-    - id: publish
-      name: Create the MCP adapter repository
-      action: publish:gitea
-      input:
-        repoUrl: localhost:3000?owner=platform&repo=${{ parameters.name }}
-        description: ${{ parameters.description }}
-        defaultBranch: main
-        repoVisibility: public
+          environment: ${{ parameters.environment }}
+
   output:
     links:
       - title: Adapter repository
-        url: ${{ steps.publish.output.remoteUrl }}
+        url: ${{ steps.create.output.repositoryUrl }}
       - title: Adapter in catalog
         icon: catalog
         entityRef: component:default/${{ parameters.name }}

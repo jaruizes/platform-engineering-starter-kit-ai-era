@@ -32,7 +32,7 @@ data access and authorization. No dynamic SQL or direct DB credentials.
 2. Ask Claude Code (connected to the platform MCP) to create the
    `retail-sales-mcp` adapter for `retail-sales-insights` in `retail-demo`,
    owned by `platform-team`. The platform checks the environment and
-   backend, and runs the Backstage Scaffolder template.
+   backend, and asks the platform API to run this Golden Path (`golden-path.yaml`).
 3. Clone the Gitea repo. Replace its sample `operations.json` with reviewed
    GET operations from the backend API (for Retail use
    [retail-operations.json](../../../../examples/scenarios/example/data/retail-operations.json)).

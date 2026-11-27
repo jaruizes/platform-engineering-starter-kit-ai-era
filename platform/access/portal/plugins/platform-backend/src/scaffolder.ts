@@ -3,12 +3,9 @@ import {
   createTemplateAction,
   scaffolderActionsExtensionPoint,
 } from '@backstage/plugin-scaffolder-node';
-import Ajv2020 from 'ajv/dist/2020';
-import YAML from 'yaml';
 import { summarizeCapability } from './capabilities';
-import { GitServer } from './git';
 import { PlatformClient, PlatformDenied } from './kubernetes';
-import { capabilitySettings } from './settings';
+import { PlatformApiClient, PlatformApiError } from './platformApi';
 
 const NAME = /^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$/;
 
@@ -190,45 +187,54 @@ export function compact(value: unknown): unknown {
   return value;
 }
 
-export function definitionErrors(schema: Record<string, any>, definition: unknown): string[] {
-  const ajv = new Ajv2020({ strict: false, allErrors: true });
-  const validate = ajv.compile(schema);
-  if (validate(definition)) {
-    return [];
-  }
-  return (validate.errors ?? []).map(e => `${e.instancePath || '(root)'} ${e.message}`);
+/**
+ * Creates a repository with a code Golden Path (spring-service, angular-app,
+ * api-mcp-adapter). The platform API renders the skeleton and creates the
+ * repository; the portal only sends what the person filled in, on their behalf.
+ */
+export function createGoldenPathAction(api: PlatformApiClient) {
+  return createTemplateAction({
+    id: 'platform:golden-path:create',
+    description: 'Creates a repository with a code Golden Path of the platform, on behalf of the signed-in person.',
+    schema: {
+      input: {
+        goldenPath: z => z.string().describe('Code Golden Path, for example spring-service'),
+        parameters: z => z.record(z.any()).default({}).describe('Parameters of the Golden Path'),
+      },
+      output: {
+        repositoryUrl: z => z.string(),
+        cloneUrl: z => z.string(),
+        entityRef: z => z.string(),
+      },
+    },
+    async handler(ctx) {
+      const person = await requester(ctx);
+      // Empty optional fields mean "use the default".
+      const parameters = Object.fromEntries(
+        Object.entries(ctx.input.parameters).filter(([, v]) => v !== undefined && v !== null && v !== ''),
+      );
+      ctx.logger.info(`Asking the platform to create ${parameters.name} with the ${ctx.input.goldenPath} Golden Path`);
+      try {
+        const created = await api.createRepository(ctx.input.goldenPath, parameters, person.ref);
+        ctx.output('repositoryUrl', created.repository);
+        ctx.output('cloneUrl', created.cloneUrl);
+        ctx.output('entityRef', created.catalogEntity);
+      } catch (error) {
+        if (error instanceof PlatformApiError) {
+          throw new Error(`The platform did not create the repository: ${error.message}`);
+        }
+        throw error;
+      }
+    },
+  });
 }
 
-export function pullRequestBody(definition: any, requestedBy: string): string {
-  const { metadata, spec } = definition;
-  const rules = [...spec.guardrails.everyone, ...spec.guardrails.agents];
-  return [
-    `**${metadata.title}** (\`${spec.interface.kind}\`), proposed by ${requestedBy} from the developer portal.`,
-    '',
-    `> ${spec.purpose.problem}`,
-    '',
-    `- ${spec.interface.parameters.length} parameters: ${spec.interface.parameters.map((p: any) => `\`${p.name}\``).join(', ') || 'none'}`,
-    `- ${rules.length} guardrails: ${rules.map((r: any) => `${r.id} (${r.enforcement})`).join(', ')}`,
-    `- ${spec.acceptance.length} acceptance criteria: ${spec.acceptance.map((a: any) => a.id).join(', ')}`,
-    '',
-    '## Next steps',
-    '',
-    '1. **An agent builds it** on this branch with the `build-platform-capability` skill in `platform/ai/agent-tooling/skills/`, using Claude Code, Codex or Gemini CLI:',
-    `   _"Build the capability in this pull request"_. It never changes \`capability.yaml\`; if something is unclear it asks here.`,
-    '2. **CI checks it** against this definition (`platform/capabilities/tools/check.sh`) and writes `TRACEABILITY.md`.',
-    '3. **A person on the platform team validates it** and merges. It becomes available as experimental.',
-  ].join('\n');
-}
-
-export function createCapabilityProposalAction(
-  platform: PlatformClient,
-  schema?: Record<string, any>,
-  git?: GitServer,
-) {
+/** Proposes a new platform capability: the platform validates it and opens the pull request. */
+export function createCapabilityProposalAction(api: PlatformApiClient) {
   return createTemplateAction({
     id: 'platform:capability:propose',
     description:
-      'Opens a pull request in the platform repository with a new capability definition, for an agent to build.',
+      'Proposes a new platform capability definition; the platform opens a pull request for an agent to build.',
     schema: {
       input: {
         definition: z => z.record(z.any()).describe('The CapabilityDefinition, as filled in the form'),
@@ -240,40 +246,18 @@ export function createCapabilityProposalAction(
     },
     async handler(ctx) {
       const person = await requester(ctx);
-      if (!schema || !git) {
-        throw new Error('The portal has no platform repository configured (platform.capabilities).');
+      const definition = compact(ctx.input.definition);
+      try {
+        const proposed = await api.proposeCapability(definition, person.ref, person.name);
+        ctx.logger.info(`Opened pull request #${proposed.pullRequestNumber}: ${proposed.pullRequestUrl}`);
+        ctx.output('pullRequestUrl', proposed.pullRequestUrl);
+        ctx.output('entityRef', proposed.entityRef);
+      } catch (error) {
+        if (error instanceof PlatformApiError) {
+          throw new Error(`The platform did not accept the proposal: ${error.message}`);
+        }
+        throw error;
       }
-      const definition = compact(ctx.input.definition) as any;
-      const errors = definitionErrors(schema, definition);
-      if (errors.length) {
-        throw new Error(`The definition is not valid:\n- ${errors.join('\n- ')}`);
-      }
-      const name = definition.metadata.name;
-      const content =
-        '# Written by a platform engineer with the "New platform capability" template.\n' +
-        '# An agent builds the capability from it (build-platform-capability skill);\n' +
-        '# a person on the platform team validates the result. Agents never edit it.\n' +
-        YAML.stringify(definition, { lineWidth: 100 });
-      const email = ctx.user?.entity?.spec?.profile
-        ? ((ctx.user.entity.spec.profile as { email?: string }).email ?? 'portal@starterkit.local')
-        : 'portal@starterkit.local';
-      const pr = await git.propose({
-        name,
-        content,
-        title: `New platform capability: ${definition.metadata.title}`,
-        body: pullRequestBody(definition, person.name),
-        author: { name: person.name, email },
-      });
-      ctx.logger.info(`Opened pull request #${pr.number}: ${pr.url}`);
-      await platform.record(
-        'CapabilityProposed',
-        `${person.name} proposed the capability ${name} (pull request #${pr.number})`,
-        name,
-        person.ref,
-        'CapabilityDefinition',
-      );
-      ctx.output('pullRequestUrl', pr.url);
-      ctx.output('entityRef', `resource:default/${name}.pr-${pr.number}`);
     },
   });
 }
@@ -286,12 +270,16 @@ export const scaffolderModulePlatform = createBackendModule({
       deps: { scaffolder: scaffolderActionsExtensionPoint, config: coreServices.rootConfig },
       async init({ scaffolder, config }) {
         const platform = new PlatformClient();
-        const { schema, git } = capabilitySettings(config);
+        const api = new PlatformApiClient(
+          config.getOptionalString('platform.api.url') ?? 'http://platform-api.platform-system.svc:8083',
+          config.getOptionalString('platform.api.token'),
+        );
         scaffolder.addActions(
           createEnvironmentAction(platform),
           createServiceAction(platform),
           createCapabilityRequestAction(platform),
-          createCapabilityProposalAction(platform, schema, git),
+          createGoldenPathAction(api),
+          createCapabilityProposalAction(api),
         );
       },
     });

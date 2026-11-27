@@ -1,0 +1,33 @@
+# Environments as they are in the cluster, with the stamp of who requested them.
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: agent-load-test
+  annotations:
+    platform.starterkit.dev/requested-by: claude-code
+    platform.starterkit.dev/requester-type: agent
+spec:
+  team: checkout
+  size: small
+  ttlHours: 8
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: payments-dev
+  annotations:
+    platform.starterkit.dev/requested-by: user:default/luis
+    platform.starterkit.dev/requester-type: human
+spec:
+  team: payments
+  size: medium
+  ttlHours: 48
+---
+apiVersion: platform.starterkit.dev/v1alpha1
+kind: Environment
+metadata:
+  name: unstamped
+spec:
+  team: payments
+  size: small
+  ttlHours: 8
